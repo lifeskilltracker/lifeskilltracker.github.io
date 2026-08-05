@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | in progress — F1–F5, F8, F9, F10, F11, F16 resolved 2026-08-05; F6, F7, F12–F15, F17, F18, F19 open |
+| **Status** | in progress — F1–F5, F8–F14, F16 resolved 2026-08-05; F6, F7, F15, F17–F23 open |
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
@@ -13,8 +13,9 @@
 ## Goal
 
 `docs/ARCHITECTURE.md` no longer contradicts itself on any point an implementer must
-act on. Nineteen findings — seventeen raised during task decomposition, plus F18 and F19
-found while resolving F3 and F4 — are each resolved: amended in
+act on. Twenty-three findings — seventeen raised during task decomposition, F18 and F19
+found while resolving F3 and F4, and F20–F23 found while resolving F12–F14 — are each
+resolved: amended in
 the spec, or recorded as a deliberate tolerance with the consequence stated. After this
 task, no downstream task doc contains the phrase "the spec is silent on".
 
@@ -32,9 +33,10 @@ the PRD.
 
 ## Scope
 
-**In scope** — nineteen findings, each needing a verdict. F16 and F17 were appended
+**In scope** — twenty-three findings, each needing a verdict. F16 and F17 were appended
 2026-08-05 by the wave-2 task-doc pass and verified against the spec by the orchestrator;
-F18 and F19 were appended 2026-08-05 by the F3/F4/F5 pass and are unresolved:
+F18 and F19 were appended 2026-08-05 by the F3/F4/F5 pass and F20–F23 by the F12/F13/F14
+pass, all six unresolved:
 
 **F1 — Invariant 4 is false against the shipped constants. ✅ RESOLVED 2026-08-05 —
 amend.** §11.9 made `Δfill(0→1) ≥ Δfill(L→L+1)` an executable property test while §11.6
@@ -162,26 +164,61 @@ best-effort:** the store write happens first, a rejected pin resolves `pinned: f
 because a user near quota must still be able to start a skill. See
 `docs/SPEC-FINDINGS.md` F11.
 
-**F12 — §12.6's merge rule covers milestones only.** "Union by `uid`, newest `at` wins"
-has no analogue for the `skills` array (which has no `at` field — `startedAt` and
-`lastActivityAt` are both candidates and mean different things) or for `orphans`. Import
-is the flow F38's two-device story depends on, so the gap is reachable in ordinary use.
-*Decide:* the rule for both arrays. **Blocks T16.**
+**F12 — §12.6's merge rule covered milestones only. ✅ RESOLVED 2026-08-05 — amend.**
+"Union by `uid`, newest `at` wins" had no analogue for `skills` (no `at` field) or
+`orphans`. **Adopted:** a rule per array. `skills` merges per `treeId` field by field —
+`startedAt` earliest, `lastActivityAt` latest (present beats absent), `contentVersionSeen`
+**minimum**, `grandfathered` unchanged, and **`attainedLevel` never merged**, copied from
+the later-activity side as the provisional snapshot §12.3 already calls it. Taking the
+maximum was rejected as a ratchet §11.10 already forbids, and it is concretely wrong: if one
+device dismissed what the other completed, the honest merged level is the lower one and
+§12.3 only corrects it *on tree open* — the trees a merge touches are the ones least likely
+to be opened, so a stale 7 against a true 3 inflates a domain score by 59 points
+indefinitely. **`contentVersionSeen` enters the export file**, by the same argument §12.6
+already makes for `grandfathered`; merged as a minimum it forces §12.5's replay, without
+which a merge from an older device delivers pre-migration records into a store whose counter
+is already past the retiring release and **the pass never runs again**. `orphans` union by
+uid with the more specific `reason` winning — `at` is frozen at completion time (§12.2) and
+therefore ties on exactly the case it would have to settle. A uid live on one side and
+orphaned on the other resolves to the **milestone**, since orphaning is re-derivable from an
+append-only ledger and a discarded live record is not; that rule **must not ship without the
+forced replay**. `ImportReport` gains `orphans.updated`, `droppedForLiveRecord`, and
+`treesRewound`. See `docs/SPEC-FINDINGS.md` F12.
 
-**F13 — `moved` has a reachability hole.** A `moved` lineage entry lives in the *source*
-tree's bundle, so a record only follows its uid if the user reopens the tree the milestone
-left. A user who never reopens it keeps the record on the stale `treeId`, and the
-destination tree's "uid in neither bundle nor lineage" row would orphan it as `unknown` —
-the opposite of what §12.5 intends. *Decide:* scope the unknown-row strictly to matching
-`treeId` (the conservative reading, which leaves the record stale but intact), or give
-`moved` a manifest-level index so it applies without opening the source tree.
-**Blocks T17.**
+**F13 — `moved` had a reachability hole. ✅ RESOLVED 2026-08-05 — amend.** **Adopted:**
+both halves. The unknown-uid disposition is scoped to `record.treeId === tree.id` — free,
+and what stops the two rows claiming the same record — **and** the manifest gains a
+library-wide `moved` map (uid → destination tree id), collected by the compiler, applied by
+`store.applyMoves()` at cold start (§13.3). Repository-wide uid uniqueness (§5.4) makes a
+flat map correct, and §5.4 already names the cross-tree move as the reason that uniqueness
+exists. Scoping alone was insufficient: `MILESTONE`'s PK is the uid, so a user whose record
+is invisible to the destination tree re-ticks the milestone and **overwrites the original
+`at` and `note`** — §12.5's no-silent-deletion rule broken by the most natural response to
+the bug. A uid-keyed `TreeProgress` lookup was taken into research and withdrawn on three
+verified breakages: §11.5's frozen check is per-tree so the source tree un-grandfathers; an
+unstarted destination tree has no `SKILL` row (§11.7) so completions render and score zero;
+and the final sweep's predicate goes vacuously false, making `OrphanReason: 'unknown'` dead
+code. The index is also the only option that repairs the *source* tree without opening it and
+the only one that fires §12.5's mandatory summary. It deliberately does **not** recompute the
+source's `attainedLevel` — that needs the bundle — leaving §12.3's existing staleness
+tolerance to cover it. See `docs/SPEC-FINDINGS.md` F13.
 
-**F14 — §12.5 never states whether the migration pass is replay-safe.** A user who skips
-several content versions runs one pass against the latest bundle's accumulated `lineage`,
-not a sequence of passes. Whether the dispositions compose correctly under that — a
-`split` whose successors were later `merged`, for instance — is unaddressed. *Decide:*
-state the guarantee and the ordering rule. **Blocks T17.**
+**F14 — §12.5 never stated whether the migration pass is replay-safe. ✅ RESOLVED
+2026-08-05 — amend.** **Adopted:** the pass is a **fold over the ledger in file order**
+under four rules, with the guarantee stated — fold(1..n) equals fold(1..i) then
+fold(i+1..n), because every entry is a no-op when its subject is absent. (1) File order,
+preserved verbatim by the compiler. (2) **`merged` folds by target, not by entry** —
+`LineageEntry` carries a single `uid` (§5.2), so an *n*-into-one merge is *n* entries, and
+reading them in isolation grants the merged milestone to a user who completed only the first
+predecessor, inverting R-16's accepted loss into silent over-credit. (3) The working set is
+live `MILESTONE` records for this tree; an orphaned record leaves it permanently, which is
+what makes "no-op when absent" well defined. (4) The unknown-uid disposition is a **final
+sweep**, not a table row — applied inline it destroys records mid-fold. Frozen sets fold in
+lockstep with records rather than in a second pass. File order needed *enforcing*, not just
+stating: §5.5 bounded file-position significance to two places (now three) and nothing
+checked ordering, so **§6.4 gains a sixth check — the baseline's ledger is a prefix of the
+head's**, which also retroactively secures §12.5's existing `>` argument. That check inherits
+whatever baseline **F6** settles. See `docs/SPEC-FINDINGS.md` F14.
 
 **F15 — a cluster of small omissions**, each cheap to fix and each capable of costing an
 afternoon if hit cold:
@@ -282,6 +319,50 @@ store. **Blocks T09.** Raised 2026-08-05 while resolving F4, whose `DomainSkillR
 the field as optional and whose `DomainScore` reports `null` — that is F4 tolerating the
 ambiguity at the engine boundary, not resolving it at the store.
 
+**F20 — `split` never states the predecessor's fate, in either structure.** §12.5's table
+gives the *successors'* outcome — "**every** successor becomes complete" — and says nothing
+about the record the split consumed. Every other disposition states its subject's fate
+explicitly (`merged` orphans the predecessors, `retired` orphans, `moved` re-homes). The
+frozen-set clause has the same gap in a sharper form: "`split` **copies** the set entry to
+every successor", and a copy leaves the predecessor uid in the set — a uid now in no bundle,
+which §11.5 can never read as `complete`, so the level un-satisfies. That is the same class
+as the `moved` frozen-set defect fixed under F13, reached by a different disposition, and it
+is why the fix there was not generalized in passing. *Decide:* whether `split` deletes,
+orphans, or retains the predecessor record, and whether the frozen-set entry is copied or
+moved. **Blocks T17.** Raised 2026-08-05 while resolving F14.
+
+**F21 — `into:` has two grammars and neither is validated.** §5.4's example uses a
+tree-qualified target for `moved` (`into: [bladesmithing/c5fj92tk]`) and bare uids for
+`split` and `merged` (`into: [m3xk90ab, v8t2ncq5]`). §5.2 types the field `string[]` with no
+note of the distinction, and §12.5's `moved` row says "`treeId` updated" without saying the
+new `treeId` is parsed out of the qualified target. §6.2 rule 15 validates the entry's own
+`uid` only — nothing checks that a `moved` target names a tree that exists, or that
+`split`/`merged` targets resolve at all. F13's manifest index is built by parsing exactly
+this grammar, so it now has a consumer that will fail unhelpfully on a malformed target.
+*Decide:* the grammar per `op`, and the validation rule. **Blocks T03, T04, T17.** Raised
+2026-08-05 while resolving F13.
+
+**F22 — a started skill whose tree leaves the manifest loses its score silently.** §5.9
+contemplates removing taxonomy entries; nothing covers removing a *tree*.
+`DomainSkillRow.domain` comes from the manifest entry "never a bundle" (§14.4) and the join
+is the App Shell's, so a `SKILL` row with no manifest entry has no domain, cannot be placed,
+and drops out of §11.6's sum — a score decrease with no user action, which brushes invariant
+1 and §14.4's now-exemption-free monotonicity clause. Its milestone records are also never
+migrated (no bundle, so no pass) and never swept (the sweep is per-tree). Neither §12 nor
+§13.3 says what to do. *Decide:* whether a tree may leave the library at all, and if so
+whether its records orphan, persist unplaced, or hold their score. **Blocks T14, T16.**
+Raised 2026-08-05 while resolving F12.
+
+**F23 — nothing produces `TreeProgress`.** §11.1 and `scoreSkill` consume it (§14.4), and
+§11.9's invariant 7 depends on it reaching the engine — but `UserStateStore` (§14.5) exposes
+no accessor that returns one. §13.2 says the store holds an in-memory mirror of user state
+and names no read API for it. Related and probably the same fix: §12.2's `by-tree` index is
+declared in the ER diagram and **no prose anywhere states what reads it**. This is a
+signature an implementer must have, and F13's resolution turned on what it is, so it should
+be written down rather than left to the first task that needs it. *Decide:* the accessor's
+signature and whether it is the by-tree index's stated consumer. **Blocks T09, T11a.**
+Raised 2026-08-05 while resolving F13.
+
 **Out of scope**
 
 - PRD amendments — T00. F1 and F5 are adjacent to R-25 and R-24 respectively, and doing
@@ -294,7 +375,7 @@ ambiguity at the engine boundary, not resolving it at the store.
 ## Deliverables
 
 ```
-docs/ARCHITECTURE.md    the seventeen findings resolved in place
+docs/ARCHITECTURE.md    the twenty-three findings resolved in place
 docs/SPEC-FINDINGS.md   the decision record: finding, verdict, reason, date
 ```
 
@@ -320,6 +401,10 @@ export function domainScores(
   skills: ReadonlyArray<DomainSkillRow>,
 ): Map<DomainId, DomainScore>;
 
+// F13 — RESOLVED: the store gains a cold-start pass over the manifest's moved index
+export type MovedIndex = Manifest['moved'];              // uid → destination treeId
+applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;
+
 // F3 — RESOLVED: all eight now defined in §14.4 and §14.5
 //   DomainId, TierName, Taxonomy = Manifest['taxonomy'], DomainScore,
 //   ExportFile, OrphanReason, MigrationReport, ImportReport
@@ -328,7 +413,7 @@ export function domainScores(
 
 ## Acceptance criteria
 
-- [ ] `docs/SPEC-FINDINGS.md` records all nineteen findings with a verdict of *amend*,
+- [ ] `docs/SPEC-FINDINGS.md` records all twenty-three findings with a verdict of *amend*,
       *tolerate*, or *not a defect*, each with a reason and a date.
 - [ ] F1: §11.6's table and §11.9's invariant 4 agree. Verified by computing
       Δfill(0→1) and Δfill(1→2) from the shipped constants and checking the invariant
@@ -362,11 +447,25 @@ export function domainScores(
       *§4.4's table row, §16.3's new branch, §16.4's Phase 0 prose, and R-26.*
 - [x] F11: exactly one component is named as the caller of `pin()`, and it is one §14.1
       permits. *`lib/actions`, added to §14.1 with the two forbidden edges it implies.*
-- [ ] F12: §12.6 states a merge rule for `skills` and for `orphans`, not only milestones.
-- [ ] F13: §12.5's unknown-uid row and its `moved` row cannot both claim the same record.
+- [x] F12: §12.6 states a merge rule for `skills` and for `orphans`, not only milestones.
+      *Per-field for `skills`, `reason`-specificity for `orphans`, plus the cross-array
+      milestone-beats-orphan rule. `attainedLevel` is never merged; `contentVersionSeen` is
+      exported and merged as a minimum, which is what forces §12.5's replay.*
+- [x] F13: §12.5's unknown-uid row and its `moved` row cannot both claim the same record.
       Verified by a fixture where a milestone moves and the source tree is never reopened.
-- [ ] F14: §12.5 states whether the pass is replay-safe across skipped content versions,
-      and the ordering rule for composing dispositions.
+      *The sweep is scoped to `record.treeId === tree.id`, so it cannot reach a re-homed
+      record; the manifest's `moved` map re-homes it at cold start without the source
+      bundle. T17 owns the fixture.*
+- [x] F14: §12.5 states whether the pass is replay-safe across skipped content versions,
+      and the ordering rule for composing dispositions. *A fold in file order;
+      fold(1..n) = fold(1..i) ∘ fold(i+1..n); `merged` groups by target; the unknown-uid
+      disposition is a final sweep. §6.4 check 6 enforces the ordering.*
+- [ ] F20: §12.5 states the predecessor's fate under `split`, in both the record table and
+      the frozen-set clause.
+- [ ] F21: `into:`'s grammar is stated per `op` and validated.
+- [ ] F22: the spec says what becomes of a started skill whose tree has left the manifest.
+- [ ] F23: `TreeProgress` has a named producer with a signature, and §12.2's `by-tree`
+      index has a stated consumer.
 - [ ] F15: every item in the cluster is either fixed in the spec or recorded as tolerated.
 - [x] F16: §9.3 and §16.4 agree on what produces node state in Phase 0. Verified by
       reading §16.4's Phase 0 prose and confirming that every state T10's gate requires

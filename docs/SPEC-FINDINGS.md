@@ -1,9 +1,10 @@
 # Spec Findings — Architecture Reconciliation
 
-Decision record for T26. Nineteen findings have been raised against `docs/ARCHITECTURE.md`
-during the v1 task breakdown — seventeen from the breakdown itself, plus F18 and F19 found
-while resolving F3 and F4. Each gets a verdict of **amend**, **tolerate**, or
-**not a defect**, with a reason and a date.
+Decision record for T26. Twenty-three findings have been raised against
+`docs/ARCHITECTURE.md` during the v1 task breakdown — seventeen from the breakdown itself,
+F18 and F19 found while resolving F3 and F4, and F20–F23 found while resolving F12–F14.
+Each gets a verdict of **amend**, **tolerate**, or **not a defect**, with a reason and a
+date.
 
 This file is the audit trail. The resolutions themselves live in the spec.
 
@@ -20,14 +21,18 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F9 | amend | 2026-08-05 | `schema/{compiled-tree,manifest}.schema.json`; build-time and codegen only |
 | F10 | amend | 2026-08-05 | Service worker → phase 2; pinning moves in-page; gap is R-26 |
 | F11 | amend | 2026-08-05 | `lib/actions` is the seam; pinning is best-effort |
-| F12 | — | — | pending |
-| F13 | — | — | pending |
-| F14 | — | — | pending |
+| F12 | amend | 2026-08-05 | Per-array merge rules; `attainedLevel` never merged; `contentVersionSeen` exported and minimum-wins |
+| F13 | amend | 2026-08-05 | Unknown-sweep scoped to `treeId`; manifest-level `moved` index applied at cold start |
+| F14 | amend | 2026-08-05 | The pass is a fold in file order; `merged` groups by target; the unknown row is a final sweep |
 | F15 | — | — | pending |
 | F16 | amend | 2026-08-05 | §11 splits at §11.5; §11.1–§11.4 ship in phase 0 |
 | F17 | — | — | pending |
 | F18 | — | — | pending — raised 2026-08-05 while resolving F3 |
 | F19 | — | — | pending — raised 2026-08-05 while resolving F4 |
+| F20 | — | — | pending — raised 2026-08-05 while resolving F14 |
+| F21 | — | — | pending — raised 2026-08-05 while resolving F13 |
+| F22 | — | — | pending — raised 2026-08-05 while resolving F12 |
+| F23 | — | — | pending — raised 2026-08-05 while resolving F13 |
 
 ---
 
@@ -779,6 +784,296 @@ rendering decision reached later, not a contract that has to be kept ajar now.
 copied §10.5 row and its contradiction disappears. **T20** drops the recency shimmer from its
 reduced-motion criteria and the saturation row from its never-colour-alone table. **T00** is
 unblocked either way; R-24 remains open.
+
+---
+
+## F14 — §12.5 never stated whether the migration pass is replay-safe
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+A user who skips several content versions runs **one** pass against the latest bundle's
+accumulated `lineage`, not a sequence of passes. Whether the dispositions compose correctly
+under that — a `split` whose successors were later `merged`, for instance — was unaddressed,
+and so was the ordering rule that would make them.
+
+### Resolution
+
+The pass is a **fold over the ledger in file order**, governed by four rules, and the
+guarantee is stated: applying entries 1..*n* in one pass equals applying 1..*i* then
+*i+1*..*n*. Every entry is a no-op when its subject is not in the working set, so replaying
+an entire ledger over already-migrated records changes nothing — which is what lets §12.6
+force a replay after an import.
+
+1. **File order**, preserved verbatim by the compiler (§7.3).
+2. **`merged` folds by target**, not by entry.
+3. **The working set is live `MILESTONE` records for this tree**; an orphaned record leaves
+   it permanently.
+4. **The unknown-uid disposition is a final sweep**, not a table row.
+
+### Rule 2 is the one that was actually broken
+
+`LineageEntry` carries a **single** `uid` and an `into: string[]` (§5.2), so an *n*-into-one
+merge is *n* separate entries sharing a target. §12.5's merge row is written entirely in the
+plural — "`c` becomes complete **only if every predecessor was complete**". A strict
+entry-by-entry fold reads the first entry in isolation, sees one predecessor, finds it
+complete, and **grants `c`**; the second entry then orphans the predecessor the user never
+did. That is R-16's accepted loss inverted into silent over-credit, and it is not a
+hypothetical composition problem — it fires on the ordinary two-into-one merge.
+
+It also breaks the replay guarantee at exactly the point the guarantee is for: under a
+grouping interpretation, folding both entries in one pass denies `c`, while folding them in
+two passes grants it. Rule 2 is therefore load-bearing for rule 1's claim, not an
+independent nicety.
+
+### Why file order needed enforcing, not just stating
+
+§5.5 said flatly that "file position is meaningful in exactly **two** places", and made a
+point of bounding the exception. This resolution makes it three, so the sentence is amended
+rather than quietly contradicted.
+
+More seriously, nothing enforced the ordering. §6.2 rule 15 checks only that an entry's uid
+existed in the published tree; §6.4's five checks never mentioned the ledger. A contributor
+inserting an entry mid-list would pass every gate and silently change the migration outcome
+for every user who skipped a version. §6.4 gains a **sixth check: the baseline's ledger is a
+prefix of the head's** — same entries, same order, appended to only at the end. It rides on
+the checkout and compile that job already performs. Note this also retroactively secures
+§12.5's existing `>` argument, which already assumed prefix-ness ("an older bundle carries a
+*shorter* ledger") without anything guaranteeing it.
+
+The check is phrased without naming a baseline ref, because **F6 has not yet decided whether
+that ref is `main` or a release tag**. It inherits whatever F6 settles.
+
+### Rule 4, and why it is not a table row
+
+The unknown-uid disposition reads "uid in neither bundle nor lineage". Applied inline, it
+orphans any record whose uid the ledger disposes of further down — the fold would destroy
+records mid-flight on the strength of not having read the rest of the ledger yet. It runs
+once, after the fold, and F13 additionally scopes it to records whose `treeId` is this tree.
+
+### The frozen sets fold in lockstep
+
+§12.5 gave `SKILL.grandfathered` its own conditional semantics — "`merged` replaces the
+predecessors with the successor **only if all predecessors were in the set**" — evaluated
+against the set as it stands at that entry. Nothing said whether that happened during the
+fold or in a second pass over the same ledger, and a split-then-merge sequence gives
+different answers depending. One fold, two co-evolving structures.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §5.5, §6.4, §7.3, §12.5.
+
+### Downstream
+
+**T17** implements the fold and owns the four rules; its property test is the replay
+guarantee — fold(1..n) === fold(1..i) ∘ fold(i+1..n) over generated ledgers. **T23** gains
+§6.4 check 6, and must not implement it before F6 names the baseline. **T04** preserves
+ledger order through compilation. **T02** — no type change.
+
+---
+
+## F13 — `moved` had a reachability hole
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+A `moved` lineage entry lives in the **source** tree's bundle, so a record only follows its
+uid if the user reopens the tree the milestone left. A user who never reopens it keeps the
+record on the stale `treeId`, and the destination tree's "uid in neither bundle nor lineage"
+row would orphan it as `unknown` — the opposite of what §12.5 intends.
+
+### Resolution
+
+Both halves, because they fix different failures:
+
+- **Scope the unknown-uid sweep to `record.treeId === tree.id`.** Free, and correct
+  regardless of what else is decided: it is what stops the two rows claiming the same record.
+- **Add a library-wide `moved` map to the manifest** — uid → destination tree id, collected
+  by the compiler from every tree's `moved` entries (§7.2, §7.3). `store.applyMoves()` runs
+  it at cold start (§13.3), rewriting the record's `treeId` and removing the uid from the
+  source skill's frozen sets. Idempotent by construction: after re-homing, the entry no
+  longer matches, so no seen-marker is needed.
+
+Repository-wide uid uniqueness (§5.4) is what makes a flat map correct, and §5.4 already
+names "a milestone moving between trees without any progress loss" as the reason that
+uniqueness exists. This is the mechanism that clause always implied.
+
+### Scoping alone was not enough
+
+The conservative reading — scope the sweep, leave the record stale but intact — has a hazard
+the finding did not name. `MILESTONE`'s primary key is the **uid** (§12.2). A user whose
+record is invisible to the destination tree will simply tick the milestone again, and that
+write lands on the same primary key, **overwriting the original row's `at` and `note`**.
+§12.5's "nothing is ever silently deleted from user state" is violated by the most natural
+thing the user can do about the bug.
+
+### The uid-keyed alternative, and why it lost
+
+The proposal taken into research was neither of the finding's two options: have the store
+assemble `TreeProgress` by looking records up **by uid** against the bundle's uid set, rather
+than through the `by-tree` index. A moved record would then be found by the destination tree
+with no manifest change at all. It was withdrawn after three independent breakages, each
+verified against the spec:
+
+| Breakage | Where |
+|---|---|
+| §11.5's frozen check reads `progress[uid]` from **that one tree's** `TreeProgress`. A moved uid can never appear in the source tree's map again, so every frozen level naming it un-satisfies — invariant 7 defeated with no user action | §11.5, §14.4 |
+| A destination tree the user never started has **no `SKILL` row** ("a `SKILL` row exists only once a skill is started"), so it scores 0 and contributes 0 breadth. The user would see ticked milestones worth nothing, with no explanation | §11.7, §11.6 |
+| The final sweep's predicate is "uid in neither bundle nor lineage". For a working set *defined* as "uid in this bundle", that is vacuously false for every member, so the sweep can never fire and `OrphanReason: 'unknown'` becomes dead code | §12.5, §14.5 |
+
+It also quietly deleted a property the by-tree index makes structural: that a record belongs
+to exactly **one** tree. Under §7.4's offline branch a stale source bundle and a fresh
+destination bundle can be resident at once, both containing the uid, and a uid-keyed lookup
+would count the completion toward both trees' scores.
+
+The manifest index is the only one of the three options that can repair the **source** tree
+without opening it — and it is the only one that fires §12.5's mandatory summary, since
+neither the destination tree's ledger nor a silent uid-keyed lookup produces a
+`MigrationReport` entry for a move.
+
+### What it deliberately does not fix
+
+`applyMoves` does not recompute the source tree's `attainedLevel`; that needs the source
+bundle, which the whole pass exists to avoid fetching. The value stays stale until §12.3's
+reconciliation on next open — the staleness §12.3 already bounds and accepts, arriving
+through one more door.
+
+### Cost
+
+One manifest field (~30 bytes per move, and moves are rare), one store method, one line in
+§13.3's cold-start sequence. No new module, no new edge in §14.1: `applyMoves` is the
+manifest × store join, and the App Shell already owns that join for `domainScores` (§14.4).
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §7.2, §7.3, §12.5, §13.3, §14.5.
+
+### Downstream
+
+**T17** implements `applyMoves` and the scoped sweep; its fixture is the one the acceptance
+criterion names — a milestone moves and the source tree is never reopened. **T14** calls it
+in the cold-start sequence. **T04** emits the `moved` map. **T02** picks up `MovedIndex =
+Manifest['moved']` from the manifest schema, exactly as it does `Taxonomy` (F3). **T07** —
+no change; the loader still knows nothing about user state.
+
+---
+
+## F12 — §12.6's merge rule covered milestones only
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+"Union by `uid`, newest `at` wins" has no analogue for the `skills` array — which has no `at`
+field, and whose `startedAt` and `lastActivityAt` mean different things — or for `orphans`.
+Import is the flow F38's two-device story depends on, so the gap is reachable in ordinary
+use.
+
+### Resolution
+
+A rule per array, and per field where the array's members are not single-timestamped values.
+
+**`skills`** — union by `treeId`, merged field by field: `startedAt` earliest,
+`lastActivityAt` latest (present beats absent), `contentVersionSeen` **minimum**,
+`grandfathered` per level earliest-`contentVersion` (unchanged), and `attainedLevel`
+**never merged**.
+
+**`orphans`** — union by `uid`, more specific `reason` wins, `at` breaks ties.
+
+**A uid that is a live `MILESTONE` on one side and an `ORPHAN` on the other resolves to the
+milestone**, and the orphan row is dropped.
+
+### `lastActivityAt` latest was the only available answer
+
+Not a preference: §11.7 rolls this field up to the domain as a **maximum**, and §14.4's
+monotonicity clause — which F5 stripped of its last exemption — admits no field that may
+decrease. Any rule other than latest-wins could lower it and would break a property test
+written three sections away.
+
+### `attainedLevel` is derived, and merging it is a ratchet
+
+Taking the maximum of the two sides is the obvious rule and it is wrong, for the reason
+§11.10 already gives about ratcheting: it makes an inflated value permanent and destroys the
+number's meaning. The failure is concrete. Device A has a milestone complete and stands at
+attained 4. Device B later dismisses it; §12.4 recomputes B's row in the same transaction, so
+B stands at 1. On merge, newest-`at` makes the milestone `dismissed`, which scores exactly as
+incomplete — and grandfathering does not rescue the level either, since §11.5 requires every
+frozen uid still to be `complete`. The honest merged answer is 1. `max(4, 1)` stores 4.
+
+§12.3 corrects it **on tree open**, and the trees a two-device merge touches are precisely
+the ones the receiving device is least likely to open. A stale 7 against a true 3 is a
+59-point domain-score inflation on the map (`table[7] = 91` versus `table[3] = 32`),
+indefinitely. So the field is copied from the side with the later `lastActivityAt` and left
+provisional — which is what §12.3 has always called it.
+
+Zeroing it instead was considered and declined: it cannot inflate, but it makes a
+restore-to-a-new-device look like data loss until the user opens every skill one at a time.
+
+### `contentVersionSeen` had to enter the export
+
+§12.6 argues that `grandfathered` must be exported because it is "the one piece of user state
+that cannot be reconstructed from anything else". The identical argument applies to
+`contentVersionSeen` and had never been made — a `SKILL` row could not be faithfully
+round-tripped through the file.
+
+It is load-bearing rather than tidy. §12.5's pass runs only when
+`bundle.contentVersion > contentVersionSeen`, so a merge from a device sitting two releases
+back would deliver pre-migration records into a store whose counter is already current, and
+**the pass would never run again**. A milestone retired two releases ago would arrive live,
+score nothing, and never surface as an orphan explaining itself. Merging as a **minimum**
+rewinds each touched skill to the earlier position, so the next open replays exactly the
+entries one side had not applied — safe because F14 made the fold replay-safe, and no-op for
+trees where both sides agree.
+
+The alternative was setting the field to 0 on import. It works mechanically (versions start
+at 1, so the `>` guard always passes) and needs no format change, but it makes
+`MigrationReport.fromVersion` report a version that never existed, and a twelve-skill import
+would fire twelve summaries about migrations that mutated nothing. `changed` is now pinned to
+**observed mutation** rather than "entries were evaluated" for the same reason.
+
+### The orphan tiebreak is `reason`, not `at`
+
+`at` is the wrong discriminator here, and the mistake is easy to make because it is the right
+one for milestones. §12.2 freezes `at` at completion time and never refreshes it, so two
+devices holding the same orphan carry an **identical** `at` — the rule ties on exactly the
+case it exists to settle. What legitimately differs is `reason`, since the devices may have
+migrated at different content versions. `unknown` is by construction the "could not
+determine" disposition, so it loses to both others.
+
+### Milestone-beats-orphan, and the dependency it carries
+
+Orphaning is re-derivable — the ledger is append-only and never pruned — while a live record
+discarded in favour of an orphan is not recoverable by any mechanism. Dropping the orphan row
+is not a violation of "nothing is ever silently deleted": the winning `MILESTONE` row carries
+every field the orphan did except `reason`, adds the `slug` the orphan lacks, and the drop is
+counted in `ImportReport`.
+
+**But this rule is unsafe without the forced replay above**, and the spec says so. Without
+it, a merge from an older device restores a retired milestone into a store whose
+`contentVersionSeen` is already past the retiring release, and the ledger never runs again.
+Worse, §12.6's *existing* earliest-`contentVersion`-wins rule would simultaneously take the
+older device's frozen set — which still names the retired uid, since that device never ran
+the removal — so the retirement is undone in both places at once.
+
+### `ImportReport` grew to match
+
+`orphans` was `{ added }` only, so two of the file's three arrays had outcomes the report
+could not express. It gains `updated` and `droppedForLiveRecord`, plus `treesRewound` — the
+last because a rewind schedules a migration that surfaces on a later tree open, seemingly
+unprompted, and the user should have been told it was coming.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §12.6, §14.5.
+
+### Downstream
+
+**T16** implements all three merge rules and owns the `ImportReport` fields; its round-trip
+test must now cover a skill row, not only milestones. **T17** is the beneficiary of the
+rewind and must not assume `contentVersionSeen` only ever rises. **T09** writes
+`contentVersionSeen` into the export shape. **T18** — no change.
 
 ---
 

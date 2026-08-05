@@ -44,7 +44,9 @@ it did not recognise, in a system with no telemetry to notice (§16.5, **R-15**)
 - Validation of every imported file against `schema/export.schema.json` (authored in T02)
   **before any write**.
 - `import(file, mode: 'merge' | 'replace')`:
-  - **merge** is the default — union by `uid`, newest `at` wins on conflict;
+  - **merge** is the default, with a rule per array (T26/F12, tabulated below): `milestones`
+    union by `uid` with newest `at` winning; `skills` merged field by field; `orphans` by
+    `reason` specificity; and the cross-array milestone-beats-orphan rule;
   - **replace all** exists behind an explicit confirmation;
   - an invalid file is **rejected whole, never partially applied**, reporting which field
     failed;
@@ -53,7 +55,8 @@ it did not recognise, in a system with no telemetry to notice (§16.5, **R-15**)
 - Migrating older `schemaVersion` values forward through the chain (§5.10) before merging.
 - Populating `ImportReport` — now declared in §14.5 (T26/F3): per-array added/updated
   counts, the incoming `schemaVersion` and whether it was migrated, and
-  `grandfatheredLevelsReplaced` for §12.6's earliest-version-wins merge. Exported orphans
+  `grandfatheredLevelsReplaced` for §12.6's earliest-version-wins merge, plus
+  `orphans.updated`, `droppedForLiveRecord` and `treesRewound` (T26/F12). Exported orphans
   carry `OrphanReason`, which has three members — `retired`, `merged`, `unknown` — the
   middle one being §12.5's partial-merge case, which the table produces and never names.
 - Recording `lastExportAt` in `META` on every successful export (§12.7 depends on it).
@@ -113,7 +116,8 @@ The file format, verbatim from ARCHITECTURE §12.6:
   "generated": "2026-09-14T00:00:00Z",
   "skills": [
     { "treeId": "blacksmithing", "startedAt": "2026-05-01T…",
-      "attainedLevel": 3, "lastActivityAt": "2026-08-04T…" }
+      "attainedLevel": 3, "lastActivityAt": "2026-08-04T…",
+      "contentVersionSeen": 7 }
   ],
   "milestones": [
     { "uid": "k7m2qp9x", "treeId": "blacksmithing", "slug": "light-the-forge",
@@ -127,11 +131,31 @@ The file format, verbatim from ARCHITECTURE §12.6:
 
 The import rules, verbatim from §12.6:
 
-> **Import** defaults to **merge**: union by `uid`, newest `at` wins on conflict. That is
-> what makes the two-device flow F38 implies actually work. An explicit **replace all**
-> option exists behind a confirmation for restoring a known-good backup. Import validates
-> against the export schema and migrates older `schemaVersion` values through the chain
-> (§5.10) before merging; an unreadable file is rejected whole, never partially applied.
+> **Import** defaults to **merge**. The file has three arrays and each needs its own rule.
+> **`milestones`**: union by `uid`, newest `at` wins on conflict. An explicit **replace
+> all** option exists behind a confirmation for restoring a known-good backup. Import
+> validates against the export schema and migrates older `schemaVersion` values through the
+> chain (§5.10) before merging; an unreadable file is rejected whole, never partially
+> applied.
+
+**`skills` — union by `treeId`, merged field by field, verbatim from §12.6 (T26/F12):**
+
+| Field | Rule | Why |
+|---|---|---|
+| `startedAt` | **earliest** wins | When you started is a historical fact. |
+| `lastActivityAt` | **latest** wins; present beats absent | Forced by §11.7's `max` rollup and §14.4's exemption-free monotonicity. |
+| `contentVersionSeen` | **minimum** wins | Forces §12.5's replay — see below. |
+| `grandfathered` | per level, **earliest `contentVersion`** wins | Unchanged. |
+| `attainedLevel` | **never merged** — from the side with the later `lastActivityAt` | Derived; a maximum would be a ratchet §11.10 forbids. |
+
+**`orphans`** — union by `uid`, the more specific `reason` winning (`retired` and `merged`
+both beat `unknown`), `at` breaking ties among equally specific reasons. `at` cannot be the
+primary discriminator here as it is for milestones: §12.2 freezes it at completion time, so
+two devices holding the same orphan normally carry an identical value.
+
+**A uid that is a live `MILESTONE` on one side and an `ORPHAN` on the other resolves to the
+milestone**, and the orphan row is dropped — counted as `droppedForLiveRecord`. Orphaning is
+re-derivable from an append-only ledger; a discarded live record is not.
 
 The §16.3 rows this task implements, verbatim:
 
@@ -170,6 +194,21 @@ prior**; older exports are migrated on import through the chain. Anything newer 
       assert the stored record survives.
 - [ ] Merge, union: import a file containing a uid absent from the store; assert it is
       added and that no stored uid absent from the file is removed.
+- [ ] Merge, `skills`: import a file whose skill row for `blacksmithing` has an **earlier**
+      `startedAt`, a **later** `lastActivityAt`, and a **lower** `contentVersionSeen` than
+      the stored one; assert all three fields move, and that `attainedLevel` is taken from
+      the later-`lastActivityAt` side rather than maximised. Repeat with the file's
+      `attainedLevel` **higher** but its `lastActivityAt` **earlier**, and assert the stored
+      (lower) value survives — this is F12's ratchet regression test.
+- [ ] Merge, absent `lastActivityAt`: a side with the field present beats a side without it,
+      regardless of the other fields.
+- [ ] Merge, `orphans`: import an orphan whose `reason` is `unknown` over a stored one whose
+      `reason` is `retired`, both with the same `at`; assert `retired` survives.
+- [ ] Merge, cross-array: import a file holding a uid as a live milestone that the store
+      holds as an orphan; assert the milestone wins, the `ORPHAN` row is gone, and
+      `ImportReport.orphans.droppedForLiveRecord` is 1.
+- [ ] Rewind: after any merge that lowered a `contentVersionSeen`, assert `treesRewound`
+      counts it and the stored value is the minimum of the two sides.
 - [ ] Replace: assert `import(file, 'replace')` removes stored uids absent from the file,
       and that the `/data` page requires a confirmation step before calling it — verifiable
       by a component test that asserts `import` is not called on the first click.
@@ -218,19 +257,27 @@ ceremonial — keep it, and add one per bump.
   earliest-wins now compares two versions of the same tree, which is what makes it mean
   anything.
 
-- **§12.6 defines the merge rule for milestones only.** "Union by `uid`, newest `at` wins"
-  has no analogue for `skills` (which have `startedAt` and `lastActivityAt`, not `at`) or
-  for `orphans`. The architecture is silent. The behaviour an implementer needs, and which
-  this task should adopt while recording that the spec does not state it: for `skills`, take
-  the earlier `startedAt` and the later `lastActivityAt`, and let `attainedLevel` be
-  overwritten and then reconciled on tree open (§12.3) rather than merged arithmetically;
-  for `orphans`, union by `uid` with newest `at` winning, as for milestones. Flag this in
-  the PR so it can be ratified into the spec rather than inherited by accident.
+- **~~§12.6 defines the merge rule for milestones only.~~ RESOLVED by T26/F12, 2026-08-05,
+  and this note's guess was right on two fields and wrong on a third.** Earliest `startedAt`
+  and latest `lastActivityAt` were adopted. `attainedLevel` "overwritten and then reconciled"
+  was too loose: overwritten *by which side* is the whole question, and the answer is the one
+  with the later `lastActivityAt`. Taking a maximum — the other obvious reading of
+  "overwritten" — is a ratchet §11.10 forbids and is concretely wrong when one device
+  dismissed what the other completed. The `orphans` rule was wrong outright: `at` is frozen
+  at completion time (§12.2), so it ties on exactly the conflicts it would have to settle,
+  and `reason` specificity decides instead. See `docs/SPEC-FINDINGS.md` F12.
+- **`contentVersionSeen` is now in the export, and merging it as a minimum is load-bearing —
+  T26/F12.** Without it a merge from a device two releases behind delivers pre-migration
+  records into a store whose counter is already current, and §12.5's `>` guard means the pass
+  **never runs again**: a milestone retired two releases ago arrives live, scores nothing,
+  and never surfaces as an orphan explaining itself. Minimum-wins rewinds the skill so T17's
+  pass replays on next open. Do **not** implement the milestone-beats-orphan rule without
+  this — together they resurrect a retirement; separately, one of them fixes the other.
 - **`attainedLevel` in the export is a snapshot, not a source of truth.** §12.3 makes it a
-  denormalization reconciled on tree open. An import that trusts it is fine and expected;
+  denormalization reconciled on tree open. An import that copies it is fine and expected;
   the value self-corrects the first time the tree is opened (**R-17**). Do not attempt to
   recompute it at import time — the tree bundles are not loaded and fetching them would
-  defeat N4.
+  defeat N4 — and do not compute it *arithmetically* from the two sides either.
 - **`appVersion` and `contentVersion` in the export are for archaeology, not for logic.**
   §16.1 says the app semver is "human-facing; recorded in exports for support and
   archaeology." Do not branch import behaviour on either; only `schemaVersion` gates.

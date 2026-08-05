@@ -144,7 +144,14 @@ opening the tree schema defeats §5.8.
       T26's F3 and F4 resolutions — transcribe them, do not re-derive them.
 - [ ] `Taxonomy` is **not** declared by hand. It is `Manifest['taxonomy']`, generated from
       `schema/manifest.schema.json` along with the rest of `Manifest` (T26/F3, §7.3). A
-      hand-written parallel interface re-creates exactly the drift F9 closed.
+      hand-written parallel interface re-creates exactly the drift F9 closed. **`MovedIndex`
+      is the same shape of thing** — `Manifest['moved']`, uid → destination tree id, added by
+      T26/F13 (§7.2, §14.5). Declaring either by hand is the same mistake.
+- [ ] `manifest.schema.json` requires the `moved` object (T26/F13) and `export.schema.json`
+      requires `contentVersionSeen` on every `skills[]` entry (T26/F12). Both are load-
+      bearing rather than informational: the first is how a moved record reaches its new
+      tree without the source bundle, the second is what forces §12.5's replay after an
+      import.
 - [ ] `npm run gen:types` regenerates `authored.d.ts` and produces no diff when run twice.
 - [ ] `tsc --noEmit` passes across both workspaces with `strict: true`.
 - [ ] `compiled.ts` defines `CompiledTree` and `Manifest` with the §7.3 transformations

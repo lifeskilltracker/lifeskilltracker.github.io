@@ -253,7 +253,10 @@ tasks:
     prd: [F38, N7]
     status: written
     doc: T16-export-import.md
-    note: The only contract whose consumer the project can never update.
+    note: >
+      The only contract whose consumer the project can never update. T26/F12 gave every
+      array its own merge rule; its milestone-beats-orphan rule must not ship without the
+      `contentVersionSeen` rewind that forces T17's pass to replay.
 
   - id: T17
     title: Lineage migration at load and orphan records
@@ -268,6 +271,9 @@ tasks:
     note: >
       Not named in §16.4's phase diagram but required for v1 — uids freeze at first
       merge, so user state can diverge from content from that moment on.
+      T26/F13 gave it a second entry point, `applyMoves`, called by T14's cold-start
+      sequence. Deliberately no hard T17 → T14 edge: T14 stubs it like the other
+      same-phase components it composes, rather than lengthening the critical path.
 
   - id: T18
     title: Durability, quota, and export prompting
@@ -377,12 +383,15 @@ tasks:
     status: written
     doc: T26-architecture-reconciliation.md
     note: >
-      Added 2026-08-05, not from §16.4. Nineteen spec defects surfaced by writing task
-      docs against the architecture — self-contradictions and undefined types that
+      Added 2026-08-05, not from §16.4. Twenty-three spec defects surfaced by writing
+      task docs against the architecture — self-contradictions and undefined types that
       block implementation. F2 (grandfathering has no storage) is the expensive one:
       resolving it after T09 ships means a migration rather than a field.
-      Resolved so far: F1–F5, F8–F11, F16. F18 and F19 were appended 2026-08-05 by the
-      F3/F4/F5 pass and block T13/T20 and T09 respectively.
+      Resolved so far: F1–F5, F8–F14, F16. Open: F6, F7, F15, F17–F23. F18/F19 were
+      appended by the F3/F4/F5 pass and block T13/T20 and T09; F20–F23 by the F12/F13/F14
+      pass and block T17, T03/T04/T17, T14/T16, and T09/T11a respectively.
+      Group C added a manifest field (`moved`) and an export field (`contentVersionSeen`),
+      so T02 and T04 both gained schema work — no new graph edges.
 
 # Critical path: T01 → T02 → T03 → T04 → T07 → T08 → T10 → T11b → T14 → T20
 #   T11a (§11.1–§11.4) joins T06/T07 as a T08 prerequisite — see T26 F16.

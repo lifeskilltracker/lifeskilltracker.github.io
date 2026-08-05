@@ -47,8 +47,11 @@ already passed `lst validate` (T03) — it is a transformer, not a second valida
 
 - `lst compile` subcommand, reading `content/trees/*.yaml` and `content/taxonomy/*.yaml`.
 - Manifest generation matching §7.2's shape exactly: `schemaVersion`, `contentVersion`,
-  `generated`, `taxonomy.{domains,facets,map}`, and the per-tree `trees[]` array —
-  deliberately excluding milestones.
+  `generated`, `taxonomy.{domains,facets,map}`, the per-tree `trees[]` array — deliberately
+  excluding milestones — and the library-wide **`moved`** map (T26/F13), collected by
+  scanning every tree's `lineage` for `op: moved` and parsing the `<treeId>/<uid>` target.
+  It is the one milestone-level fact the manifest carries, because a `moved` disposition is
+  unreachable from the tree that records it (§7.2).
 - Per-tree bundle generation: one JSON file per tree under `app/static/content/trees/`,
   filename carrying a content hash (§7.1).
 - All nine transformations in §7.3's table, applied to every compiled tree.
@@ -129,7 +132,10 @@ The manifest shape, copied verbatim from §7.2:
       "authors": ["A. Contributor"],
       "bundle": "trees/blacksmithing.a7f3c091.json"
     }
-  ]
+  ],
+  "moved": {
+    "c5fj92tk": "bladesmithing"    // every `op: moved` in the library — §12.5, T26/F13
+  }
 }
 ```
 
@@ -147,7 +153,8 @@ The transformation table, copied verbatim from §7.3 — this is the heart of th
 | `track` defaults resolved to the first declared track | Same |
 | Slug references resolved to array indices, slugs retained | Fast lookup without a runtime map build |
 | `detail` prose retained verbatim | It is the content |
-| `lineage` retained | The runtime migration needs it (§12.5) |
+| `lineage` retained, **in file order** | The runtime migration folds it in that order (§12.5, §5.5) |
+| Every `op: moved` collected into the manifest's `moved` map | The disposition is unreachable from the tree that records it (§7.2) |
 | Comments stripped | They are for authors |
 
 > The rule: **the compiled bundle contains no implicit values.** Every default is
@@ -177,6 +184,14 @@ The `lst` table row this task owns, copied verbatim from §6.1:
 - [ ] `requires` and requirement-group `milestones` entries resolve to array indices in
       the compiled bundle while the original slug is still present alongside the index.
 - [ ] `manifest.json` contains no `milestones` key anywhere under `trees[]`.
+- [ ] A fixture with a `moved` entry in one tree produces a `manifest.moved` entry mapping
+      that uid to the **destination** tree id, parsed out of the `<treeId>/<uid>` target;
+      trees with no `moved` entries contribute nothing and the key is `{}` rather than
+      absent. (T26/F21 — the target grammar is not yet validated anywhere; fail loudly on a
+      malformed one rather than emitting a broken map.)
+- [ ] A bundle's `lineage` array is byte-order-identical to the authored file's. T26/F14
+      makes ledger order load-bearing for the runtime migration, so any sort, re-key, or
+      map round-trip in the compiler is a correctness bug, not a style one.
 - [ ] Compiling the same unchanged tree twice in a row produces byte-identical bundle
       files (deterministic; no unstamped randomness or wall-clock value leaks into the
       hashed content).

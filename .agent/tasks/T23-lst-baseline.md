@@ -141,6 +141,9 @@ lineage:
       "the same" milestone passes (uid stability under revision is the whole point of
       D-05); a uid that reappears attached to a materially different milestone slug with
       no lineage `split`/`moved` entry fails.
+- [ ] Check 6: a fixture whose head ledger **appends** to the baseline's passes; one that
+      inserts an entry in the middle, reorders two entries, or edits an existing entry's
+      `op` or `into` fails, naming the position. (T26/F14.)
 - [ ] Check 3: a fixture where a retired slug (per a `lineage` `retired` entry) is reused
       by a *different* uid in the head fails.
 - [ ] Check 4: a fixture where a milestone's `id` changed between baseline and head with
@@ -169,6 +172,15 @@ passing fixture, the no-baseline-history case passing trivially, and the auto-fi
 producing a verifiable patch without being required to actually land it.
 
 ## Notes and hazards
+
+- **T26 F14 (2026-08-05) adds a sixth check: the baseline's `lineage` ledger is a prefix of
+  the head's** — same entries, same order, appended to only at the end. §12.5 now folds the
+  ledger in file order to compose dispositions across skipped content versions, so an entry
+  inserted mid-list, reordered, or edited in place silently changes the migration outcome for
+  every user who skipped a version — and checks 1–5 would all pass it. It rides on the
+  checkout this job already performs, so it is cheap. It also retroactively secures §12.5's
+  `>` comparison, which already assumed prefix-ness without anything guaranteeing it. Like
+  check 5, it inherits whatever **F6** settles about which ref the baseline is.
 
 - **T26 F8 (2026-08-05) adds a fifth check to this job, and a blocker.** §6.4 now also
   requires that every tree whose **compiled output** differs from the baseline has a higher

@@ -1,24 +1,71 @@
 # RESUME — T26 spec reconciliation, wave 2
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-05 after Group B. Read this, then `_BREAKDOWN.yaml`, then
+Updated 2026-08-05 after Group C. Read this, then `_BREAKDOWN.yaml`, then
 `T26-architecture-reconciliation.md`.
 
 ## Where things stand
 
 **All 27 task docs written** (`5c69e91`). **T26 is the front of the critical path** and is
-now 10 of 19 findings resolved — the count grew because Group B found two more.
+now 13 of 23 findings resolved — the count grew again because Group C found four more.
 
 | Resolved | Open |
 |---|---|
 | F1, F2 (2026-08-05, session 1) | F6, F7 |
-| F8, F9, F10, F11, F16 (session 2) | F12, F13, F14, F15, F17 |
-| F3, F4, F5 (session 3, Group B) | **F18, F19** (new, raised by Group B) |
+| F8, F9, F10, F11, F16 (session 2) | F15, F17 |
+| F3, F4, F5 (session 3, Group B) | F18, F19 (raised by Group B) |
+| F12, F13, F14 (session 4, Group C) | **F20, F21, F22, F23** (new, raised by Group C) |
 
 Resolutions are recorded in `docs/SPEC-FINDINGS.md` and amended into
 `docs/ARCHITECTURE.md`. No implementation has begun; the repository is still docs-only.
 
 **Do not use the sqz MCP tools.** The user asked for built-in Read/Grep/Bash instead.
+
+## What session 4 changed (Group C — F12, F13, F14)
+
+- **F12** — a merge rule per array. `skills` merges per `treeId` field by field:
+  `startedAt` earliest, `lastActivityAt` latest, `contentVersionSeen` **minimum**,
+  `attainedLevel` **never merged** (copied from the later-activity side). Max was rejected
+  as a ratchet §11.10 already forbids. **`contentVersionSeen` is now an export field** —
+  merging it as a minimum is what forces §12.5 to replay, without which a merge from an
+  older device delivers pre-migration records that the `>` guard means are *never*
+  migrated. `orphans` union by uid with the more specific `reason` winning (`at` is frozen
+  at completion time, so it ties). A uid live on one side and orphaned on the other resolves
+  to the **milestone** — and that rule must not ship without the rewind.
+- **F13** — both halves. The unknown-uid sweep is scoped to `record.treeId === tree.id`,
+  **and** the manifest gains a library-wide `moved` map applied by `store.applyMoves()` at
+  cold start (§13.3). Scoping alone was insufficient: `MILESTONE`'s PK is the uid, so a user
+  re-ticking an invisible milestone overwrites the original `at` and `note`. A uid-keyed
+  `TreeProgress` lookup was researched and **withdrawn** — see below.
+- **F14** — the pass is a **fold in file order** under four rules, with
+  fold(1..n) = fold(1..i) ∘ fold(i+1..n) stated. **`merged` folds by target, not by entry**
+  (`LineageEntry` carries one `uid`, so an *n*-into-one merge is *n* entries — reading them
+  in isolation inverts R-16's accepted loss into silent over-credit). The unknown-uid row
+  became a **final sweep**. File order needed enforcing, not just stating: §5.5 bounded
+  file-position significance to two places (now three) and **§6.4 gains check 6** — the
+  baseline ledger is a prefix of the head's. That check inherits whatever **F6** settles.
+- **Three defects folded in** rather than appended, because Group C could not be stated
+  without them: the multi-predecessor merge grouping, the exported `contentVersionSeen`, and
+  §12.5's `moved` frozen-set clause (which kept a departed uid in the source tree's frozen
+  set forever, un-satisfying a grandfathered level with no user action — invariant 7 defeated
+  by the mechanism meant to preserve it; `moved` now removes the uid, like `retired`).
+- **New: F20** — `split` never states the predecessor's fate, in the record table or the
+  frozen-set clause. Blocks T17. **F21** — `into:` has two grammars (`moved` is
+  tree-qualified, `split`/`merged` are bare uids) and neither is validated; F13's manifest
+  index now parses that grammar. Blocks T03, T04, T17. **F22** — a started skill whose tree
+  leaves the manifest loses its domain, its score, and its migration silently. Blocks T14,
+  T16. **F23** — nothing produces `TreeProgress`; §14.5 has no accessor and §12.2's
+  `by-tree` index has no stated consumer. Blocks T09, T11a.
+
+### The research overturn worth knowing about
+
+The proposal taken into research for F13 was neither of the finding's two options: key
+`TreeProgress` lookups by **uid** against the bundle's uid set instead of the `by-tree`
+index. It was withdrawn on three breakages, each verified against the spec — §11.5's frozen
+check is per-tree so the *source* tree un-grandfathers; an unstarted destination tree has no
+`SKILL` row (§11.7) so its completions render and score zero; and the final sweep's predicate
+goes vacuously false, making `OrphanReason: 'unknown'` dead code. **This is the third session
+running in which asking the agent for the case against first changed the answer.**
 
 ## What session 3 changed (Group B — F3, F4, F5)
 
@@ -82,13 +129,15 @@ Suggested grouping, unchanged from this session's analysis:
 | Group | Findings | Blocks | Note |
 |---|---|---|---|
 | ~~**B — engine types**~~ | ~~F3, F4, F5~~ | — | **Done, session 3.** |
-| **C — lineage & import** | F12, F13, F14 | T16, T17 | All §12.5/§12.6 record disposition. F14 is genuinely open; F8 did not close it. |
-| **D — CLI & map validation** | F6, F7, F17 | T12, T23 | Cheapest and self-contained. F6/F7 now also touch §6.4's new fifth check. |
-| **E — the omission cluster** | F15, F19 | T09 | Seven small items now (F5's sweep added §10.5's breadth mis-citation). F19 is the same class — a field whose writers are unstated — and lands in T09's territory like the rest. |
+| ~~**C — lineage & import**~~ | ~~F12, F13, F14~~ | — | **Done, session 4.** Raised F20–F23. |
+| **D — CLI & map validation** | F6, F7, F17 | T12, T23 | Cheapest and self-contained. F6/F7 now touch §6.4's fifth **and sixth** checks, and **F14's check 6 is waiting on F6** to say which ref the baseline is. |
+| **E — the omission cluster** | F15, F19, F22 | T09, T14, T16 | Seven small items plus F19. F22 (a tree leaving the manifest) is the same class of "the spec never says what happens" and lands in the same store/shell territory. |
+| **G — the lineage leftovers** | F20, F21, F23 | T03, T04, T09, T11a, T17 | New, all raised by Group C. F20 and F21 are §12.5/§5.4 and should be done together; F23 is the `TreeProgress` accessor and is arguably the most overdue of the three, since two resolutions have now turned on what it is. |
 | **F — the band vocabulary** | F18 | T13, T20 | Does not fit the others: naming the bands is a content/PRD-adjacent call, probably T00's, and it must also rename "tier" at the domain level. Ask the owner rather than deriving. |
 
-Group C is the natural next one — F12 and F13 both block T16/T17, and F14 is the last
-genuinely open question in the persistence half.
+**Group D is the natural next one** — it is the cheapest, it is self-contained, and F6 is now
+blocking a check that Group C just added to §6.4. Group G is the natural one after it, since
+it finishes the §12.5 surface Group C opened.
 
 ## Working agreements from this session
 
@@ -110,6 +159,13 @@ genuinely open question in the persistence half.
   carries the F3/F4/F5 amendments; when it splits, `DomainSkillRow`, `DomainScore` and both
   rollups go to **T11b**, and `TierName | null` goes to **T11a** (every skill starts at
   `attained: 0`, so the null case is phase 0).
+- **Group C added two fields to build artifacts**, and both are load-bearing rather than
+  informational: `manifest.moved` (T02's schema, T04 emits it) and the export file's
+  `contentVersionSeen` (T02's schema, T09 writes it, T16 merges it as a minimum). Neither
+  changed a graph edge, but both are easy to drop on the floor because the tasks that own
+  the schemas are far upstream of the tasks that need the behaviour.
+- **T14 stubs `applyMoves` if T17 has not landed.** Deliberately no hard edge — see the
+  T17 note in `_BREAKDOWN.yaml`. Do not add one without re-checking the critical path.
 - **The coherence pass across all 27 docs has not been done.** Contradictions between docs
   that touch the same file or store, `Out of scope` items naming tasks that exist,
   `blocked_by`/`blocks` symmetry. The T11a/T11b rewiring in this session is the kind of

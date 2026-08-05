@@ -42,7 +42,13 @@ and unreportable by the user — hence the mandatory visible summary.
 - `applyLineage(tree: CompiledTree): Promise<MigrationReport>` per §14.5.
 - The trigger condition: run when the bundle's `contentVersion` exceeds that skill's
   `SKILL.contentVersionSeen`, **before the tree renders** (§12.5).
-- All six rows of §12.5's disposition table, for both `complete` and `dismissed` records.
+- All six rows of §12.5's disposition table, for both `complete` and `dismissed` records,
+  executed as §12.5's **fold** — file order, `merged` grouped by target, orphaned records
+  leaving the working set, and the unknown-uid disposition as a final sweep scoped to this
+  tree's `treeId` (T26/F14, F13).
+- `applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>` — the cold-start
+  cross-tree pass over the manifest's `moved` map (§12.5, §14.5). The App Shell calls it
+  (**T14**); this task implements it.
 - The `ORPHAN` **write** path — the only place in the system that creates orphan records.
 - Carrying `state`, `at`, and `note` through every disposition, and reserving the same
   carry for `photo` in phase 2.
@@ -84,7 +90,8 @@ and unreportable by the user — hence the mandatory visible summary.
 ## Deliverables
 
 ```
-app/src/lib/state/lineage.ts            applyLineage — the §12.5 disposition table
+app/src/lib/state/lineage.ts            applyLineage — the §12.5 fold and disposition table
+app/src/lib/state/moves.ts              applyMoves — the cold-start cross-tree pass
 app/src/lib/state/lineage-types.ts      MigrationReport, OrphanReason
 app/src/lib/state/orphans.ts            ORPHAN reads/writes; "never scores" boundary
 app/src/lib/components/MigrationSummary.svelte   the one dismissible summary
@@ -128,12 +135,46 @@ task; every cell is a test.**
 |---|---|---|
 | *(no entry — reword, re-level, retrack, slug change)* | nothing; the uid is unchanged | nothing |
 | `split` into [a, b, …] | **every** successor becomes complete, copying timestamp and note | every successor becomes dismissed |
-| `merged` into [c] | `c` becomes complete **only if every predecessor was complete**; otherwise predecessors move to `ORPHAN` with notes intact | `c` dismissed only if all predecessors were |
+| `merged` into [c] *(all entries sharing target `c`, as one group)* | `c` becomes complete **only if every predecessor was complete**; otherwise predecessors move to `ORPHAN` with notes intact | `c` dismissed only if all predecessors were |
 | `retired` | record moves to `ORPHAN`, reason `retired` | same |
-| `moved` to another tree | record follows the uid; `treeId` updated | same |
-| uid in neither bundle nor lineage | record moves to `ORPHAN`, reason `unknown` | same |
+| `moved` to another tree | record follows the uid; `treeId` updated to the qualified target's tree | same |
+| **final sweep** — uid in neither bundle nor lineage, **and `treeId` is this tree** | record moves to `ORPHAN`, reason `unknown` | same |
 
 > Then `contentVersionSeen` is updated and attained level is recomputed.
+
+**The four fold rules, verbatim from §12.5 (T26/F14, 2026-08-05). These are as normative as
+the table, and three of the four change how the table is executed:**
+
+> 1. **File order.** Entries are applied in the order they appear in the bundle, which the
+>    compiler preserves verbatim (§7.3) and §6.4 check 6 enforces as append-only.
+> 2. **`merged` folds by target, not by entry.** `LineageEntry` carries one `uid` (§5.2), so
+>    an *n*-into-one merge is *n* entries sharing an `into` target. They are evaluated as
+>    **one disposition** at the position of the last of them.
+> 3. **The working set is live `MILESTONE` records for this tree.** A record that moves to
+>    `ORPHAN` leaves the working set permanently and is never re-examined by the same pass.
+> 4. **The unknown-uid disposition is a final sweep, not a table row.** It runs once, after
+>    the fold completes, over records whose `treeId` is this tree.
+
+> Applying entries 1..*n* in one pass equals applying 1..*i* and then *i+1*..*n*.
+
+Rule 2 is the one most likely to be got wrong, and it is not an edge case: a two-into-one
+merge is two entries, and reading them in isolation grants the merged milestone to a user who
+completed only the first predecessor — R-16's accepted loss inverted into silent over-credit.
+
+**The cross-tree pass, new in §12.5 and §14.5 (T26/F13):**
+
+```ts
+applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;   // MovedIndex = Manifest['moved']
+```
+
+Runs at cold start from the manifest's `moved` map, not from any bundle. For each entry whose
+uid names a record on the source tree: rewrite the record's `treeId` to the destination, and
+**remove that uid from the source skill's frozen sets**. Idempotent by construction — after
+re-homing, the entry no longer matches — so it needs no seen-marker. It does **not** update
+`contentVersionSeen` and does **not** recompute the source tree's `attainedLevel`; both need
+the source bundle, whose fetch is the entire thing this pass avoids. Its reports therefore
+carry `fromVersion === toVersion` and `attainedLevel.before === after`, and §12.3's
+reconciliation on next open corrects the level.
 
 The three rules that govern the pass, verbatim from §12.5:
 
@@ -197,7 +238,28 @@ ORPHAN {
 - [ ] `moved` updates `treeId` to the tree named in `into`'s `<treeId>/<uid>` form and
       leaves the uid, state, `at`, and `note` untouched.
 - [ ] A uid present in `MILESTONE` for this tree but in neither the bundle nor the lineage
-      moves to `ORPHAN` with `reason` exactly `unknown`.
+      moves to `ORPHAN` with `reason` exactly `unknown`. A record with the **same** uid
+      absence but a **different** `treeId` is left untouched by the same pass — the two
+      assertions belong in one test, since it is their conjunction that F13 fixed.
+- [ ] A **two-into-one merge expressed as two entries** sharing an `into` target, with only
+      the first predecessor complete, produces **no** successor record and orphans both
+      predecessors. Executed entry-by-entry this test grants the successor; it is the direct
+      regression test for §12.5's fold rule 2.
+- [ ] A ledger containing `split q → [a, b]` followed by `merged a → [c]` and `merged b →
+      [c]`, applied in one pass to a complete record for `q`, produces a complete `c`. The
+      same ledger applied in reverse order does not — assert the forward result only, and
+      keep the reversed case as a comment explaining why order is enforced by §6.4 check 6.
+- [ ] A property test over generated ledgers asserts **fold(1..n) === fold(1..i) ∘
+      fold(i+1..n)** for every split point *i*. This is F14's guarantee, and it is the one
+      criterion that fails if any disposition is not a no-op on an absent subject.
+- [ ] `applyMoves` re-homes a record whose source tree is never opened: seed a completion in
+      tree A, seed a manifest whose `moved` map sends that uid to tree B, run `applyMoves`,
+      and assert the record's `treeId` is B, its uid, state, `at` and `note` are unchanged,
+      and the uid is gone from A's `SKILL.grandfathered`. **This is F13's named fixture.**
+- [ ] `applyMoves` is idempotent: running it twice changes nothing the second time and
+      returns no report with `changed: true`.
+- [ ] `applyMoves` leaves the source skill's `contentVersionSeen` and `attainedLevel`
+      untouched, and its report carries `fromVersion === toVersion`.
 - [ ] A no-entry change — same uid, changed `title` and `slug` in the bundle — leaves the
       `MILESTONE` record **byte-identical**, confirming §12.2's frozen snapshots survive a
       migration pass as well as an ordinary write.
@@ -238,9 +300,9 @@ npm run --workspace app check
 
 Plus a sequenced fixture run: apply `fixtures/lineage/v1 → v2 → v3` in order against a
 seeded store and assert the end state equals applying them one release at a time with a
-reload between, i.e. the pass is replay-safe across skipped versions. §12.5 assumes a user
-may be many content versions behind and never says the pass is applied per intermediate
-version — this check is what makes the assumption explicit.
+reload between. **§12.5 now states this as a guarantee rather than leaving it assumed**
+(T26/F14) — the fixture run is the example, and the property test in the criteria above is
+the general case.
 
 ## Notes and hazards
 
@@ -252,15 +314,37 @@ version — this check is what makes the assumption explicit.
   into a materially different achievement silently keeps stale completions. §19.3 records
   it as accepted, mitigated only by the style rubric and two-round review. Do not add
   heuristics that compare titles.
-- **`moved` has an unresolved reachability problem.** The lineage entry lives in the *source*
-  tree's bundle, so the migration only fires when the user opens the tree the milestone left.
-  If they never open it again, the record keeps the old `treeId` indefinitely and opening the
-  *destination* tree will not find it — and, by the last table row, a record whose uid is in
-  neither that bundle nor that lineage becomes an orphan with reason `unknown`. §12.5 does
-  not address this. Two things follow for the implementer: scope the "uid in neither" rule
-  strictly to records whose `treeId` matches the tree being migrated, and do not treat a
-  missing uid in an unrelated tree as unknown. The residual gap — a `moved` record stranded
-  on an unvisited source tree — should be reported upward rather than papered over.
+- **~~`moved` has an unresolved reachability problem.~~ RESOLVED by T26/F13, 2026-08-05,
+  and this note's advice was half the answer.** Scoping the sweep to `record.treeId ===
+  tree.id` was adopted and is necessary — but it is not sufficient, because
+  `MILESTONE`'s primary key is the **uid**: a user whose record is invisible to the
+  destination tree simply re-ticks the milestone, and that write lands on the same key,
+  overwriting the original `at` and `note`. The residual gap is therefore closed rather than
+  reported upward: the manifest carries a library-wide `moved` map and `applyMoves` re-homes
+  the record at cold start. Do not build a uid-keyed `TreeProgress` lookup as an alternative
+  — it was considered and rejected on three counts (§11.5's frozen check is per-tree; an
+  unstarted destination tree has no `SKILL` row so the completions score zero; and the final
+  sweep's predicate goes vacuously false). See `docs/SPEC-FINDINGS.md` F13.
+- **The pass is a fold, and replay-safety is now a stated guarantee rather than an
+  assumption — T26/F14, 2026-08-05.** The four rules above are normative. Two consequences
+  for the implementation: the ledger must be iterated in array order and never sorted or
+  keyed into a map that loses order, and `merged` entries must be grouped by `into` target
+  *before* the fold walks them.
+- **An import can lower `contentVersionSeen` — T26/F12.** §12.6 merges the field as a
+  minimum, which deliberately rewinds a skill so this pass replays on next open. Do not
+  assume the value only ever rises, and do not treat a rewind as corruption. The replay is
+  safe by the guarantee above and usually mutates nothing, which is why `MigrationReport.
+  changed` is pinned to *observed mutation* rather than "entries were evaluated" — a
+  twelve-skill import must not produce twelve summaries.
+- **`split`'s predecessor fate is still unstated — T26/F20, open.** This document's
+  criterion below (predecessor superseded, not orphaned) is an inference from the table's
+  silence, not a quotation of it, and the frozen-set half is worse: §12.5 says `split`
+  *copies* the set entry to every successor, which leaves the predecessor uid in a set where
+  §11.5 can never read it as complete. Do not implement the frozen-set branch of `split`
+  until F20 lands.
+- **`into:`'s grammar is unvalidated — T26/F21, open.** `moved` uses `<treeId>/<uid>` while
+  `split` and `merged` use bare uids, and nothing checks either. Parse defensively and fail
+  loudly rather than producing a record on a tree id that does not exist.
 - **`contentVersion` is per-tree — T26 F8, 2026-08-05. This note previously said the
   opposite.** It is an authored integer on each tree (§5.3), so
   `contentVersion > contentVersionSeen` is true only for trees whose content actually

@@ -63,6 +63,10 @@ and with no telemetry, correctness has to be structural rather than observed.
 
 **Out of scope**
 
+- `applyMoves(moved)` — **T17** (§12.5, added by T26/F13). This task declares it in the
+  interface; T17 implements it. Note it is the one mutator that takes an argument derived
+  from the manifest, handed in by the App Shell — `lib/state` still never reaches the
+  loader (§14.1).
 - `applyLineage(tree)` and the `ORPHAN` **write** path — **T17** (§12.5). This task creates
   the `ORPHAN` store, hydrates from it, and exposes it read-only; nothing in this task ever
   puts a record into it.
@@ -101,6 +105,7 @@ export interface UserStateStore {
   setMilestoneState(uid: string, state: MilestoneState, opts?: { note?: string }): Promise<void>;
   startSkill(treeId: string): Promise<void>;
   applyLineage(tree: CompiledTree): Promise<MigrationReport>;   // §12.5
+  applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;   // §12.5, cold start
   export(): Promise<ExportFile>;
   import(file: ExportFile, mode: 'merge' | 'replace'): Promise<ImportReport>;
   storageStatus(): Promise<{ usage: number; quota: number; lastExportAt?: string }>;
@@ -275,6 +280,13 @@ and the grep showing exactly one module touching IndexedDB.
   `lastActivityAt`, `at` (§12.2, added by T26/F4). Not stylistic: §11.7's domain recency is
   a lexicographic `max` over these strings inside a pure engine, and a local-offset or
   variable-precision value sorts wrongly with no error anywhere.
+- **Nothing in the spec says how `TreeProgress` is produced — T26/F23, open.** `scoreSkill`
+  consumes it (§14.4) and §11.9's invariant 7 depends on it reaching the engine, but §14.5's
+  interface has no accessor that returns one, and §12.2's `by-tree` index has no stated
+  consumer anywhere. Do not invent the signature here; it was load-bearing for F13's
+  resolution and deserves a verdict rather than a first-implementer's guess.
+- **An import can lower `contentVersionSeen` — T26/F12.** §12.6 merges it as a minimum to
+  force T17's pass to replay. The field is not monotonic; do not add an assertion that it is.
 - **`SKILL.lastActivityAt` has an unresolved gap this task will hit — T26/F19.** §12.2
   types it non-optional, but §12.4 documents only `setMilestoneState` as a writer, so a
   started-but-untouched skill has no value for a required field; and because step 3 runs

@@ -55,6 +55,12 @@ anywhere. Refusing writes for the session is the only response that cannot destr
   `loadManifest()` and `store.hydrate()`; the three branches on manifest failure
   (success, offline-with-cache, hard failure) and the hydration-failure branch that
   refuses writes for the session; route-specific data loading after first paint.
+- **Calling `store.applyMoves(manifest.moved)` in step 3**, before domain scores are
+  derived, and rendering the reports it returns through the same migration summary T17
+  provides. Assigned here by T26/F13 for the same reason as the join below: it is the
+  manifest × store operation, and the shell is the only layer holding both (§14.1). It is
+  skipped along with every other write when hydration failed, and it runs before the
+  derivation so a re-homed record counts under the right domain on the first frame.
 - Every §16.3 error-handling row that is reachable from routing/cold-start: manifest fetch
   failure (both sub-cases), tree bundle fetch failure (isolated to that tree), the §7.5
   shape-assertion failure, IndexedDB hydration failure, IndexedDB write failure (quota).
@@ -130,7 +136,7 @@ app/src/routes/*.test.ts                       cold-start branch tests per route
 
 1. Mount shell, render layout chrome immediately — no spinner over the whole page.
 2. In parallel:  Loader.loadManifest()   ‖   store.hydrate()
-3. Both resolve → derive domain scores → render the map.
+3. Both resolve → store.applyMoves(manifest.moved) → derive domain scores → render the map.
    Manifest fails, cache available   → offline mode, render, say so (§7.4).
    Manifest fails, no cache          → cold-start failure screen (§16.3).
    Hydration fails                   → render content read-only, surface the error
