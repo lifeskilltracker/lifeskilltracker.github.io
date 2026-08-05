@@ -56,11 +56,13 @@ and a screen-reader user cannot recover any other way.
   position, converging with the narrow-viewport list fallback from T13 (§10.7).
 - The full §15.4 "never colour alone" table, verified signal by signal: milestone state
   (glyph + border, not just fill hue), domain identity (silhouette + label, not just
-  palette), domain fill level (named tier in text on focus, not just fill height), recency
-  (text in accessible name/detail panel, not just saturation), level progress (`n / m`
-  text per group, not just bar colour).
-- `prefers-reduced-motion: reduce` support: disabling the fill animation, recency shimmer,
-  and edge-highlight transitions, leaving instant state changes, with nothing in the
+  palette), domain fill level (named band in text on focus, not just fill height), recency
+  (the date in the accessible name/detail panel — it has **no** colour channel in v1, per
+  D-20 and T26/F5), level progress (`n / m` text per group, not just bar colour). The band
+  vocabulary itself is **T26/F18** and does not exist yet; this task cannot verify a name
+  it has to invent, so raise F18 rather than choosing words here.
+- `prefers-reduced-motion: reduce` support: disabling the fill animation and
+  edge-highlight transitions, leaving instant state changes, with nothing in the
   interface conveying information only through motion (§15.5).
 - Self-assessment accessibility per §15.6: F29's placement flow grouped by level with a
   running count, fully keyboard-operable, interruptible and resumable; F30's estimator
@@ -143,7 +145,7 @@ description: "Level 2. Available. Requires: light a fire and bring stock to
 | Milestone state | fill hue | glyph (✓ ○ ‧ ✕) + border style (§9.3) |
 | Domain identity | palette | region silhouette + label |
 | Domain fill level | fill height | named tier in text on focus |
-| Recency | saturation | text in the accessible name and detail panel |
+| Recency | none in v1 — it is text already (§10.5, D-20) | the date in the accessible name and detail panel |
 | Level progress | bar colour | n / m text per requirement group |
 ```
 
@@ -170,9 +172,10 @@ description: "Level 2. Available. Requires: light a fire and bring stock to
 - [ ] For each row of the §15.4 table, a test using only computed styles with colour
       properties stripped (or a `forced-colors: active` media-feature simulation) still
       distinguishes every state via the listed redundant channel (§15.4).
-- [ ] With `prefers-reduced-motion: reduce` simulated, a test asserts the fill animation,
-      recency shimmer, and edge-highlight transition classes are absent or reduced to an
-      instant state change (§15.5).
+- [ ] With `prefers-reduced-motion: reduce` simulated, a test asserts the fill animation
+      and edge-highlight transition classes are absent or reduced to an instant state
+      change (§15.5). There is no recency shimmer to assert against — T26/F5 removed it,
+      since D-20 ships recency as a date.
 - [ ] F29's placement flow is keyboard-operable end to end in a test, groups items by
       level with a running count assertion, and a test confirms the flow can be abandoned
       mid-way and resumed with prior answers intact (§15.6).

@@ -189,7 +189,9 @@ tasks:
     doc: T11b-scoring-aggregation.md
     note: >
       The §11.5–§11.8 half — frozen satisfaction, domain score, fill, recency, breadth,
-      self-assessment. Phase 1, and after T10 deliberately: §11.5 is the first point §11
+      self-assessment. T26/F4 confirms the recency roll-up is this task's, not the
+      store's: `DomainSkillRow` carries `lastActivityAt` and `DomainScore` reports the
+      per-domain maximum. Phase 1, and after T10 deliberately: §11.5 is the first point §11
       writes persisted state (`SKILL.grandfathered`), which is exactly what the schema
       gate exists to break. Monotonicity (N12) is a property test over generated inputs,
       not examples.
@@ -375,10 +377,12 @@ tasks:
     status: written
     doc: T26-architecture-reconciliation.md
     note: >
-      Added 2026-08-05, not from §16.4. Fifteen spec defects surfaced by writing task
+      Added 2026-08-05, not from §16.4. Nineteen spec defects surfaced by writing task
       docs against the architecture — self-contradictions and undefined types that
       block implementation. F2 (grandfathering has no storage) is the expensive one:
       resolving it after T09 ships means a migration rather than a field.
+      Resolved so far: F1–F5, F8–F11, F16. F18 and F19 were appended 2026-08-05 by the
+      F3/F4/F5 pass and block T13/T20 and T09 respectively.
 
 # Critical path: T01 → T02 → T03 → T04 → T07 → T08 → T10 → T11b → T14 → T20
 #   T11a (§11.1–§11.4) joins T06/T07 as a T08 prerequisite — see T26 F16.

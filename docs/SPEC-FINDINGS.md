@@ -1,7 +1,8 @@
 # Spec Findings — Architecture Reconciliation
 
-Decision record for T26. Seventeen findings were raised against `docs/ARCHITECTURE.md`
-during the v1 task breakdown. Each gets a verdict of **amend**, **tolerate**, or
+Decision record for T26. Nineteen findings have been raised against `docs/ARCHITECTURE.md`
+during the v1 task breakdown — seventeen from the breakdown itself, plus F18 and F19 found
+while resolving F3 and F4. Each gets a verdict of **amend**, **tolerate**, or
 **not a defect**, with a reason and a date.
 
 This file is the audit trail. The resolutions themselves live in the spec.
@@ -10,9 +11,9 @@ This file is the audit trail. The resolutions themselves live in the spec.
 |---|---|---|---|
 | F1 | amend | 2026-08-05 | `k = 6`, `p = 1.25`, table ×8; invariant 4 asserted against the table |
 | F2 | amend | 2026-08-05 | `SKILL.grandfathered` holds frozen uid sets; exported and lineage-migrated |
-| F3 | — | — | pending |
-| F4 | — | — | pending |
-| F5 | — | — | pending |
+| F3 | amend | 2026-08-05 | Six types defined in §14.4/§14.5; `tier` is `null` at level 0; `Taxonomy` is `Manifest['taxonomy']` |
+| F4 | amend | 2026-08-05 | `DomainSkillRow` gains `lastActivityAt`; the engine owns both rollups; the shell owns the join |
+| F5 | amend | 2026-08-05 | Exemption struck; the decay language removed from all four sites |
 | F6 | — | — | pending |
 | F7 | — | — | pending |
 | F8 | amend | 2026-08-05 | `contentVersion` is per-tree and authored; the global counter is deleted |
@@ -25,6 +26,8 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F15 | — | — | pending |
 | F16 | amend | 2026-08-05 | §11 splits at §11.5; §11.1–§11.4 ship in phase 0 |
 | F17 | — | — | pending |
+| F18 | — | — | pending — raised 2026-08-05 while resolving F3 |
+| F19 | — | — | pending — raised 2026-08-05 while resolving F4 |
 
 ---
 
@@ -548,6 +551,234 @@ breaking schema bump is where it wanted to be anyway.
 §11.5–§11.8, phase 1, blocked by T10, blocks T13/T14/T15/T17/T19. The cycle dissolves:
 `T11a → T08 → T10 → T11b`. **T08** depends on T11a and may render all five states at the
 gate. **T10**'s gate criteria can require `available` honestly.
+
+---
+
+## F3 — six named types were used and never defined
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+`TierName`, `DomainScore` and `Taxonomy` appeared only at use sites in §14.4;
+`MigrationReport`, `ImportReport` and `ExportFile` only at use sites in §14.5. Four task
+documents (T02, T09, T16, T17) independently recorded "defined nowhere — do not stub as
+`unknown`", which is the shape of a defect that would otherwise be resolved four different
+ways in four files.
+
+### Resolution
+
+All six defined, plus `DomainId` and `OrphanReason`. Two are recoveries rather than
+inventions and are worth naming as such:
+
+- **`Taxonomy` is not a new type.** §7.2's manifest already carries
+  `taxonomy: { domains, facets, map }`, and F9 made `schema/manifest.schema.json` normative
+  with `app/` generating `Manifest` from it. So `Taxonomy = Manifest['taxonomy']` — one
+  description of the shape, generated, in `lib/types`. Hand-writing a parallel interface
+  would have re-created the exact drift F9 closed. The engine reads only `domains`, and
+  reads it only to emit an entry per domain.
+- **`ExportFile` is transcription.** §12.6's worked example is complete; the type is that
+  example with the §12.2 store shapes filling in the arrays.
+
+`TierName` is §2's five F7 names. `DomainScore` and `DomainSkillRow` are F4's, below.
+
+### The `attainedLevel: 0` case
+
+`tier: TierName | null`, null exactly when `attainedLevel === 0`, displayed as *"Level 0 —
+not yet ranked"* (§11.3). Adding a sixth name — `'Unranked'` — was the tempting answer: it
+removes a null from every consumer and needs no display rule. Declined because `TierName`
+is F7's vocabulary, defined in §2 as *pairs of levels*, and a presentation vocabulary the
+PRD owns should not acquire a member the PRD never authorised. `tier?: TierName` was worse
+still: it makes "unranked" and "not computed" the same value and invites `tier ?? 'Novice'`,
+which promotes an unranked skill at the call site where nobody is looking.
+
+### Two riders found while typing the reports
+
+Both are derivations from prose that had no type to force the question:
+
+1. **`OrphanReason` has three members, not two.** §12.5 names `retired` and `unknown`
+   explicitly and then produces a third orphan in the merge row — "otherwise predecessors
+   move to `ORPHAN` with notes intact" — without naming its reason. `'merged'` is that case.
+   The alternative, folding it into `unknown`, would have made **R-16**'s accepted loss
+   indistinguishable from a record the migration could not account for, which is the one
+   thing §12.5's summary has to tell a user apart.
+2. **`MigrationReport` carries `attainedLevel` before and after.** §11.10 requires rank
+   consequences to be stated rather than discovered, and a migration is the one path that
+   changes a rank with no user action at all. A report that lists moved uids but not the
+   rank they cost would meet §12.5's letter and miss its point.
+
+### Deliberately not defined
+
+**`DomainScore` carries no band name.** §11.6 and §15.3 require a named band over `fill`,
+but the vocabulary itself is nowhere in the spec and §15.3/§15.4 call it a "tier", which
+collides with F7's skill tiers. That is a real gap and is now **F18**; it is not resolved
+here, and keeping the band out of `DomainScore` means resolving it later changes no engine
+type. The band is a presentation mapping over `fill` and belongs to the renderer.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §11.3, §14.4, §14.5.
+
+### Downstream
+
+**T02** generates or declares all eight and drops its "defined rather than stubbed" caveat.
+**T11a** consumes `TierName | null` — the null case is phase 0, since `attained: 0` is what
+every skill starts at. **T11b** owns `DomainScore`. **T08**'s `SkillHeader` must render the
+unranked state. **T09**, **T16**, **T17** import the report types instead of inventing them;
+T17 also owns `OrphanReason`.
+
+---
+
+## F4 — `domainScores` could not produce recency
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+§11.7 requires `SKILL.lastActivityAt` to roll up per domain as a maximum so a region can
+report *"Last activity — 12 March."* §14.4's signature gave `domainScores` rows of
+`{ treeId, domain, attainedLevel }`. The engine was asked for a value its inputs did not
+contain. Either the row type extends, or the rollup lives somewhere else.
+
+### Resolution
+
+**Extend the row.** `DomainSkillRow` gains `lastActivityAt?: string`; `DomainScore` carries
+`lastActivityAt: string | null` alongside `score`, `fill` and `breadth`. Breadth needs no
+new field — a `SKILL` row exists only once a skill is started, so it is the row count.
+
+### The case against extending, and why it lost
+
+The argument for moving the rollup out was put deliberately first, and two of its three
+strands are good:
+
+- **A date is not arithmetic.** Everything else in §11.6 is a function of `attainedLevel`
+  with an invariant attached; `max(lastActivityAt)` is a projection with no constant to tune.
+  Answered rather than refuted: it is one of *three* reductions over one row set, and §11.7
+  is a single subsection titled "Recency and breadth" for that reason.
+- **String comparison is a format trap.** Correct, and it survives as a requirement rather
+  than an objection — §12.2 now fixes every stored timestamp as ISO-8601 UTC with a `Z`
+  suffix, which is what makes a lexicographic `max` safe inside a pure engine. Without that
+  clause, extending the row would have handed `lib/scoring` a silent bug.
+- **"`domainScores` never reads tree content" forbids widening.** This is the one that
+  sounds strongest and is simply wrong. "Tree content" means a compiled bundle, and the
+  bullet says why: the map must render before any bundle is fetched. `domain` comes from the
+  **manifest entry** (§7.2) and `attainedLevel` from the **`SKILL` row** (§12.2) — the row
+  has always been a manifest × IndexedDB join. `lastActivityAt` lives in the same `SKILL`
+  row as `attainedLevel`, so it adds no source, no fetch, and cannot reach a bundle.
+
+What actually settled it is that **the alternative homes are forbidden by §14.1's own
+edges**:
+
+| Candidate | Verdict |
+|---|---|
+| User State Store | **Structurally impossible.** The rollup is *per domain*, and `domain` exists only in the manifest. `STATE ⇢ LOADER` is FORBIDDEN, so `lib/state` can never learn a tree's domain. |
+| Map Renderer | Forbidden twice: `COMP ⇢ STATE`, and §13.4's "no component imports the Scoring Engine directly". |
+| App Shell `$derived` | Legal — but `DomainScore` then has two producers assembled at a site with no contract and no test, and T13's already-written prop signature changes. |
+
+`T11-scoring-engine.md`'s out-of-scope line — "`lastActivityAt` roll-up is a store concern
+(§12.4, T09)" — therefore described an arrangement the dependency graph does not permit. It
+is deleted rather than ratified.
+
+### What the join costs, and who does it
+
+The shell zips manifest `trees[]` to `SKILL` rows in its `$derived` layer (§13.2) and passes
+`DomainSkillRow[]`. That join was unassigned before this finding — §3.3 wrote the call as
+`domainScores(catalogue, userState)`, matching neither the argument names nor the types in
+§14.4 — so §3.3's sequence now names the real signature and routes the result through the
+shell per §13.4 rather than drawing an engine → component arrow that §14.1 has no edge for.
+
+### A dividend
+
+With recency in `DomainScore` and non-decaying, §11.9's invariant 1 keeps its universal
+quantifier over *all* fields and F5's exemption can be struck outright rather than narrowed.
+Resolving F4 first is what makes F5 a deletion instead of a rewording.
+
+### Cost
+
+One optional field on an input row, one nullable field on an output record, one sentence in
+§12.2 pinning the timestamp format. No new task, no new graph edge: **T11b** owns it, and it
+already blocks T13.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §3.3, §11.7, §12.2, §14.4.
+
+### Downstream
+
+**T11b** implements both rollups and the null cases. **T13**'s F4 hazard is resolved and its
+props at `(manifest, Map<DomainId, DomainScore>)` are unchanged. **T09** gains the ISO-8601
+`Z` requirement on every timestamp it writes. **T14** owns the manifest × `SKILL` join in
+derived state.
+
+---
+
+## F5 — §14.4's monotonicity clause was vestigial
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+§14.4 exempted "the explicitly decaying recency channel" from monotonicity. D-20 ships a
+date with no decay and R-20 defers the graded channel to phase 2, so the exemption protected
+nothing — while advertising to an implementer that a decaying channel exists and is expected.
+
+### Two things found during resolution
+
+**§11.9 already disagreed with it.** Invariant 1 reads "Completing a milestone never
+decreases any `DomainScore` field" with no exemption at all. The clause was not merely
+vestigial; it contradicted the invariant table in the same document.
+
+**The exemption was the smallest of four sites.** The decay language was still live in three
+places an implementer is more likely to build from:
+
+| Site | Text |
+|---|---|
+| §2 glossary | Recency channel — "**the only channel permitted to decrease**" |
+| §10.5's channel table | "Saturation and a slow ambient shimmer on the outline, **decaying over time**" |
+| §15.5 | reduced-motion disables "the recency **shimmer**" |
+
+§10.5 is the one that mattered: it is a rendering table, and `T13-map-renderer.md`
+reproduces it **verbatim** in its interface contract while its own out-of-scope list forbids
+building that channel. The task document instructed and prohibited the same thing.
+
+### Resolution
+
+Strike the exemption; fix all four sites. Monotonicity now quantifies over every
+`DomainScore` field without carve-out, which is true under D-20 because a maximum over
+timestamps rises with wall-clock time and §12.4 writes `lastActivityAt` on every mutation.
+Recency occupies **no colour or motion channel in v1**: §10.5 renders a date, §15.4's
+redundancy row records that there is no colour to make redundant, and §15.5 has no shimmer
+to disable.
+
+### Reinstating it conditionally was the other option
+
+Declined. A clause that says "should R-20 ship, this exemption returns" keeps the unbuilt
+channel alive in the contract, which is the harm being fixed. R-20 carries the note instead,
+and carries it in the form that makes it unnecessary: if the graded channel ever ships, the
+decayed value is derived **in the Map Renderer** from `DomainScore.lastActivityAt` and is not
+a `DomainScore` field, so §14.4's contract and T11b's property tests are untouched.
+
+### What R-24 would change: nothing here
+
+**This resolution does not depend on R-24 and does not pre-empt it.** T00's proposed
+amendment relaxes PRD F35 to require recency to be *represented* and leaves the channel
+unspecified. If it lands, the spec stops being knowingly non-compliant with F35 (§1, §19.5)
+and D-20 becomes compliant rather than deviant — but nothing in §14.4, §10.5, §11.9 or §15.4
+changes, because all four now describe what v1 ships rather than what F35 asked for. If T00
+instead rejects the amendment and holds F35 as written, the response is to build R-20's
+graded channel, and the paragraph above says exactly where it goes. Either way this is a
+rendering decision reached later, not a contract that has to be kept ajar now.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §2, §10.5, §11.9, §14.4, §15.4, §15.5, §18 D-20, §19.1 R-20.
+
+### Downstream
+
+**T11b** asserts monotonicity over all four fields with no exemption. **T13** replaces the
+copied §10.5 row and its contradiction disappears. **T20** drops the recency shimmer from its
+reduced-motion criteria and the saturation row from its never-colour-alone table. **T00** is
+unblocked either way; R-24 remains open.
 
 ---
 

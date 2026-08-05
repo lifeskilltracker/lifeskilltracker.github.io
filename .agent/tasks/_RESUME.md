@@ -1,24 +1,50 @@
 # RESUME — T26 spec reconciliation, wave 2
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Read this, then `_BREAKDOWN.yaml`, then `T26-architecture-reconciliation.md`.
+Updated 2026-08-05 after Group B. Read this, then `_BREAKDOWN.yaml`, then
+`T26-architecture-reconciliation.md`.
 
 ## Where things stand
 
 **All 27 task docs written** (`5c69e91`). **T26 is the front of the critical path** and is
-now 7 of 17 findings resolved.
+now 10 of 19 findings resolved — the count grew because Group B found two more.
 
 | Resolved | Open |
 |---|---|
-| F1, F2 (2026-08-05, earlier session) | F3, F4, F5, F6, F7 |
-| F8, F9, F10, F11, F16 (2026-08-05, this session) | F12, F13, F14, F15, F17 |
+| F1, F2 (2026-08-05, session 1) | F6, F7 |
+| F8, F9, F10, F11, F16 (session 2) | F12, F13, F14, F15, F17 |
+| F3, F4, F5 (session 3, Group B) | **F18, F19** (new, raised by Group B) |
 
 Resolutions are recorded in `docs/SPEC-FINDINGS.md` and amended into
 `docs/ARCHITECTURE.md`. No implementation has begun; the repository is still docs-only.
 
 **Do not use the sqz MCP tools.** The user asked for built-in Read/Grep/Bash instead.
 
-## What this session changed
+## What session 3 changed (Group B — F3, F4, F5)
+
+- **F3** — all six undefined types written into §14.4/§14.5, plus `DomainId` and
+  `OrphanReason`. **`Taxonomy` is `Manifest['taxonomy']`**, not a new declaration — T02
+  must not hand-write it. **`tier` is `TierName | null`**, null exactly at
+  `attainedLevel: 0` ("Level 0 — not yet ranked", §11.3). `OrphanReason` gained a third
+  member `merged` for §12.5's partial-merge orphan; `MigrationReport` carries
+  `attainedLevel` before/after.
+- **F4** — the row extends: `DomainSkillRow.lastActivityAt`, and `DomainScore` carries
+  `lastActivityAt: string | null`. **T11b owns both rollups.** The store cannot: `domain`
+  lives only in the manifest and `STATE ⇢ LOADER` is FORBIDDEN, so
+  `T11-scoring-engine.md`'s "roll-up is a store concern" was unimplementable and is gone.
+  §12.2 now pins every timestamp as **ISO-8601 UTC with a `Z`** — the `max` is a string
+  comparison in a pure engine. The manifest × `SKILL` join is **T14's**.
+- **F5** — the exemption is struck, and the decay language is gone from §2, §10.5 and
+  §15.5 as well. Monotonicity now quantifies over all four `DomainScore` fields with no
+  carve-out, matching §11.9's invariant 1, which never had one. R-20 carries the
+  "if it ships, it is a renderer-side derivation" note. **Independent of R-24.**
+- **New: F18** — the fill band vocabulary is required in three places, defined nowhere, and
+  called a "tier" in two of them, colliding with F7. Blocks T13, T20. `DomainScore`
+  deliberately has no band field so resolving it changes no engine type.
+- **New: F19** — `SKILL.lastActivityAt` is non-optional in §12.2 but only ever written by
+  `setMilestoneState`, and un-checking currently counts as activity. Blocks T09.
+
+## What session 2 changed
 
 - **F8** — `contentVersion` is now an **authored per-tree integer**; the library-wide
   counter is deleted. New `lst version` subcommand writes it, §6.4's baseline job enforces
@@ -55,12 +81,14 @@ Suggested grouping, unchanged from this session's analysis:
 
 | Group | Findings | Blocks | Note |
 |---|---|---|---|
-| **B — engine types** | F3, F4, F5 | T02, T11b, T13, T16, T17 | F3 blocks T02, so it is critical-path. F5 is adjacent to T00's R-24. |
+| ~~**B — engine types**~~ | ~~F3, F4, F5~~ | — | **Done, session 3.** |
 | **C — lineage & import** | F12, F13, F14 | T16, T17 | All §12.5/§12.6 record disposition. F14 is genuinely open; F8 did not close it. |
 | **D — CLI & map validation** | F6, F7, F17 | T12, T23 | Cheapest and self-contained. F6/F7 now also touch §6.4's new fifth check. |
-| **E — the omission cluster** | F15 | — | Six small items. `MILESTONE.contentVersion` is now defined (F8), so that sub-item is already handled. |
+| **E — the omission cluster** | F15, F19 | T09 | Seven small items now (F5's sweep added §10.5's breadth mis-citation). F19 is the same class — a field whose writers are unstated — and lands in T09's territory like the rest. |
+| **F — the band vocabulary** | F18 | T13, T20 | Does not fit the others: naming the bands is a content/PRD-adjacent call, probably T00's, and it must also rename "tier" at the domain level. Ask the owner rather than deriving. |
 
-Group B is the natural next one — F3 blocks T02, which blocks nearly everything.
+Group C is the natural next one — F12 and F13 both block T16/T17, and F14 is the last
+genuinely open question in the persistence half.
 
 ## Working agreements from this session
 
@@ -75,8 +103,13 @@ Group B is the natural next one — F3 blocks T02, which blocks nearly everythin
 
 - **T15 is deliberately incomplete.** Written rule-agnostic; its criteria naming "the
   chosen rule" must be rewritten once T00 resolves PRD D20.
-- **T26's F1 and F2 needed the user's judgment** and got it. F3–F17 are mostly delegable,
-  but F6 (which baseline ref) is a maintainer preference, not a derivation.
+- **T26's F1 and F2 needed the user's judgment** and got it. The rest are mostly delegable,
+  but F6 (which baseline ref) is a maintainer preference, not a derivation — and **F18's
+  band names are the same kind of call**, plus they may belong in the PRD.
+- **The T11 split is still step 1, and Group B added to it.** `T11-scoring-engine.md` now
+  carries the F3/F4/F5 amendments; when it splits, `DomainSkillRow`, `DomainScore` and both
+  rollups go to **T11b**, and `TierName | null` goes to **T11a** (every skill starts at
+  `attained: 0`, so the null case is phase 0).
 - **The coherence pass across all 27 docs has not been done.** Contradictions between docs
   that touch the same file or store, `Out of scope` items naming tasks that exist,
   `blocked_by`/`blocks` symmetry. The T11a/T11b rewiring in this session is the kind of

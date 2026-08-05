@@ -58,7 +58,9 @@ obvious one.
 - §11.4 the five node states and the derived `available` set (F36).
 - §11.5 grandfathered satisfaction (D-19) — see the contract gap flagged in the hazards.
 - §11.6 the contribution table as data, `score(domain)`, and `fill(domain) = s/(s+48)`.
-- §11.7 breadth (count of skills started) as a `DomainScore` field.
+- §11.7 breadth (count of skills started) and recency (`max(lastActivityAt)`) as
+  `DomainScore` fields — both rollups belong to this engine per T26/F4. Breadth needs no
+  input field, being the row count; recency reads `DomainSkillRow.lastActivityAt`.
 - The eight §11.9 invariants as **property tests over generated inputs**, not example
   unit tests. See the dedicated acceptance criteria below.
 - A purity test and an ESLint `no-restricted-imports` entry expressing the §14.1 forbidden
@@ -78,7 +80,10 @@ obvious one.
 - Persistence of `attained`, the grandfathering record, and reconciliation on tree open —
   §12.3, §12.4, §12.5. That is **T09** and **T17**.
 - Recency as a decaying channel. D-20 ships a date; the graded version is **R-20**,
-  phase 2. `lastActivityAt` roll-up is a store concern (§12.4, T09).
+  phase 2. (An earlier draft of this line sent the `lastActivityAt` roll-up to the store.
+  T26/F4 found that unimplementable — the roll-up is *per domain*, `domain` lives only in
+  the manifest, and §14.1 marks `STATE ⇢ LOADER` FORBIDDEN, so `lib/state` can never know
+  which domain a tree belongs to. The roll-up is **in scope** here.)
 - Hex geometry and region fill paths — **T12** and **T13**.
 - Wiring purity, import, and property-test gates into CI — **T25** (§14.7, §6.5).
 
@@ -132,18 +137,45 @@ export interface SkillProgress {
   attainedLevel: number;         // §11.3 — highest contiguous satisfied prefix
   cleared: number[];             // §11.3 — satisfied levels; never summed
   blocker?: { level: number; shortfall: GroupProgress[] };   // §11.3
-  tier: TierName;
+  tier: TierName | null;         // null iff attainedLevel === 0 — T26/F3
   nodeStates: ReadonlyMap<string, NodeState>;
   available: string[];           // uids, prerequisites met, incomplete — F36
 }
 
 export function scoreSkill(tree: CompiledTree, progress: TreeProgress): SkillProgress;
 
+// T26/F3 + F4 — all of these are now defined in §14.4 and generated or declared in
+// lib/types. Do not redeclare them locally.
+export type DomainId = string;
+export type TierName = 'Novice' | 'Apprentice' | 'Journeyman' | 'Expert' | 'Master';
+export type Taxonomy = Manifest['taxonomy'];   // §7.2 — the engine reads only `domains`
+
+export interface DomainSkillRow {
+  readonly treeId: string;
+  readonly domain: DomainId;          // PRIMARY domain, from the manifest entry
+  readonly attainedLevel: number;
+  readonly lastActivityAt?: string;   // ISO-8601 UTC, 'Z'-suffixed (§12.2)
+}
+
+export interface DomainScore {
+  readonly domain: DomainId;
+  readonly score: number;                 // Σ table[attainedLevel]
+  readonly fill: number;                  // score / (score + 48)
+  readonly breadth: number;               // started skills in this domain
+  readonly lastActivityAt: string | null; // max over the rows; null if none
+}
+
 export function domainScores(
   taxonomy: Taxonomy,
-  skills: ReadonlyArray<{ treeId: string; domain: DomainId; attainedLevel: number }>,
+  skills: ReadonlyArray<DomainSkillRow>,
 ): Map<DomainId, DomainScore>;
 ```
+
+The returned map is **total over `taxonomy.domains`** — every domain gets an entry, so the
+map renderer never handles `undefined`. A domain with no started skills is
+`{ score: 0, fill: 0, breadth: 0, lastActivityAt: null }`. `DomainScore` carries **no band
+name**: the named band is a presentation mapping over `fill` (T26/F18 owns its vocabulary,
+which does not exist yet), and keeping it out means F18 changes no engine type.
 
 Group and level arithmetic, verbatim from §11.2:
 
@@ -180,10 +212,13 @@ Node states, verbatim from §11.4:
 
 Two properties are **contractual** and are what the test suite asserts (§14.4):
 
-- **`domainScores` never reads tree content.** It takes attained levels only, which is
-  what lets the map render before any bundle is fetched (§3.3, §12.3).
+- **`domainScores` never reads tree content**, which is what lets the map render before any
+  bundle is fetched (§3.3, §12.3). "Tree content" means a compiled bundle: every field of
+  `DomainSkillRow` comes from the manifest entry or the `SKILL` row, and the shell assembles
+  that join in its derived layer (T26/F4).
 - **Monotonicity (N12).** Adding a skill or completing a milestone never decreases any
-  `DomainScore` field except the explicitly decaying recency channel. **This is a property
+  `DomainScore` field — **no exemption**, including `lastActivityAt`, which is a maximum
+  over timestamps under D-20 (T26/F5). **This is a property
   test over generated inputs, not a unit test over examples** — it is the one invariant the
   PRD states most emphatically, and it deserves to be checked exhaustively rather than
   anecdotally.
@@ -338,18 +373,19 @@ the test names in `invariants.test.ts`.
   with no tolerance. **Two consequences for this task:** assert invariant 4 against the
   exported `table` and `K` rather than against `L ** 1.25`, and do **not** implement a
   tolerance — the invariant is `≥`, exact. See `docs/SPEC-FINDINGS.md` F1.
-- **`TierName`, `DomainScore`, `Taxonomy`, and `DomainId` are used in §14.4 and defined
-  nowhere in the architecture.** `TierName` is recoverable from §2's glossary — Novice
-  (1–2), Apprentice (3–4), Journeyman (5–6), Expert (7–8), Master (9–10) — but the spec
-  never says what tier `attainedLevel: 0` reports. `DomainScore`'s fields are inferable
-  from §11.6, §11.7 and §10.5 (score, fill, band name, breadth, last activity) but are
-  never typed. These belong in `lib/types` from T02/T10; if they are absent, raise it
-  rather than defining them locally in `lib/scoring`.
-- **`domainScores`' signature cannot produce recency.** §11.7 requires each domain to
-  report `lastActivityAt` rolled up as a maximum, but the `skills` rows carry only
-  `{ treeId, domain, attainedLevel }`. Either `DomainScore` omits recency (and T13 gets it
-  from the store) or the signature is incomplete. The §14.4 block is normative, so do not
-  silently widen it — surface the mismatch to whoever owns T13.
+- **~~`TierName`, `DomainScore`, `Taxonomy`, and `DomainId` are used in §14.4 and defined
+  nowhere.~~ RESOLVED by T26/F3, 2026-08-05.** All four are now in §14.4. Two points that
+  change what this task writes: **`tier` is `TierName | null`, null exactly at
+  `attainedLevel: 0`** — do not default it to Novice — and **`Taxonomy` is
+  `Manifest['taxonomy']`**, generated from `schema/manifest.schema.json`, so it must not be
+  hand-declared here or in `lib/types`. `DomainScore` deliberately has no band field.
+- **~~`domainScores`' signature cannot produce recency.~~ RESOLVED by T26/F4,
+  2026-08-05.** The row type is now `DomainSkillRow` and carries `lastActivityAt`; the
+  rollup is this engine's. It is a lexicographic `max` over ISO-8601 UTC strings, which is
+  safe only because §12.2 now pins that format — if a timestamp without a `Z` suffix ever
+  reaches this function the comparison is silently wrong, so the property tests should
+  include a mixed-precision fixture. Started skills with no `lastActivityAt` still count
+  toward `breadth`; they are skipped by the max. See `docs/SPEC-FINDINGS.md` F4.
 - **~~Grandfathering (§11.5, D-19) has no channel in the `scoreSkill` signature.~~
   RESOLVED by T26/F2, 2026-08-05.** `TreeProgress` widens from a bare map to
   `{ milestones: ReadonlyMap<string, MilestoneState>; grandfathered: ReadonlyMap<number,

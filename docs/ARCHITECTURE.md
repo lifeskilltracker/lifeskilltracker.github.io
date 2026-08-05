@@ -92,8 +92,8 @@ Project-specific and overloaded terms only. Terms are grouped by what they belon
 | **Region** | A domain's territory on the world map — an irregular silhouette composed of several hex tiles, with its own palette (F21). |
 | **Hex tile** | One hexagon of the world-map grid. The atomic unit of region geometry, not a unit of content. Multiple tiles compose one region. |
 | **Fog** | The unrevealed rendering state for a domain with no published skills (F22). Reads as forthcoming content, never as an empty room. |
-| **Fill** | A region's visual saturation, driven by domain score through a concave curve (F34). Never displayed as a raw percentage. |
-| **Recency channel** | A separate visual property of a region encoding how recently the user was active in it (F35). The only channel permitted to decrease. |
+| **Fill** | The height of a region's fill clip rectangle, driven by domain score through a concave curve (F34). Never displayed as a raw percentage. |
+| **Recency channel** | How recently the user was active in a domain (F35). In v1 it is **a date in text**, not a graded visual property: D-20 ships a maximum of `lastActivityAt` with no decay, and the graded channel is R-20. |
 | **Breadth** | The count of skills a user has started in a domain (F35). |
 | **Cell** | A (level, track) slot in the tree grid, into which the layout engine places milestones by `order` (§8). |
 
@@ -242,9 +242,10 @@ sequenceDiagram
     Note over L,P: issued in parallel — neither blocks the other
     L-->>S: catalogue + taxonomy + geometry
     P-->>S: user state (or empty)
-    S->>C: domainScores(catalogue, userState)
-    Note right of C: needs only attained levels,<br/>which are stored, not recomputed<br/>from tree bundles — so the map<br/>renders without fetching any tree
-    C-->>M: per-domain fill, recency, breadth
+    S->>C: domainScores(taxonomy, rows)
+    Note right of S: the shell zips manifest tree<br/>entries to SKILL rows — §14.4's<br/>DomainSkillRow — in its derived<br/>layer (§13.2); no bundle is touched
+    C-->>S: Map&lt;DomainId, DomainScore&gt;
+    S-->>M: fill, breadth, recency as props (§13.4)
     M-->>U: eight regions, fogged where unpublished
 ```
 
@@ -1344,7 +1345,7 @@ A region with a hole (a domain drawn as a ring) would produce two loops. The com
 | Channel | Encoding | Source |
 |---|---|---|
 | **Fill** | A clip rectangle rising from the region's base, animated on change | Domain score through the concave curve (§11.6) |
-| **Recency** | Saturation and a slow ambient shimmer on the outline, decaying over time | §11.7 |
+| **Recency** | A date beside the label and in the accessible name — *"Last activity — 12 March"*, or *"No activity yet"* when `lastActivityAt` is null. **No saturation, no shimmer, no fade**: D-20 ships a date, and the graded channel is R-20, phase 2 | §11.7 |
 | **Breadth** | A small count of skills started, rendered as text beside the label | §11.6 |
 | **Fog** | Desaturated, low-contrast, with the region name replaced by a "no skills yet — contribute one" affordance | Zero published trees in the manifest (F22) |
 
@@ -1427,6 +1428,8 @@ Three distinct outputs. Conflating them is the failure this design exists to avo
 | **`attained`** | Highest *L* such that levels 1..*L* are all satisfied | **yes — the only input to F33** | "Level 4 · Apprentice" |
 | **`cleared`** | The set of satisfied levels, contiguous or not | never | "6 of 10 levels cleared" |
 | **`blocker`** | Lowest unsatisfied level, with per-group shortfall | never | "Level 2 needs 1 more milestone → unlocks Level 4" |
+
+**`attained: 0` is a real state and has no tier.** A started skill that has not yet satisfied level 1 reports `attainedLevel: 0` and `tier: null` (§14.4), and is displayed as *"Level 0 — not yet ranked"* rather than being promoted to Novice. F7's tiers are pairs of levels 1–10; there is no name below them, and inventing one would let an unranked skill read as ranked. It still contributes 0 to its domain (§11.6) and counts toward breadth (§11.7), which is §11.9 invariant 2.
 
 **The word "level," unqualified, always means `attained`** — in the UI, in the export format, and in this spec. Levels are unlock gates (F7, following CDDA), so a gap genuinely means not through, and `attained` is the only reading under which F33's sum means one thing rather than several. §18 **D-18**.
 
@@ -1542,9 +1545,11 @@ The table ships as **data, not a formula** — auditable, testable, tunable with
 
 ### 11.7 Recency and breadth (D7)
 
-**Breadth** is the count of skills started in a domain, rendered as text beside the region label (F35).
+**Breadth** is the count of skills started in a domain, rendered as text beside the region label (F35). A `SKILL` row exists only once a skill is started (§12.2), so breadth is the number of rows in the domain — it needs no field of its own.
 
 **Recency ships as a date, not a decaying channel.** `SKILL.lastActivityAt` rolls up to the domain as a maximum, and the region reports *"Last activity — 12 March."* No decay function, no fade, no constant to tune. §18 **D-20**.
+
+**Both rollups are computed by `domainScores` and land on `DomainScore` (§14.4)**, alongside score and fill. They are three reductions over one row set, and the two subsystems that might otherwise host them cannot: `lib/state` may not import the loader (§14.1), so it can never learn which domain a tree belongs to, and components may not import state at all. A domain with no started skills, or one whose started skills have no recorded activity, reports `lastActivityAt: null`, which renders as *"No activity yet"* — never as a fabricated date. Timestamps are ISO-8601 UTC with a `Z` suffix (§12.2), which is what lets the maximum be a plain string comparison inside a pure engine.
 
 This **does not satisfy F35 as written**, which asks for recency on a separate visual channel that may fade, and the deviation is deliberate rather than an oversight. The research is unambiguous: every shipped system that fades a user-visible value for inactivity was either withdrawn by its vendor (Overwatch SR decay, removed explicitly to relieve "fatigue and stress"; Duolingo's cracked skills, removed in three stages), or is universally named the worst part of its product (Rust upkeep, LoL high-elo decay, Habitica damage), or is justified by making a claim that inactivity genuinely invalidates (Anki retrievability, competitive MMR). A life-domain map makes no such claim — a decaying region would be a motivational device wearing the costume of a measurement, which is NG10's territory.
 
@@ -1572,6 +1577,8 @@ Property tests over generated inputs, not example-based unit tests. These are th
 | 6 | Dismissing or un-dismissing changes no score, ever | F46, §11.10 |
 | 7 | Tree revision alone never decreases `attained` | §11.5 |
 | 8 | `attained` ≤ `|cleared|`, and `attained` is a prefix of `cleared` | §11.3 |
+
+**Invariant 1 quantifies over every field of `DomainScore`, with no exemption.** Under D-20 recency is a maximum over timestamps and §12.4 writes `lastActivityAt` on every mutation, so it rises with wall-clock time like the other three; breadth rises with started skills. §14.4's contract used to exempt "the explicitly decaying recency channel", which named a channel the spec does not ship and quietly invited someone to build it.
 
 Invariant 4 is the one that will catch a future maintainer retuning `k` or `p` in isolation, which is exactly the mistake the coupling invites. It only does so if it reads the same integers the app reads — see §11.6's normativity note. An invariant asserted against the idealised curve while the app ships a rounded table checks nothing.
 
@@ -1654,6 +1661,8 @@ erDiagram
 
 **`grandfathered`** is D-19's frozen satisfaction record (§11.5), shaped
 `{ [level: number]: { uids: string[]; contentVersion: number } }`. Levels appear only once satisfied; the field is `{}` for a skill that has satisfied none. Roughly 100 bytes per skill at ten satisfied levels. It is written in §12.4's transaction, migrated by §12.5, and exported by §12.6 — all three are required, and omitting any one silently breaks invariant 7.
+
+**Every timestamp in every store is ISO-8601 UTC with a `Z` suffix** — `startedAt`, `lastActivityAt`, and `at`. Stated because §11.7's recency rollup is a `max` performed inside a pure engine (§14.4), and a lexicographic comparison over ISO strings is correct only if the format and precision never vary. Local-offset timestamps would sort wrongly and the failure would be silent.
 
 **`slug` and `title` are frozen snapshots**, written at completion time and never refreshed. They exist so that a human can read an export and understand what was accomplished, so an orphaned record remains meaningful, and so there is a debugging surface in a system with no telemetry. The cost is about 60 bytes per completion. A snapshot that followed upstream edits would not be a record of what the user did, which is why it is deliberately never updated.
 
@@ -1922,6 +1931,20 @@ Contract: `loadTree` is idempotent and memoized; a second call for the same id r
 export type MilestoneState = 'complete' | 'dismissed' | null;
 export type NodeState = 'complete' | 'bonus' | 'available' | 'locked' | 'dismissed';
 
+/** A domain id declared in `domains.yaml` (§5.9). Ids are stable forever and never derived
+ *  from the display name, which is the mechanism behind F20. */
+export type DomainId = string;
+
+/** The five tier names, F7's presentation vocabulary over pairs of levels (§2). Carries no
+ *  completion semantics of its own — it is a rendering of `attainedLevel`. */
+export type TierName = 'Novice' | 'Apprentice' | 'Journeyman' | 'Expert' | 'Master';
+
+/** The compiled taxonomy block of the manifest (§7.2) — domains, facets, and map geometry.
+ *  Not a separate artifact: it is generated from `schema/manifest.schema.json` (§7.3) like
+ *  the rest of `Manifest`, so there is one description of it and it lives in `lib/types`.
+ *  The Scoring Engine reads only `domains`, and reads it only to emit an entry per domain. */
+export type Taxonomy = Manifest['taxonomy'];
+
 /** A level's frozen satisfaction record — §11.5, D-19. */
 export interface FrozenSatisfaction {
   readonly uids: readonly string[];   // the set that first satisfied the level
@@ -1956,24 +1979,47 @@ export interface SkillProgress {
   attainedLevel: number;         // §11.3 — highest contiguous satisfied prefix
   cleared: number[];             // §11.3 — satisfied levels; never summed
   blocker?: { level: number; shortfall: GroupProgress[] };   // §11.3
-  tier: TierName;
+  tier: TierName | null;         // null iff attainedLevel === 0 — §11.3
   nodeStates: ReadonlyMap<string, NodeState>;
   available: string[];           // uids, prerequisites met, incomplete — F36
 }
 
 export function scoreSkill(tree: CompiledTree, progress: TreeProgress): SkillProgress;
 
+/** One started skill, as the App Shell joins it: manifest tree entry × `SKILL` row.
+ *  Every field is available without fetching a bundle, which is the whole point. */
+export interface DomainSkillRow {
+  readonly treeId: string;          // manifest entry id / SKILL key
+  readonly domain: DomainId;        // PRIMARY domain — manifest entry (§7.2), never a bundle
+  readonly attainedLevel: number;   // SKILL.attainedLevel — §12.2, §12.3
+  readonly lastActivityAt?: string; // SKILL.lastActivityAt — §12.2; absent if never written
+}
+
+/** One domain's three map channels (§10.5), computed together because they are three
+ *  reductions over the same row set. Returned for every domain in the taxonomy. */
+export interface DomainScore {
+  readonly domain: DomainId;
+  readonly score: number;                 // Σ table[attainedLevel] — §11.6; integer; 0 if none
+  readonly fill: number;                  // score / (score + 48) ∈ [0, 1) — §11.6
+  readonly breadth: number;               // started skills in this domain — §11.7
+  readonly lastActivityAt: string | null; // max over the rows — §11.7; null if no activity
+}
+
 export function domainScores(
   taxonomy: Taxonomy,
-  skills: ReadonlyArray<{ treeId: string; domain: DomainId; attainedLevel: number }>,
+  skills: ReadonlyArray<DomainSkillRow>,
 ): Map<DomainId, DomainScore>;
 ```
 
-Two properties are contractual and are what the test suite asserts:
+`tier` is `null` at `attainedLevel: 0` rather than carrying a sixth name. F7 defines tiers as pairs of levels 1–10, so an unranked skill genuinely has none, and a nullable field makes every consumer handle a case that a defaulted one would hide (§11.3 gives the display string).
+
+The returned map is **total over `taxonomy.domains`** — one entry per domain, so §3.3's eight regions render without the caller handling `undefined`. A domain with no started skills is `{ score: 0, fill: 0, breadth: 0, lastActivityAt: null }`. `DomainScore` carries no band name: the named band (§11.6, §15.3) is a presentation mapping over `fill` and belongs to the renderer, not to the engine.
+
+Three properties are contractual and are what the test suite asserts:
 
 - **`scoreSkill` stays pure and never writes.** It *reads* `grandfathered` and *reports* `satisfiedBy`; the User State Store decides what to freeze and performs the write, preserving §3.2's single-writer rule. An engine that froze its own records would be a second writer with no transaction.
-- **`domainScores` never reads tree content.** It takes attained levels only, which is what lets the map render before any bundle is fetched (§3.3, §12.3).
-- **Monotonicity (N12).** Adding a skill or completing a milestone never decreases any `DomainScore` field except the explicitly decaying recency channel. This is a property test over generated inputs, not a unit test over examples — it is the one invariant the PRD states most emphatically, and it deserves to be checked exhaustively rather than anecdotally.
+- **`domainScores` never reads tree content**, which is what lets the map render before any bundle is fetched (§3.3, §12.3). "Tree content" means a compiled bundle: every field of `DomainSkillRow` comes from the manifest entry or the `SKILL` row, and `domain` was always one of them, so the row has always been a manifest × IndexedDB join. Assembling that join is the App Shell's `$derived` layer (§13.2), the only place that holds both — `lib/scoring` may not import the loader and `lib/state` may not either (§14.1), so neither could compute a per-domain rollup even in principle.
+- **Monotonicity (N12).** Adding a skill or completing a milestone never decreases any `DomainScore` field. No exemption: under D-20 recency is a date rolled up as a maximum, and §12.4 writes `lastActivityAt` on every mutation, so it is monotone in wall-clock time like the other three. This is a property test over generated inputs, not a unit test over examples — it is the one invariant the PRD states most emphatically, and it deserves to be checked exhaustively rather than anecdotally. Should R-20's graded channel ever ship, the decaying value is a *rendering* function of `lastActivityAt` computed in the Map Renderer; it is not a `DomainScore` field, and this clause does not need reopening for it.
 
 ### 14.5 User State Store
 
@@ -1991,6 +2037,75 @@ export interface UserStateStore {
 ```
 
 Contract: every mutating call is a single transaction and resolves only after the write is durable. `writable` is false for the whole session after a hydration failure, and every mutator rejects while it is false.
+
+The three types those signatures name:
+
+```ts
+/** The §12.6 file, exactly as written to disk. Its consumer is users, forever (§14.6). */
+export interface ExportFile {
+  readonly format: 'life-xp-skill-tracker/progress';
+  readonly schemaVersion: number;
+  readonly exportedAt: string;      // ISO-8601 UTC
+  readonly appVersion: string;      // §16.1 — archaeology, never branched on
+  readonly generated: string;       // copied from the manifest; not comparable (§7.2, §12.6)
+  readonly skills: ReadonlyArray<{
+    readonly treeId: string;
+    readonly startedAt: string;
+    readonly attainedLevel: number;              // a snapshot; reconciled on tree open (§12.3)
+    readonly lastActivityAt?: string;
+    readonly grandfathered: Readonly<Record<string, FrozenSatisfaction>>;  // level → §11.5
+  }>;
+  readonly milestones: ReadonlyArray<{
+    readonly uid: string; readonly treeId: string;
+    readonly slug: string; readonly title: string;    // frozen snapshots — §12.2
+    readonly state: 'complete' | 'dismissed';
+    readonly at: string; readonly note?: string;
+    readonly contentVersion?: number;                 // the tree's version at completion
+  }>;
+  readonly orphans: ReadonlyArray<{
+    readonly uid: string; readonly treeId: string;
+    readonly title: string;                           // no slug — §12.2's ORPHAN has none
+    readonly state: 'complete' | 'dismissed';
+    readonly at: string; readonly note?: string;
+    readonly reason: OrphanReason;
+  }>;
+}
+
+/** §12.5's dispositions, plus the one the merge row implies. */
+export type OrphanReason = 'retired' | 'merged' | 'unknown';
+
+/** What §12.5's one dismissible summary is rendered from. */
+export interface MigrationReport {
+  readonly treeId: string;
+  readonly fromVersion: number;     // contentVersionSeen before the pass
+  readonly toVersion: number;       // the bundle's contentVersion
+  readonly changed: boolean;        // false → no summary is shown
+  readonly entries: ReadonlyArray<{
+    readonly uid: string;                       // the record's uid before the pass
+    readonly title: string;                     // frozen snapshot, so the summary reads
+    readonly op: 'split' | 'merged' | 'retired' | 'moved' | 'unknown';
+    readonly outcome: 'rewritten' | 'orphaned' | 'unfrozen';
+    readonly became: readonly string[];         // successor uids; empty when orphaned
+  }>;
+  readonly partialMerge: boolean;               // the R-16 loss occurred — state it plainly
+  readonly attainedLevel: { readonly before: number; readonly after: number };
+}
+
+/** The outcome of §12.6's merge, so the user is told what an import did. */
+export interface ImportReport {
+  readonly mode: 'merge' | 'replace';
+  readonly schemaVersionIn: number;   // as found in the file, before §5.10 migration
+  readonly migrated: boolean;
+  readonly skills:     { readonly added: number; readonly updated: number };
+  readonly milestones: { readonly added: number; readonly updated: number };
+  readonly orphans:    { readonly added: number };
+  readonly grandfatheredLevelsReplaced: number;   // earliest-contentVersion-wins, §12.6
+}
+```
+
+`MigrationReport` reports `attainedLevel` before and after because a migration that changed the user's rank must say so — §11.10 requires rank consequences to be stated rather than discovered, and §12.5's whole purpose is that nothing mutates silently. `partialMerge` exists so the UI can name **R-16**'s accepted loss instead of leaving the user to notice a score drop.
+
+`ExportFile`'s milestone entries **tolerate unknown keys** on import — §12.8 reserves `photo` this way, so the import path must ignore what it does not recognise rather than reject the file.
 
 **`lib/actions`** — the §14.1 orchestration seam. Sequences only; no state of its own.
 
@@ -2095,14 +2210,14 @@ Enumerated because it is the requirement most easily lost in implementation:
 | Milestone state | fill hue | glyph (✓ ○ ‧ ✕) + border style (§9.3) |
 | Domain identity | palette | region silhouette + label |
 | Domain fill level | fill height | named tier in text on focus |
-| Recency | saturation | text in the accessible name and detail panel |
+| Recency | none in v1 — it is text already (§10.5, D-20) | the date in the accessible name and detail panel |
 | Level progress | bar colour | `n / m` text per requirement group |
 
 Glyphs are real `<use>` elements, not CSS backgrounds, so they survive forced-colours mode. The app is checked against Windows High Contrast and `forced-colors: active`.
 
 ### 15.5 Motion
 
-`prefers-reduced-motion: reduce` disables the fill animation, the recency shimmer, and edge-highlight transitions, leaving instant state changes. Nothing in the interface conveys information *only* through motion, so removing all of it loses nothing.
+`prefers-reduced-motion: reduce` disables the fill animation and edge-highlight transitions, leaving instant state changes. (An earlier draft also listed a recency shimmer; D-20 ships recency as a date, so there is no such animation to disable in v1.) Nothing in the interface conveys information *only* through motion, so removing all of it loses nothing.
 
 ### 15.6 Self-assessment
 
@@ -2446,7 +2561,7 @@ Note the collision hazard restated from §1.5: `D-NN` (hyphenated) are architect
 - **Context.** PRD **D7**, **F35**, **NG10**. F35 asks for recency on a separate visual channel that may fade over time, without reading as punishment.
 - **Decision.** Report `lastActivityAt` per domain as a date. No decay function, no fade, no constant. The graded channel is deferred to phase 2 as an experiment (**R-20**).
 - **Alternatives.** *Full graded channel* — exponential decay, τ ≈ 45 days, floor 0.55, chroma-only at fixed hue and lightness, silent, continuous, unqueued, reset only on milestone completion. Every documented anti-pattern designed out, and it satisfies F35 literally. Rejected because no shipped system occupies that cell: every real implementation has teeth and was either withdrawn (Overwatch SR decay, removed to relieve "fatigue and stress"; Duolingo cracked skills, removed in three stages) or is named the worst part of its product (Rust upkeep, LoL decay, Habitica damage). A channel calibrated quiet enough to be safe may be too quiet to be noticed, in which case it fails F35 anyway. *Three discrete states* — names are classifications applied to the user, and a state change is a legible loss event.
-- **Consequences.** **This deviates from F35 and requires a PRD amendment**; it is escalated rather than decided quietly. Follows FIDE, which represents inactivity with a flag and a date and never a decrement. Costs nothing to reverse: `lastActivityAt` is already stored, so adding decay later touches one component and no data.
+- **Consequences.** Recency occupies **no colour or motion channel in v1** — §10.5's channel table, §15.4's redundancy table and §15.5's reduced-motion list all carry a date and nothing else, and §14.4's monotonicity contract needs no exemption because a maximum over timestamps never decreases. **This deviates from F35 and requires a PRD amendment**; it is escalated rather than decided quietly. Follows FIDE, which represents inactivity with a flag and a date and never a decrement. Costs nothing to reverse: `lastActivityAt` is already stored, so adding decay later touches one component and no data.
 - **Revisit if.** Thirty days of the maintainer's own use (S4) shows the date alone does not answer "which part of my life have I neglected."
 
 ### D-21: Domain score is mildly super-linear in level
@@ -2480,7 +2595,7 @@ Scoped, deliberately deferred, each with a trigger.
 - **R-08 — Published content package.** Shipping `content/` as a versioned npm package would serve N7's durability goal and the "trees are the product" framing by letting third parties consume trees. *Trigger:* a concrete external consumer asks. Not built speculatively.
 - **R-09 — `npx`-able validator.** Publishing `lst` to npm so authors run `npx @lst/validate` with no clone and no workspace install. Meaningfully lowers the contribution barrier (S2). *Trigger:* a contributor reports the workspace install as friction.
 - **R-10 — Preview deploys.** Rendered previews of a submitted tree would help content review. Requires a second hosting provider and therefore an ops surface (N10, D-12). *Trigger:* reviewers report the PR diff plus local `lst` is insufficient.
-- **R-20 — Graded recency channel.** D-20 ships a date instead. The designed-but-unbuilt version is exponential decay at τ ≈ 45 days, floored at 0.55, rendered as chroma reduction at fixed hue and lightness, continuous, silent, unqueued, reset only by milestone completion, rolled up per domain as a maximum. *Trigger:* thirty days of the maintainer's own use (S4) showing the date alone does not answer "which part of my life have I neglected." *Cost to keep the option:* zero — `lastActivityAt` is already stored, so this is a rendering change touching one component.
+- **R-20 — Graded recency channel.** D-20 ships a date instead. The designed-but-unbuilt version is exponential decay at τ ≈ 45 days, floored at 0.55, rendered as chroma reduction at fixed hue and lightness, continuous, silent, unqueued, reset only by milestone completion, rolled up per domain as a maximum. *Trigger:* thirty days of the maintainer's own use (S4) showing the date alone does not answer "which part of my life have I neglected." *Cost to keep the option:* zero — `lastActivityAt` is already stored, so this is a rendering change touching one component. *If it ships:* the decayed value is derived in the Map Renderer from `DomainScore.lastActivityAt` and is **not** a `DomainScore` field, so §14.4's monotonicity contract stays exemption-free and the property tests are unaffected. The exemption that clause used to carry is what made the unbuilt channel look live; it is gone, and reinstating it is not part of building this.
 - **R-23 — Guttman diagnostic for content quality.** The project has asserted a Guttman scale (ten cumulative gates) and F29 guarantees the data will contain Guttman errors. A coefficient of reproducibility computed over a tree's levels against real completion patterns would identify **mis-levelled levels** — content placed too low relative to how people actually acquire the skill — which is a genuine signal for F42 review and §6.3 linting. *Blocked by:* N2 and D-17 mean there is no telemetry, so it could only run over a contributor's own trial data or seeded exemplar profiles, which weakens it considerably. Recorded because the framing is correct even if the instrument is currently unavailable.
 
 ### 19.2 Build-phase risks

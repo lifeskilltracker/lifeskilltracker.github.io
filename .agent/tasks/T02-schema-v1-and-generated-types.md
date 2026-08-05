@@ -138,8 +138,13 @@ opening the tree schema defeats §5.8.
 - [ ] A tree with no `uid` lines at all **passes** the schema.
 - [ ] An export file whose milestone carries an unknown `photo` key **validates** against
       `export.schema.json` — the §12.8 reservation, and the inverse of the test above.
-- [ ] `MigrationReport`, `ImportReport`, and `ExportFile` (§14.5) are defined rather than
-      stubbed as `unknown`; their shapes come from T26's F3 resolution.
+- [ ] `MigrationReport`, `ImportReport`, `ExportFile`, and `OrphanReason` (§14.5) are
+      defined rather than stubbed as `unknown`, and `DomainId`, `TierName`, `DomainScore`,
+      and `DomainSkillRow` (§14.4) likewise. All eight are now written out in the spec by
+      T26's F3 and F4 resolutions — transcribe them, do not re-derive them.
+- [ ] `Taxonomy` is **not** declared by hand. It is `Manifest['taxonomy']`, generated from
+      `schema/manifest.schema.json` along with the rest of `Manifest` (T26/F3, §7.3). A
+      hand-written parallel interface re-creates exactly the drift F9 closed.
 - [ ] `npm run gen:types` regenerates `authored.d.ts` and produces no diff when run twice.
 - [ ] `tsc --noEmit` passes across both workspaces with `strict: true`.
 - [ ] `compiled.ts` defines `CompiledTree` and `Manifest` with the §7.3 transformations

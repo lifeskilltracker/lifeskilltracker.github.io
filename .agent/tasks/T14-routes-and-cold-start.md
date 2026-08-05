@@ -61,6 +61,11 @@ anywhere. Refusing writes for the session is the only response that cannot destr
 - The view composition tree of §13.4: `+layout.svelte` (shell chrome, nav, notice host,
   error boundary) and the page components it composes, wired to the components T08 and
   T13 already provide (or stub cleanly if those tasks land later in the same phase).
+- **The manifest × `SKILL` join that feeds `domainScores`** — a `$derived` expression
+  zipping manifest `trees[]` entries to `SKILL` rows into `DomainSkillRow[]`
+  (`{ treeId, domain, attainedLevel, lastActivityAt? }`, §14.4). Assigned here by T26/F4:
+  it is the only layer holding both, since `lib/scoring` may not import the loader and
+  `lib/state` may not either (§14.1). §3.3's sequence names it.
 - Enforcing that `TreeView` is the only component importing the Layout Engine and that no
   component imports the Scoring Engine directly — scores arrive as derived props (§13.4,
   §14's dependency rules, checkable by inspection or by T14's own import-lint config).

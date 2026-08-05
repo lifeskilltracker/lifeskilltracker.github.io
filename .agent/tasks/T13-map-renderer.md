@@ -42,13 +42,16 @@ the architecture has already closed with evidence, not just style preference.
   (base, fill, recency, fog) per its channel table.
 - Fill rendered as a clip-path rectangle rising from the region base (§10.5), never
   opacity, never a raw percentage anywhere on the map (F34) — presented instead as a
-  **named band** over the continuous fill number, matching the tier text §15.3 also
-  announces to screen readers (§11.6).
+  **named band** over the continuous fill number, matching the band text §15.3 also
+  announces to screen readers (§11.6). **The band names do not exist yet** — the spec
+  requires the band in three places and defines the vocabulary nowhere, which is **T26/F18**
+  (which must also settle that §15.3 and §15.4 call it a "tier", colliding with F7's
+  per-skill tiers). Blocked on F18 for the words; the mapping itself is this component's.
 - Recency rendered as **a date in the region's text/accessible name** — "Last activity —
-  12 March" — plus the saturation/shimmer visual treatment §10.5 describes, with no decay
-  function, no fade constant, and no tuning knob anywhere in this component (D-20). The
-  shimmer respects `prefers-reduced-motion` (§15.5, owned fully by T20 but must not be
-  built to require motion).
+  12 March", or "No activity yet" when `DomainScore.lastActivityAt` is null — and **nothing
+  else**: no saturation channel, no shimmer, no fade constant, no tuning knob anywhere in
+  this component (D-20, T26/F5). §10.5 previously described a decaying saturation treatment
+  here; it no longer does, so there is also no motion for §15.5 to reduce.
 - Breadth rendered as a small count of skills started, as text beside the region label
   (§10.5, F35).
 - Fog computed from the **manifest** (zero published trees for a domain), not from user
@@ -110,7 +113,7 @@ app/src/lib/components/MapRenderer.test.ts      channel rendering + navigation t
 | Channel | Encoding | Source |
 |---|---|---|
 | Fill | A clip rectangle rising from the region's base, animated on change | Domain score through the concave curve (§11.6) |
-| Recency | Saturation and a slow ambient shimmer on the outline, decaying over time | §11.7 |
+| Recency | A date beside the label and in the accessible name — "Last activity — 12 March", or "No activity yet" when `lastActivityAt` is null. **No saturation, no shimmer, no fade** (D-20; graded channel is R-20, phase 2) | §11.7 |
 | Breadth | A small count of skills started, rendered as text beside the label | §11.6 |
 | Fog | Desaturated, low-contrast, with the region name replaced by a "no skills yet — contribute one" affordance | Zero published trees in the manifest (F22) |
 ```
@@ -124,14 +127,25 @@ fill(domain) = s / (s + 48)   // ∈ [0, 1), asymptotic, never saturates
 // ARCHITECTURE §14.4 — the input this component's data comes from
 export function domainScores(
   taxonomy: Taxonomy,
-  skills: ReadonlyArray<{ treeId: string; domain: DomainId; attainedLevel: number }>,
+  skills: ReadonlyArray<DomainSkillRow>,
 ): Map<DomainId, DomainScore>;
+
+export interface DomainScore {
+  readonly domain: DomainId;
+  readonly score: number;
+  readonly fill: number;                  // this component's clip-path height
+  readonly breadth: number;
+  readonly lastActivityAt: string | null; // null → "No activity yet"
+}
 ```
 
-Component props are `(manifest: Manifest, domainScores: Map<DomainId, DomainScore>)`.
-`DomainScore` is the record this component reads `fill`, `band` (the named tier), `breadth`,
-and `lastActivityAt` from — see Notes and hazards for the open question on this type's
-exact shape.
+Component props are `(manifest: Manifest, domainScores: Map<DomainId, DomainScore>)` —
+unchanged by T26/F3 and F4. This component reads `fill`, `breadth` and `lastActivityAt`
+from `DomainScore`; the map is total over the taxonomy, so every domain has an entry and
+there is no `undefined` branch. **There is no `band` field.** The named band is a
+presentation mapping this component performs over `fill` — but its vocabulary does not
+exist yet and is **T26/F18**, which also has to settle that §15.3 and §15.4 call it a
+"tier", colliding with F7's per-skill tiers. Do not invent band names here.
 
 ## Acceptance criteria
 
@@ -176,19 +190,19 @@ Passing looks like: the channel and navigation test suite green, and a clean typ
 
 ## Notes and hazards
 
-- **F4 (T26) — `domainScores()` cannot currently produce recency.** The signature shown
-  above takes `skills: { treeId, domain, attainedLevel }[]`, which carries no
-  `lastActivityAt`. This task cannot ship the recency channel until T11 resolves F4 (either
-  by extending the row type or moving the recency rollup elsewhere) — treat this as a
-  blocking dependency on T11's resolution, not something to work around locally by having
-  this component reach into `SKILL` rows directly, which would violate §13.4's rule that no
-  component imports the Scoring Engine's inputs directly.
-- **F3 (T26) — `DomainScore` itself is an undefined type**, reconstructable only from
-  §11.6, §11.7, and §10.5's channel table (fill, breadth, `lastActivityAt`, and presumably
-  a `band` field for the named tier). Do not invent this type independently in this
-  component; consume whatever T11 ships once F3 is resolved, and if it lacks a field this
-  task needs (e.g. the named band string), that is a T11-side gap to raise, not one to
-  patch by computing the band locally from a raw fill number.
+- **~~F4 (T26) — `domainScores()` cannot produce recency.~~ RESOLVED 2026-08-05 — the row
+  type was extended.** `DomainSkillRow` carries `lastActivityAt` and `DomainScore` reports
+  the per-domain maximum, so the recency channel is unblocked and this component's props
+  did not change. The alternative — this component reading `SKILL` rows — was never
+  available: §14.1 marks `COMP ⇢ STATE` FORBIDDEN and §13.4 forbids components importing
+  the engine.
+- **~~F3 (T26) — `DomainScore` is an undefined type.~~ RESOLVED 2026-08-05.** It is now
+  typed in §14.4, above. The one field this task expected and did **not** get is `band`;
+  see the interface contract. That is deliberate, not an oversight to raise — F18 owns it.
+- **F5 (T26) fixed a contradiction inside this document.** Its earlier copy of §10.5's
+  channel table specified "saturation and a slow ambient shimmer, decaying over time" while
+  the out-of-scope list below forbids building exactly that channel. §10.5 and the table
+  above now both say what D-20 ships: a date, and no visual channel.
 - **Never build the graded recency channel, even as a togglable extra.** R-20 defers it to
   phase 2 explicitly, and D-20's whole argument is that every shipped implementation of a
   decaying visible value was withdrawn or resented — building it "behind a flag" still

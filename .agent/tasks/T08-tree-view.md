@@ -117,7 +117,7 @@ export interface SkillProgress {
   attainedLevel: number;         // §11.3 — highest contiguous satisfied prefix
   cleared: number[];             // §11.3 — satisfied levels; never summed
   blocker?: { level: number; shortfall: GroupProgress[] };   // §11.3
-  tier: TierName;
+  tier: TierName | null;         // null iff attainedLevel === 0 — T26/F3
   nodeStates: ReadonlyMap<string, NodeState>;
   available: string[];           // uids, prerequisites met, incomplete — F36
 }
@@ -155,6 +155,8 @@ apply.
       the action commits, stating the specific before/after level (§11.10).
 - [ ] Narrow viewport renders one column, level bands as headings, no drawn edges, and
       textual "Requires: …" lines per node (§9.5).
+- [ ] A skill at `attainedLevel: 0` renders as "Level 0 — not yet ranked" and never as
+      Novice; `tier` is `null` there and must not be defaulted (§11.3, T26/F3).
 - [ ] Each level band shows its number, tier name (F7), and one progress readout per
       requirement group — not averaged into a single bar (§9.6, §11.2).
 - [ ] Mastery achievements render in a separate panel below the tree, not as an eleventh

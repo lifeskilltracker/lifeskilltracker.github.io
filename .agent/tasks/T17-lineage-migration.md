@@ -47,7 +47,14 @@ and unreportable by the user — hence the mandatory visible summary.
 - Carrying `state`, `at`, and `note` through every disposition, and reserving the same
   carry for `photo` in phase 2.
 - Updating `SKILL.contentVersionSeen` and recomputing `SKILL.attainedLevel` after the pass.
-- Defining `MigrationReport` — the type §14.5 names and never declares.
+- Populating `MigrationReport` and `OrphanReason` — both now declared in §14.5 (T26/F3).
+  Two fields that came out of that resolution and are not optional: `attainedLevel`
+  before/after, because a migration is the one path that changes a rank with no user action
+  and §11.10 requires rank consequences to be *stated*; and `partialMerge`, so the UI can
+  name R-16's loss. `OrphanReason` is `'retired' | 'merged' | 'unknown'` — `merged` is
+  §12.5's partial-merge orphan, which the disposition table produces and never names, and
+  folding it into `unknown` would make an accepted loss indistinguishable from a record the
+  pass could not account for.
 - One dismissible summary, shown after any migration that changed something, saying what
   moved and why.
 - Stating **R-16**'s accepted loss in the UI when it occurs: a merge whose predecessors were
@@ -211,8 +218,12 @@ ORPHAN {
       — **R-16** stated in the UI, not only in the spec.
 - [ ] `RetiredAchievements.svelte` lists every `ORPHAN` record with its title, date, note,
       and reason.
-- [ ] `MigrationReport` is declared in `lineage-types.ts`, imported by
-      `app/src/lib/state/store.ts`, and `npx tsc --noEmit` passes.
+- [ ] `MigrationReport` and `OrphanReason` are declared in `lineage-types.ts` matching
+      §14.5 exactly, imported by `app/src/lib/state/store.ts`, and `npx tsc --noEmit`
+      passes.
+- [ ] A partial-merge fixture produces an orphan with `reason: 'merged'` and sets
+      `partialMerge: true` on the report; a fixture whose migration changes the rank shows
+      `attainedLevel.before !== after` and the summary states it.
 - [ ] `grep -rn "\.delete(" app/src/lib/state/lineage.ts` shows deletions only of
       `MILESTONE` rows that were superseded or copied into `ORPHAN` in the same
       transaction — nothing leaves user state without a successor or an orphan.
@@ -271,9 +282,9 @@ version — this check is what makes the assumption explicit.
 - **`ORPHAN` has no `slug` field** (§12.2). Do not add one. It also has no
   `contentVersion`, so an orphan cannot be dated to a release — accepted; `at` is the user's
   timestamp and is what matters.
-- **§12.5 does not define `MigrationReport`.** Design it to carry, at minimum: counts per
-  disposition, the list of uids orphaned with their reasons, and a flag for the R-16 branch,
-  since the summary UI and the R-16 message both read from it.
+- **~~§12.5 does not define `MigrationReport`.~~ RESOLVED by T26/F3, 2026-08-05.** It is
+  typed in §14.5 and carries what this note asked for, plus `attainedLevel` before/after.
+  Transcribe it; do not design a second shape.
 - Nothing in this task may write outside §12.4's transaction discipline. One pass, one
   transaction, reactive state updating from its completion — the same rule, for the same
   reason, as an ordinary milestone toggle.

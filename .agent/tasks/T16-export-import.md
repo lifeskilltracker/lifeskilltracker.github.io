@@ -38,8 +38,8 @@ it did not recognise, in a system with no telemetry to notice (§16.5, **R-15**)
 **In scope**
 
 - `export(): Promise<ExportFile>` — assembling `META`, `SKILL`, `MILESTONE`, and `ORPHAN`
-  contents into the §12.6 shape, and defining the `ExportFile` type §14.5 names but never
-  declares.
+  contents into the §12.6 shape. `ExportFile` is now **typed in §14.5** (T26/F3): transcribe
+  it, do not re-derive it from the worked example.
 - Serialization to a downloadable file and a file-picker read on the `/data` route (§13.1).
 - Validation of every imported file against `schema/export.schema.json` (authored in T02)
   **before any write**.
@@ -51,7 +51,11 @@ it did not recognise, in a system with no telemetry to notice (§16.5, **R-15**)
   - an unknown `schemaVersion` **newer than the app** is refused with a message saying the
     file came from a newer version (§16.3).
 - Migrating older `schemaVersion` values forward through the chain (§5.10) before merging.
-- Defining `ImportReport` — the return type §14.5 names and never declares.
+- Populating `ImportReport` — now declared in §14.5 (T26/F3): per-array added/updated
+  counts, the incoming `schemaVersion` and whether it was migrated, and
+  `grandfatheredLevelsReplaced` for §12.6's earliest-version-wins merge. Exported orphans
+  carry `OrphanReason`, which has three members — `retired`, `merged`, `unknown` — the
+  middle one being §12.5's partial-merge case, which the table produces and never names.
 - Recording `lastExportAt` in `META` on every successful export (§12.7 depends on it).
 - **Reserving the unknown-`photo`-key tolerance now**: the export schema and the import
   reader must accept and round-trip an unrecognised `photo` key on a milestone without
@@ -186,9 +190,9 @@ prior**; older exports are migrated on import through the chain. Anything newer 
 - [ ] A human-readability check, as a test over the round-trip fixture: every milestone
       entry in the exported JSON contains a non-empty `title`, and every entry with a note
       retains it verbatim. N7's second reader has no codebase.
-- [ ] `ExportFile` and `ImportReport` are declared in `export-types.ts` and imported by
-      `app/src/lib/state/store.ts` — the §14.5 signatures no longer reference undefined
-      types, and `npx tsc --noEmit` passes.
+- [ ] `ExportFile` and `ImportReport` are declared in `export-types.ts` **matching §14.5
+      exactly** (T26/F3 typed them there) and imported by `app/src/lib/state/store.ts`, and
+      `npx tsc --noEmit` passes.
 - [ ] `/data` renders the orphan list (§16.5) and the current `contentVersion` and
       `appVersion`.
 

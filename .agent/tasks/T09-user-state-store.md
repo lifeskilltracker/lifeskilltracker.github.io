@@ -266,12 +266,21 @@ and the grep showing exactly one module touching IndexedDB.
 - **R-18 — no browser storage mechanism is durable.** §12.1 says so directly, and it
   applies to IndexedDB and `localStorage` alike. Nothing in this task can mitigate it;
   §12.7's export prompting (T18) is the entire mitigation.
-- **`ExportFile`, `ImportReport`, and `MigrationReport` are named in §14.5 and defined
-  nowhere in the architecture.** `ExportFile` is recoverable from §12.6's example and
-  `schema/export.schema.json` (T02). The two report types are genuinely unspecified — T16
-  and T17 must define them and this task should import them rather than invent them. Do
-  not stub them as `unknown`; a placeholder that typechecks is how a contract silently
-  disappears.
+- **~~`ExportFile`, `ImportReport`, and `MigrationReport` are named in §14.5 and defined
+  nowhere.~~ RESOLVED by T26/F3, 2026-08-05.** All three are written out in §14.5, along
+  with `OrphanReason`, whose third member `merged` covers §12.5's partial-merge orphan —
+  the case the table produces and never names. Import them from `lib/types`; do not
+  redeclare.
+- **Every timestamp this store writes is ISO-8601 UTC with a `Z` suffix** — `startedAt`,
+  `lastActivityAt`, `at` (§12.2, added by T26/F4). Not stylistic: §11.7's domain recency is
+  a lexicographic `max` over these strings inside a pure engine, and a local-offset or
+  variable-precision value sorts wrongly with no error anywhere.
+- **`SKILL.lastActivityAt` has an unresolved gap this task will hit — T26/F19.** §12.2
+  types it non-optional, but §12.4 documents only `setMilestoneState` as a writer, so a
+  started-but-untouched skill has no value for a required field; and because step 3 runs
+  for `null` and `dismissed` too, un-checking currently counts as "activity". Neither is
+  settled. Do not decide it locally — the value reaches the user through the map's recency
+  channel. Raise F19 when the write path is built.
 - **`MILESTONE.contentVersion` has no stated consumer.** §12.2 declares the field; §12.5's
   migration keys on `SKILL.contentVersionSeen` instead. Write it (the tree bundle's
   `contentVersion` at completion time) so the record is self-describing for §12.5 and for
