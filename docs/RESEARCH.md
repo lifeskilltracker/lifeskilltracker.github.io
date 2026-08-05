@@ -192,7 +192,11 @@ This introduces no new comparability claim beyond what the 1–10 spine already 
 
 ### Strongest argument against
 
-An additive level-sum makes breadth the cheapest way to raise a domain — ten skills at level 2 outscores one at level 9. That inverts the original defect rather than dissolving it, and it does quietly treat levels as fungible units, which is the comparability claim the project is otherwise careful about. Mitigation is the paired breadth/depth readout, and optionally mild per-skill concavity so later levels are worth slightly more.
+An additive level-sum makes breadth the cheapest way to raise a domain — ten skills at level 2 outscores one at level 9. That inverts the original defect rather than dissolving it, and it does quietly treat levels as fungible units, which is the comparability claim the project is otherwise careful about. Mitigation is the paired breadth/depth readout, and optionally mild per-skill **convexity** so later levels are worth slightly more.
+
+> **Correction and follow-up (2026-08-04, during the architecture work).** The last clause originally read "mild per-skill *concavity*." That was wrong, and the error is worth flagging rather than silently fixing, because it is exactly the confusion the follow-up research had to untangle. Later levels being worth **more** is convexity; the concavity is on the *display* side (F34, mapping an unbounded score to a bounded fill). Naming both halves of the composition "concave" obscures that they pull in opposite directions.
+>
+> The follow-up resolved this. The two functions are **coupled**: with contribution `L^p` and fill `s/(s+k)`, keeping a lone skill's first level as its largest visual jump requires `p ≤ log₂(2k/(k−1))`, so the constants cannot be chosen independently. The adopted answer is mild convexity on contribution and concavity on display, with the constants tuned as a pair. It narrows the ten-at-level-2 versus one-at-level-9 gap but cannot invert it — no weighting compatible with F34 can. See `docs/ARCHITECTURE.md` §11.6 and D-21, and PRD F33 as amended in v1.3.
 
 ---
 
