@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | in progress — F1–F5, F8–F14, F16 resolved 2026-08-05; F6, F7, F15, F17–F23 open |
+| **Status** | in progress — F1–F14, F16, F17 resolved 2026-08-05; F15, F18–F25 open |
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
@@ -13,9 +13,9 @@
 ## Goal
 
 `docs/ARCHITECTURE.md` no longer contradicts itself on any point an implementer must
-act on. Twenty-three findings — seventeen raised during task decomposition, F18 and F19
-found while resolving F3 and F4, and F20–F23 found while resolving F12–F14 — are each
-resolved: amended in
+act on. Twenty-five findings — seventeen raised during task decomposition, F18 and F19
+found while resolving F3 and F4, F20–F23 found while resolving F12–F14, and F24–F25 found
+while resolving F17 and F7 — are each resolved: amended in
 the spec, or recorded as a deliberate tolerance with the consequence stated. After this
 task, no downstream task doc contains the phrase "the spec is silent on".
 
@@ -33,10 +33,10 @@ the PRD.
 
 ## Scope
 
-**In scope** — twenty-three findings, each needing a verdict. F16 and F17 were appended
+**In scope** — twenty-five findings, each needing a verdict. F16 and F17 were appended
 2026-08-05 by the wave-2 task-doc pass and verified against the spec by the orchestrator;
-F18 and F19 were appended 2026-08-05 by the F3/F4/F5 pass and F20–F23 by the F12/F13/F14
-pass, all six unresolved:
+F18 and F19 were appended 2026-08-05 by the F3/F4/F5 pass, F20–F23 by the F12/F13/F14
+pass, and F24–F25 by the F6/F7/F17 pass — all eight unresolved:
 
 **F1 — Invariant 4 is false against the shipped constants. ✅ RESOLVED 2026-08-05 —
 amend.** §11.9 made `Δfill(0→1) ≥ Δfill(L→L+1)` an executable property test while §11.6
@@ -114,18 +114,43 @@ the Map Renderer from `DomainScore.lastActivityAt` and is not a `DomainScore` fi
 deviant and no section changes; if it is rejected, the response is to build R-20, and R-20
 now says where it goes. See `docs/SPEC-FINDINGS.md` F5.
 
-**F6 — §6.4's baseline ref contradicts itself.** The section opens by checking out tree
-files "as of the **last release tag**" and closes with "**the baseline is `main`**".
-§6.5's CI graph says "vs last tag". §16.1 and §16.2 describe merge-to-`main` as the
-entire release process with no tagging step anywhere, so "last release tag" has no
-referent in the spec. *Decide:* `main` as the operative baseline (and fix §6.4's opening
-plus §6.5's node label), or introduce release tagging into §16. **Blocks T23.**
+**F6 — §6.4's baseline ref contradicted itself. ✅ RESOLVED 2026-08-05 — amend.**
+**Adopted:** `main`, and the evidence was one-sided rather than balanced — §5.4, §6.4's
+closing, §16.1 and D-12 all say `main` against two stray "last release tag" phrases.
+Nothing in the spec needs a tag, so introducing tagging would only have contradicted
+§16.1's "no separate publish step". A **third** stray reference surfaced during resolution
+and would have survived a fix aimed at the two the finding named: §6.8 forwarded the reader
+to "Release tagging and the deploy workflow are §16.2", and §16.2 has no tagging step.
+**The rider the finding did not ask about had a wrong answer.** The baseline is the tip of
+`origin/main` and the head is the PR **merged into it** — not the merge-base, which T23 had
+been instructed to implement. Merge-base is unsound the moment two PRs are in flight: two
+branches can each bump one tree 4 → 5 and both pass, leaving `main` with a version 5 whose
+compiled output is not the output that shipped as 5, so §12.5's `>` guard means those users
+never run that migration — silent and undetectable under §16.5. Check 6 breaks identically.
+The price is one stated obligation: **a branch must be up to date with `main` before it
+merges**. §6.4 also now pins **`fetch-depth: 0`**, without which `origin/main` is absent and
+checks 1–7 pass on nothing — the same trap §16.1 already records for git-derived counters,
+and one that would have broken the tag reading too. See `docs/SPEC-FINDINGS.md` F6.
 
-**F7 — §6.2 rule 15 needs git history, which §6.4 owns.** Rule 15 requires every
-`lineage` entry to reference a uid that existed in the published tree — a baseline
-comparison, assigned to `lst validate` while §6.4's near-identical comparison is assigned
-to `lst baseline`. §6.5 runs them as separate parallel jobs. *Decide:* whether the
-comparison primitive is shared, and which subcommand owns it. Affects T03 and T23.
+**F7 — §6.2 rule 15 needed git history, which §6.4 owns. ✅ RESOLVED 2026-08-05 — amend.**
+**Adopted:** split the rule along the line that matters — answerable from the working tree
+versus needing history. §6.2's rule 15 is **replaced** by its git-free half (every `into`
+target resolves to a uid present in the repository head), keeping the table at fifteen so
+§6.5's label and T03's five hard-coded counts are untouched; §6.4 gains **check 7**, every
+entry *appended since the baseline* names a uid present in the baseline. Moving it wholesale
+was declined: it discards a genuinely git-free check and forces edits to the CI diagram and
+five sites in T03 for nothing. **"Appended" is load-bearing.** As worded, rule 15
+re-evaluated the whole ledger, and since the ledger is append-only and never pruned a
+`retired` uid is legitimately gone from `main` three releases later — at which point the
+already-merged entry that retired it fails forever, permanently blocking every future PR on
+that tree with no author action able to clear it. Group C's check 6 is what makes "the
+appended suffix" well defined, so the correct wording was only expressible after it landed.
+Check 7 is **not** check 1 restated: they run in opposite directions, and check 1 cannot
+catch an entry naming an invented uid, because such an entry disposes of nothing and §12.5's
+fold treats it as a no-op — silent at runtime. Rider: §6.7's authoring workflow gains
+`lst baseline`, since it told authors to run only validate and lint and §6.1 promises no
+CI-only check. **T03's new rule 15 is not implementable until F21 lands** — it needs the
+per-`op` grammar for `into`. See `docs/SPEC-FINDINGS.md` F7.
 
 **F8 — `contentVersion` has no increment mechanism, and its scope is never stated.
 ✅ RESOLVED 2026-08-05 — amend.** §16.1 said it increments "on every merge touching
@@ -283,9 +308,25 @@ the file off with "`map.yaml` assigns hex tiles to domains and is specified in �
 closing the loop without assigning it. Three of the five are contiguity and partition
 checks that JSON Schema cannot express, so §6.2 layer 1 does not silently cover them.
 Note this is the *only* occurrence of the phrase "Validated by CI" in the spec — there is
-no established pattern to read it against. *Decide:* extend `lst validate` to taxonomy
-files, or make it part of `lst compile`'s map build step (§10.4), and name it in §6.1.
-**Blocks T12.**
+no established pattern to read it against. **✅ RESOLVED 2026-08-05 — amend.**
+**Adopted:** `lst validate` extends to `content/taxonomy/`, and the five become **layer 2b**,
+rules **M1–M5**, in a separate sub-table (rules 1–15 are all tree-scoped and the numbering is
+read downstream). Three of the five are exactly layer 2's "JSON Schema cannot express this"
+class, and a geometry error belongs in the seconds-long pre-build job with a file and line.
+**The `lst compile` placement — which `T12-map-geometry.md` had already assumed — is unsafe
+for a reason outside §10:** §6.5's `build` job `needs` the app jobs, which the path filter
+skips on a content-only PR, and a skipped dependency skips the dependent, so `build` does not
+run on the PRs that change `map.yaml`. That is **F24**, and it is decisive here because the
+validate placement does not depend on how F24 resolves. Contiguity does **not** fall out of
+§10.4's loop-chaining: a hole and a two-piece region both produce two loops, so §10.4's
+warning is now scoped to holes with disconnection failing validation first — otherwise two
+jobs return different verdicts on one input. Two riders make the rules implementable: **M2
+ranges over the multiset of every tile in every region**, because a tile listed twice inside
+one region has each of its six edges discarded by §10.4 step 2 and vanishes from the outline
+with a still-closed path and no diagnostic; and **the file list scopes what is reported, not
+what is read** — already true for rules 2, 10–12, nowhere stated, and fatal here since
+scoping M1–M5 to argv runs no map checks on the common invocation.
+See `docs/SPEC-FINDINGS.md` F17.
 
 **F18 — the fill band vocabulary is required in three places and defined nowhere, and it
 is called a "tier".** §11.6 closes on presentation: "a **named band** over the same number
@@ -363,6 +404,29 @@ be written down rather than left to the first task that needs it. *Decide:* the 
 signature and whether it is the by-tree index's stated consumer. **Blocks T09, T11a.**
 Raised 2026-08-05 while resolving F13.
 
+**F24 — §6.5's `build` job is unreachable on a content-only PR.** The job graph has
+`V --> BUILD`, `TC --> BUILD` and `T --> BUILD`, and §6.5's closing sentence says "on a
+content-only PR the app jobs are skipped by path filter". Under GitHub Actions' default
+`needs` semantics a skipped dependency skips the dependent — so `build`, which §6.1 marks
+gating and which is the only place `lst compile` runs, **does not execute on the PRs that
+change content**. Everything compile enforces is therefore ungated on exactly its own input:
+§7.3's transformations, F9's schema validation of the emitted bundle, the manifest's `moved`
+map (F13), and §6.4 check 5's compile-both-sides comparison. *Decide:* whether `build` runs
+with `if: always() && !failure()`, or whether the path filter makes the app jobs no-op-pass
+rather than skip. An implementer cannot guess this from the diagram. **Blocks T25, and
+weakens T04, T12, T23 until settled.** Raised 2026-08-05 while resolving F17, whose original
+`lst compile` placement it invalidated.
+
+**F25 — nothing owns §5.4's missing-uid gate.** §5.4 says "CI fails a merge if any `uid` is
+missing, printing the values to paste", and §6.1 marks `lst ids` gating with "(missing uid
+fails)". But §6.5's job graph has no `ids` job, and `lst ids` **fills uids in place** — a
+subcommand that writes files cannot be the CI gate that rejects them. `T03-lst-validate-and-
+ids.md` resolves this by putting the *check* in `lst validate` and the *write* in `lst ids`,
+which is almost certainly right, but that is an inference from two sentences rather than a
+reading of either. Same class as F17: a stated CI guarantee with no named owner. *Decide:*
+which subcommand fails a missing uid, and whether it is a semantic rule in §6.2's table.
+**Blocks T03, T25.** Raised 2026-08-05 while resolving F7.
+
 **Out of scope**
 
 - PRD amendments — T00. F1 and F5 are adjacent to R-25 and R-24 respectively, and doing
@@ -375,7 +439,7 @@ Raised 2026-08-05 while resolving F13.
 ## Deliverables
 
 ```
-docs/ARCHITECTURE.md    the twenty-three findings resolved in place
+docs/ARCHITECTURE.md    the twenty-five findings resolved in place
 docs/SPEC-FINDINGS.md   the decision record: finding, verdict, reason, date
 ```
 
@@ -413,7 +477,7 @@ applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;
 
 ## Acceptance criteria
 
-- [ ] `docs/SPEC-FINDINGS.md` records all twenty-three findings with a verdict of *amend*,
+- [ ] `docs/SPEC-FINDINGS.md` records all twenty-five findings with a verdict of *amend*,
       *tolerate*, or *not a defect*, each with a reason and a date.
 - [ ] F1: §11.6's table and §11.9's invariant 4 agree. Verified by computing
       Δfill(0→1) and Δfill(1→2) from the shipped constants and checking the invariant
@@ -434,9 +498,14 @@ applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;
 - [ ] F18: the fill band vocabulary is named, and not called "tier".
 - [ ] F19: §12.4 names every writer of `SKILL.lastActivityAt`, and §12.2's field is typed
       to match.
-- [ ] F6: §6.4's opening, §6.4's closing, and §6.5's job label all name the same baseline.
-- [ ] F7: exactly one subcommand owns the baseline comparison primitive, and both §6.2
-      rule 15 and §6.4 reference it.
+- [x] F6: §6.4's opening, §6.4's closing, and §6.5's job label all name the same baseline.
+      *All three say `main`, plus §6.1's table row and §6.8's dangling tag reference. §6.4
+      additionally pins `origin/main`'s tip versus the PR merge result, the
+      branch-up-to-date requirement, and `fetch-depth: 0`.*
+- [x] F7: exactly one subcommand owns the baseline comparison primitive, and both §6.2
+      rule 15 and §6.4 reference it. *`lst baseline` owns everything needing history; §6.2's
+      rule 15 is now the git-free `into`-resolution half, and §6.4 check 7 is the historical
+      half, scoped to entries appended since the baseline.*
 - [x] F8: `contentVersion`'s source is named and is reproducible in a local build, not
       only in CI. *`lst version` writes it into the tree file; §6.4 enforces it. No git
       history, no CI-only state — an author reproduces the exact value offline.*
@@ -471,9 +540,12 @@ applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;
       reading §16.4's Phase 0 prose and confirming that every state T10's gate requires
       has a named producer scheduled no later than T08. *§16.4's Phase 0 chain gains the
       §11.1–§11.4 node before TreeView; T11a is that producer and blocks T08.*
-- [ ] F17: §6.1's subcommand table names the command that validates `map.yaml`, and
+- [x] F17: §6.1's subcommand table names the command that validates `map.yaml`, and
       §10.3's "Validated by CI" sentence points at it. Verified by
-      `grep -n "map.yaml" docs/ARCHITECTURE.md` returning a §6 hit.
+      `grep -n "map.yaml" docs/ARCHITECTURE.md` returning a §6 hit. *`lst validate`, via
+      §6.2's layer 2b rules M1–M5; §5.9's handoff also names it now.*
+- [ ] F24: §6.5 states whether `build` runs on a content-only PR.
+- [ ] F25: exactly one subcommand is named as the gate that fails a missing `uid`.
 - [ ] Every affected task doc under `.agent/tasks/` is updated to match the resolutions,
       and `grep -ril "spec is silent\|unresolved spec gap" .agent/tasks/` returns nothing.
 

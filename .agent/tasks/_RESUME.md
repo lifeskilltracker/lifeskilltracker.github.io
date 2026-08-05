@@ -1,25 +1,68 @@
 # RESUME — T26 spec reconciliation, wave 2
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-05 after Group C. Read this, then `_BREAKDOWN.yaml`, then
+Updated 2026-08-05 after Group D. Read this, then `_BREAKDOWN.yaml`, then
 `T26-architecture-reconciliation.md`.
 
 ## Where things stand
 
 **All 27 task docs written** (`5c69e91`). **T26 is the front of the critical path** and is
-now 13 of 23 findings resolved — the count grew again because Group C found four more.
+now 16 of 25 findings resolved — the count grew again because Group D found two more.
 
 | Resolved | Open |
 |---|---|
-| F1, F2 (2026-08-05, session 1) | F6, F7 |
-| F8, F9, F10, F11, F16 (session 2) | F15, F17 |
-| F3, F4, F5 (session 3, Group B) | F18, F19 (raised by Group B) |
-| F12, F13, F14 (session 4, Group C) | **F20, F21, F22, F23** (new, raised by Group C) |
+| F1, F2 (2026-08-05, session 1) | F15 — the omission cluster, never started |
+| F8, F9, F10, F11, F16 (session 2) | F18, F19 (raised by Group B) |
+| F3, F4, F5 (session 3, Group B) | F20, F21, F22, F23 (raised by Group C) |
+| F12, F13, F14 (session 4, Group C) | **F24, F25** (new, raised by Group D) |
+| F6, F7, F17 (session 5, Group D) | |
 
 Resolutions are recorded in `docs/SPEC-FINDINGS.md` and amended into
 `docs/ARCHITECTURE.md`. No implementation has begun; the repository is still docs-only.
 
 **Do not use the sqz MCP tools.** The user asked for built-in Read/Grep/Bash instead.
+
+## What session 5 changed (Group D — F6, F7, F17)
+
+- **F6** — the baseline is `main`, and the evidence was one-sided rather than balanced: four
+  sites say `main` against two stray "last release tag" phrases, and a **third** stray one
+  turned up during resolution (§6.8 forwarded "Release tagging" to §16.2, which has no
+  tagging step). **The rider the finding never asked about had a wrong answer**: the baseline
+  is the tip of `origin/main` against the PR **merged into it**, not the merge-base T23 had
+  been told to implement. Merge-base is unsound with two PRs in flight — both can bump one
+  tree 4 → 5 and pass, leaving `main` with a version 5 that is not the 5 that shipped, so
+  §12.5's `>` guard skips that migration for everyone who saw the first. Check 6 breaks the
+  same way. Price: **branches must be up to date before merge**, and `fetch-depth: 0` —
+  at depth 1 there is no `origin/main` and checks 1–7 pass on nothing.
+- **F7** — rule 15 splits along "answerable from the working tree" versus "needs history".
+  §6.2's rule 15 becomes the git-free half (`into` targets resolve in the head), keeping the
+  table at fifteen so no count anywhere changes; §6.4 gains **check 7**. **"Appended since
+  the baseline" is load-bearing**: as worded, the rule re-evaluated the whole ledger, so a
+  `retired` uid legitimately gone from `main` three releases later would fail its own
+  already-merged entry forever and permanently block every PR on that tree. Group C's check 6
+  is what made the correct wording expressible — the second time it has paid for itself.
+- **F17** — `lst validate` owns the five geometry invariants as §6.2 **layer 2b**, rules
+  M1–M5. `T12-map-geometry.md` had assumed `lst compile`, and that placement is unsafe for a
+  reason outside §10: §6.5's `build` job `needs` the app jobs, the path filter skips them on
+  content-only PRs, and a skipped dependency skips the dependent — so `build` never runs on
+  the PRs that change `map.yaml`. Riders: **M2 ranges over every tile in every region** (the
+  intra-region duplicate is the silent one — §10.4 discards both copies of each doubled edge
+  and the tile vanishes with the path still closed), and **the file list scopes reporting,
+  not reading**, which was already true for rules 2 and 10–12 and stated nowhere.
+- **Four defects folded in**, per the same policy as Group C: §6.8's dangling tag pointer,
+  §10.4's hole-versus-disconnection conflation, M2's unscoped wording, and §6.7's authoring
+  workflow (which told authors to run only validate and lint, and which F7 made worse).
+- **New: F24** — §6.5's `build` job is unreachable on a content-only PR, so everything
+  `lst compile` enforces is ungated on its own input. Blocks T25; weakens T04, T12, T23.
+  Note `T25-ci-and-deploy.md` already carries an acceptance criterion that the spec as drawn
+  makes unsatisfiable. **F25** — nothing owns §5.4's missing-uid gate; §6.1 names `lst ids`,
+  which writes files in place and therefore cannot be the gate that rejects them.
+
+### One edge change
+
+**T03 now blocks T12.** F17 moved `map-validate.ts` out of `tools/src/compile/` and into
+T03's rules directory, so the map geometry task depends on the validator that runs its
+checks. Everything else in Group D was note-level.
 
 ## What session 4 changed (Group C — F12, F13, F14)
 
@@ -130,14 +173,17 @@ Suggested grouping, unchanged from this session's analysis:
 |---|---|---|---|
 | ~~**B — engine types**~~ | ~~F3, F4, F5~~ | — | **Done, session 3.** |
 | ~~**C — lineage & import**~~ | ~~F12, F13, F14~~ | — | **Done, session 4.** Raised F20–F23. |
-| **D — CLI & map validation** | F6, F7, F17 | T12, T23 | Cheapest and self-contained. F6/F7 now touch §6.4's fifth **and sixth** checks, and **F14's check 6 is waiting on F6** to say which ref the baseline is. |
-| **E — the omission cluster** | F15, F19, F22 | T09, T14, T16 | Seven small items plus F19. F22 (a tree leaving the manifest) is the same class of "the spec never says what happens" and lands in the same store/shell territory. |
-| **G — the lineage leftovers** | F20, F21, F23 | T03, T04, T09, T11a, T17 | New, all raised by Group C. F20 and F21 are §12.5/§5.4 and should be done together; F23 is the `TreeProgress` accessor and is arguably the most overdue of the three, since two resolutions have now turned on what it is. |
+| ~~**D — CLI & map validation**~~ | ~~F6, F7, F17~~ | — | **Done, session 5.** Raised F24, F25. |
+| **G — the lineage leftovers** | F20, F21, F23 | T03, T04, T09, T11a, T17 | Raised by Group C. F20 and F21 are §12.5/§5.4 and should be done together; F23 is the `TreeProgress` accessor and is the most overdue, since **three** resolutions have now turned on what it is. F21 additionally **blocks T03's new rule 15** from Group D — that rule cannot be implemented without the per-`op` `into` grammar. |
+| **E — the omission cluster** | F15, F19, F22, F25 | T03, T09, T14, T16 | Seven small items plus F19. F22 and F25 are the same class — a stated guarantee with no named owner — and F25 lands in T03's territory like the rest. |
+| **H — the CI topology** | F24 | T25 | Alone, and it does not fit the others. It is a job-graph decision, not a §6.4/§10.3 ownership question, and it is the only open finding that makes an existing task doc's acceptance criterion unsatisfiable as the spec is drawn. |
 | **F — the band vocabulary** | F18 | T13, T20 | Does not fit the others: naming the bands is a content/PRD-adjacent call, probably T00's, and it must also rename "tier" at the domain level. Ask the owner rather than deriving. |
 
-**Group D is the natural next one** — it is the cheapest, it is self-contained, and F6 is now
-blocking a check that Group C just added to §6.4. Group G is the natural one after it, since
-it finishes the §12.5 surface Group C opened.
+**Group G is the natural next one** — F21 now blocks a rule Group D just wrote into §6.2, and
+F23 has been load-bearing for three separate resolutions without ever being written down.
+**F24 is the one to do if you want the highest-severity single finding**: as the spec is
+drawn, `lst compile` — and therefore §7.3, F9's schema validation, F13's `moved` map, and
+§6.4 check 5 — never gates a content-only PR.
 
 ## Working agreements from this session
 
@@ -159,6 +205,8 @@ it finishes the §12.5 surface Group C opened.
   carries the F3/F4/F5 amendments; when it splits, `DomainSkillRow`, `DomainScore` and both
   rollups go to **T11b**, and `TierName | null` goes to **T11a** (every skill starts at
   `attained: 0`, so the null case is phase 0).
+- **Group D's one edge change is T03 → T12**, and it is the kind the coherence pass below
+  exists to catch: moving a check between subcommands moves a dependency between tasks.
 - **Group C added two fields to build artifacts**, and both are load-bearing rather than
   informational: `manifest.moved` (T02's schema, T04 emits it) and the export file's
   `contentVersionSeen` (T02's schema, T09 writes it, T16 merges it as a minimum). Neither

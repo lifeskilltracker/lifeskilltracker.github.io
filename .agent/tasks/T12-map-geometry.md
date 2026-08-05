@@ -5,9 +5,9 @@
 | **Status** | pending |
 | **Phase** | 1 |
 | **Cluster** | content-gates |
-| **Blocked by** | T10 |
+| **Blocked by** | T03, T10 |
 | **Blocks** | T13 |
-| **Spec** | ARCHITECTURE §10.3, §10.4 |
+| **Spec** | ARCHITECTURE §6.2, §10.3, §10.4 |
 | **PRD** | F21, D-08, R-13 |
 
 ## Goal
@@ -57,12 +57,19 @@ editor would be scope creep against a task R-13 explicitly expects to be endured
   region-union algorithm (§10.4) — expand tiles to corners on a shared vertex grid,
   discard edges appearing twice (interior), chain survivors into a closed loop, emit as
   an SVG path; compute centroid and bounding box per region.
-- The §10.3 CI-validated invariants, implemented as part of the map-compilation step so
-  `lst compile` fails on a violation: every domain in `domains.yaml` has a region; no
-  tile is claimed twice across all regions; each region is contiguous; subregion tiles
-  partition their parent's tiles exactly; subregions appear only under `making`; a region
-  producing more than one closed loop (a hole) emits both sub-paths and triggers a CI
-  warning rather than a hard failure (§10.4's explicit exception).
+- The §10.3 geometry invariants — **now §6.2's layer 2b rules M1–M5, owned by `lst
+  validate` and implemented in T03's rules directory, not here** (T26/F17, 2026-08-05).
+  This task authors the fixtures and the geometry they exercise; T03 owns the rule modules
+  and the reporting. `map-validate.ts` moves out of `tools/src/compile/` accordingly, and
+  this task gains T03 as a blocker. **M2 is stated over the multiset of every tile in every
+  region**, not merely across domains: a tile listed twice inside one region has both copies
+  of each of its six edges discarded by §10.4 step 2, so it vanishes from the outline with
+  the path still closed and nothing reported.
+- What stays in the compiler: §10.4's **hole warning only**. A region producing more than
+  one closed loop emits both sub-paths and warns. That warning is now explicitly scoped to
+  holes, because M3 rejects disconnection at validation first — a hole and a two-piece
+  region both produce two loops, so loop count cannot discriminate and the compiler must
+  not try (T26/F17).
 - Replacing T04's placeholder `taxonomy.map` shape in the compiled manifest with real
   geometry — the manifest's structural shape (established by T02's `map.schema.json` and
   emitted empty-but-valid by T04) does not change; only its content becomes correct.
@@ -95,8 +102,8 @@ editor would be scope creep against a task R-13 explicitly expects to be endured
 content/taxonomy/map.yaml           authored hex geometry, all 8 domains + 3 Making subregions
 tools/src/compile/map.ts            axial→pixel maths (§10.2) + region union (§10.4)
 tools/src/compile/map.test.ts
-tools/src/compile/map-validate.ts   the §10.3 CI-checked invariants (contiguity, no double claim, exact partition)
-tools/src/compile/map-validate.test.ts
+tools/test/fixtures/map/            geometry fixtures for T03's M1–M5 rule modules
+                                    (the rules themselves live in tools/src/validate/)
 schema/map.schema.json              updated only if T02's shape-only version needs geometry-adjacent constraints
 ```
 
@@ -178,23 +185,24 @@ The manifest target shape this task populates, copied verbatim from §7.2:
       `content/taxonomy/domains.yaml` (eight), and `making`'s region declares exactly
       three subregions: `expression`, `objects`, `systems`.
 - [ ] A fixture where a domain from `domains.yaml` has no matching region in `map.yaml`
-      fails compilation.
+      fails **validation** (`lst validate`, rules M1–M5).
 - [ ] A fixture where the same tile `(q, r)` appears in two different domains' `tiles`
-      lists fails compilation.
+      lists fails **validation** (`lst validate`, rules M1–M5).
 - [ ] A fixture where a domain's tiles form two disconnected clusters (non-contiguous)
-      fails compilation.
+      fails **validation** (`lst validate`, rules M1–M5).
 - [ ] A fixture where `making`'s subregion tiles omit one of `making`'s own tiles, or
-      claim a tile `making` does not have, fails compilation — the exact-partition check.
-- [ ] A fixture declaring `subregions` under a non-`making` domain fails compilation.
+      claim a tile `making` does not have, fails **validation** — the exact-partition check.
+- [ ] A fixture declaring `subregions` under a non-`making` domain fails **validation** (`lst validate`, rules M1–M5).
 - [ ] `tools/src/compile/map.ts`'s axial-to-pixel conversion matches §10.2's formula
       exactly for a hand-computed fixture set of `(q, r)` pairs.
 - [ ] The region-union algorithm run against a fixture of 3+ adjacent tiles for one domain
       produces a single closed SVG path with no interior edges present in the `d`
       attribute — verified by parsing the emitted path and confirming edge count matches
       the expected exterior-only boundary.
-- [ ] A fixture region shaped as a ring (a hole) emits two sub-paths and produces a CI
-      warning, not a hard failure — distinguishing this case from the double-claimed-tile
-      failure above.
+- [ ] A fixture region shaped as a ring (a hole) passes M3 — a hole is contiguous — and
+      emits two sub-paths with a compiler warning, not a hard failure. Asserting this
+      alongside the disconnected-region failure above is what proves contiguity was
+      computed by adjacency rather than inferred from a loop count (T26/F17).
 - [ ] `npx lst compile` (T04) with this task's map compiler wired in produces a
       `manifest.json` whose `taxonomy.map` contains real path data (not T04's placeholder
       shape) for all eight domains.
@@ -216,15 +224,16 @@ manifest with eight real region paths and no placeholder geometry remaining.
 
 ## Notes and hazards
 
-- **Which command runs §10.3's five geometry checks is an open spec question — T26's F17,
-  not this task's to settle.** §10.3 says they are "Validated by CI" but no subcommand or
-  job owns them: §6.1's table scopes `lst validate` to tree files, §6.2's semantic rules
-  are `tree.yaml`-only, and §6.5 names no map job. This document places the checks in the
-  `lst compile` map step because §10.4 puts map compilation there, which is an
-  **inference, not a reading**. If F17 resolves toward extending `lst validate` to
-  taxonomy files instead, the checks move and the failure surface moves with them — an
-  author would see them at `lst validate` time rather than at build time. Do not treat the
-  current placement as settled.
+- **~~Which command runs §10.3's five geometry checks is an open spec question.~~ RESOLVED
+  by T26/F17, 2026-08-05, and it went the other way from this document's guess.** The checks
+  are `lst validate`'s, as §6.2's layer 2b rules M1–M5; the failure surface is validate time,
+  not build time; and T03 owns the rule modules. This document's `lst compile` placement was
+  flagged as "an inference, not a reading" and was right to be — it turned out to be unsafe
+  for a reason outside §10 entirely. §6.5's `build` job `needs` the app jobs, which the path
+  filter skips on a content-only PR, and a skipped dependency skips the dependent: **`build`
+  does not run on the PRs that change `map.yaml`.** The checks would have lived in a job that
+  never fires on the input they guard. That is recorded separately as **T26/F24**, still
+  open, and it does not affect this task now that the checks have moved.
 - **R-13 is a working-mode instruction, not just an accepted risk.** If hand-authoring the
   eight regions' tile lists is slow or error-prone, the sanctioned response is a throwaway
   local script that helps a human place tiles and prints the resulting YAML — not a

@@ -71,8 +71,8 @@ tasks:
     phase: 0
     cluster: cli-toolchain
     blocked_by: [T02]
-    blocks: [T04, T05, T22, T23]
-    spec: ["§6.1", "§6.2", "§5.4"]
+    blocks: [T04, T05, T12, T22, T23]
+    spec: ["§6.1", "§6.2", "§5.4", "§10.3"]
     prd: [F40, F41, F45]
     status: written
     doc: T03-lst-validate-and-ids.md
@@ -200,9 +200,9 @@ tasks:
     title: Map geometry — map.yaml, axial maths, region union
     phase: 1
     cluster: content-gates
-    blocked_by: [T10, T26]
+    blocked_by: [T03, T10, T26]
     blocks: [T13]
-    spec: ["§10.3", "§10.4"]
+    spec: ["§6.2", "§10.3", "§10.4"]
     prd: [F21, D-08, R-13]
     status: written
     doc: T12-map-geometry.md
@@ -392,6 +392,8 @@ tasks:
       pass and block T17, T03/T04/T17, T14/T16, and T09/T11a respectively.
       Group C added a manifest field (`moved`) and an export field (`contentVersionSeen`),
       so T02 and T04 both gained schema work — no new graph edges.
+      Group D moved §10.3's five geometry invariants from `lst compile` to `lst validate`,
+      which is the one edge change: T03 now blocks T12.
 
 # Critical path: T01 → T02 → T03 → T04 → T07 → T08 → T10 → T11b → T14 → T20
 #   T11a (§11.1–§11.4) joins T06/T07 as a T08 prerequisite — see T26 F16.

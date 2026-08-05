@@ -94,12 +94,18 @@ passes CI and human review and is merged" is measuring against.
 - Preview deploys — explicitly out of scope per §4.4: "They would require a second
   hosting provider and are not worth the operational surface for a solo maintainer
   (N10)."
-- **§6.4's baseline-ref contradiction is T26's finding F6, not this task's to resolve.**
-  §6.4 opens by checking out tree files "as of the last release tag" and closes with "the
-  baseline is `main`," and §6.5's own job-graph label says "vs last tag" — but §16.1 and
-  §16.2 describe merge-to-`main` as the entire release process with no tagging step
-  anywhere, so "last release tag" has no referent. T23 already implemented `lst baseline`
-  against `main` itself, per its own documented reasoning. This task's `content: baseline`
+- **~~§6.4's baseline-ref contradiction.~~ RESOLVED by T26/F6, 2026-08-05.** The baseline is
+  `main` — specifically the tip of `origin/main`, compared against the PR merged into it.
+  Two consequences land squarely in this task, and both are easy to get wrong by omission:
+  the `content: baseline` job must check out with **`fetch-depth: 0`** (at
+  `actions/checkout`'s default depth of 1 there is no `origin/main`, and every check passes
+  on nothing rather than erroring — the same trap §16.1 records for git-derived counters),
+  and the repository must **require branches to be up to date before merge**, or use a merge
+  queue. The second is a repository setting rather than a workflow file, and it is not
+  optional: §6.4 checks 5 and 6 are unsound against a stale branch, and the failure mode is
+  a silently-skipped content migration that no later gate can see. Legacy guidance below,
+  retained for the reasoning only:
+  This task's `content: baseline`
   job invokes T23's tool as built and **labels the job to match what the tool actually
   compares against** — do not relabel it "vs last tag" to match §6.5's diagram text if
   the tool compares against `main`; that would restate the contradiction in the workflow
@@ -219,7 +225,15 @@ verbatim from §16.2:
       a PR.
 - [ ] `build` still runs and can still succeed on a content-only PR where `app: typecheck`
       and `app: test` report `skipped` — verified by the same content-only PR reaching a
-      green `build` job.
+      green `build` job. **T26/F24 is open on exactly this**, and this criterion is the
+      reason it matters: §6.5's graph has `build` needing both app jobs, and a skipped
+      dependency skips the dependent under GitHub Actions' default `needs` semantics, so
+      the spec as drawn makes this criterion unsatisfiable. The two candidate mechanisms
+      are `if: always() && !failure()` on `build`, or a path filter that makes the app jobs
+      no-op-pass rather than skip. Do not pick one before F24 lands — it decides whether
+      `lst compile` gates content PRs at all.
+- [ ] The `content: baseline` job checks out with `fetch-depth: 0`, and a fixture run
+      against a depth-1 checkout **fails loudly** rather than passing vacuously (T26/F6).
 - [ ] A PR that fails any one of the six gating jobs shows the overall check as failing
       (blocked), while a PR with only `content: lint` findings and all six gating jobs
       green shows the overall check as passing.

@@ -744,7 +744,7 @@ The **id/display-name split is the mechanism behind F20**: renaming a domain in 
 
 Facet ids are extended by maintainer PR to `facets.yaml`. The initial vocabulary (D12) is a PRD-level content decision and is not fixed here; the schema only requires that every facet a tree uses exists in the file.
 
-`map.yaml` assigns hex tiles to domains and is specified in §10.3.
+`map.yaml` assigns hex tiles to domains, is specified in §10.3, and is validated by `lst validate`'s taxonomy rules M1–M5 (§6.2) like every other file under `content/`.
 
 ### 5.10 Schema versioning and migration (D13)
 
@@ -778,8 +778,8 @@ One command, several subcommands, living in the `tools/` workspace with no appli
 
 | Command | Purpose | Gates? |
 |---|---|---|
-| `lst validate [files…]` | Schema + semantic rules (F41) | **yes** |
-| `lst baseline` | uid immutability vs. last release tag (§6.4) | **yes** |
+| `lst validate [files…]` | Schema + semantic rules, trees **and taxonomy** (F41) | **yes** |
+| `lst baseline` | uid immutability vs. `main` (§6.4) | **yes** |
 | `lst lint [files…]` | Advisory coherence and style warnings | no |
 | `lst ids [files…]` | Fill missing `uid` values in place | **yes** (missing uid fails) |
 | `lst version [files…]` | Bump `contentVersion` in place where compiled output changed | **yes** (stale version fails, §6.4) |
@@ -813,7 +813,23 @@ Two layers, both hard gates.
 | 12 | Every facet exists in `facets.yaml` | F19, F41 |
 | 13 | `copyleftDerived` is present and answered | F45 |
 | 14 | Mastery entries carry no level, track, order, or requirement group | F5, §5.7 |
-| 15 | Every `lineage` entry references a uid that existed in the published tree | §5.4 |
+| 15 | Every `lineage` entry's `into` targets resolve to a uid present in the repository head | §5.4 |
+
+**Layer 2b — taxonomy rules**, over `content/taxonomy/`. These are §10.3's five geometry invariants, which that section required without naming an owner. They live here because three of the five — contiguity, exact partition, and the double-claim check — are precisely what JSON Schema cannot express, which is what layer 2 is for, and because a geometry error should surface in the seconds-long validate job with a file and line rather than as a build failure later in the graph.
+
+| # | Rule | Spec |
+|---|---|---|
+| M1 | Every domain in `domains.yaml` has a region in `map.yaml` | §10.3 |
+| M2 | No tile is claimed twice — over the **multiset of every tile in every region**, not merely across domains | §10.3 |
+| M3 | Each region is contiguous under hex adjacency | §10.3 |
+| M4 | Subregion tiles partition their parent's tiles exactly — no gap, no overlap, no stray | §10.3 |
+| M5 | Subregions appear only under `making` | §10.3, F26 |
+
+M2's scope is stated because the intra-region case fails silently and is the easier mistake to make: a tile listed twice inside one region gives each of its six edges a duplicate, and §10.4 step 2 discards every doubled edge — so the tile disappears from the emitted outline, the path still closes, and nothing reports anything.
+
+M3 is a connectivity pass over tile adjacency, not an inference from §10.4's loop count. A region with a hole and a region in two disconnected pieces both produce two closed loops, so loop count cannot tell them apart; §10.4's warning is scoped to holes precisely because M3 has already rejected disconnection upstream.
+
+**The file list scopes what is *reported*, not what is *read*.** `lst validate content/trees/foo.yaml` still loads `domains.yaml`, `facets.yaml`, `map.yaml`, and every other tree — rules 2, 10, 11 and 12 have always required this, since repository-wide uid uniqueness and taxonomy resolution cannot be answered from one file. Stated because the taxonomy rules make the consequence visible: an implementer who scopes M1–M5 to argv will silently run no map checks on the common invocation.
 
 Rule 13 deserves comment: CI cannot detect a copyleft derivation, only the *absence of an answer*. A tree answering `true` passes CI and is rejected at review (F45). The gate is there to make the question unskippable, not to adjudicate it.
 
@@ -839,7 +855,7 @@ If a rule proves to have a near-zero false-positive rate over the first dozen tr
 
 ### 6.4 Baseline breaking-change detection
 
-The job that makes §5.4's identifier guarantees real. On every PR it checks out the tree files as of the **last release tag**, and compares:
+The job that makes §5.4's identifier guarantees real. On every PR it checks out the tree files as of the **baseline** — defined below — and compares:
 
 1. Every `uid` present in the baseline still exists in the head, **or** appears in `lineage` with a disposition.
 2. No `uid` has been reassigned to a different milestone.
@@ -849,9 +865,17 @@ The job that makes §5.4's identifier guarantees real. On every PR it checks out
 
 6. The baseline's `lineage` ledger is a **prefix** of the head's — same entries, same order, appended to only at the end. §5.4 calls the ledger append-only and §12.5 folds it in file order to compose dispositions across skipped content versions, so an entry inserted mid-list, reordered, or edited in place silently changes the outcome of a migration for every user who skipped a version. Rules 1–5 would all pass such a change. This is the check that makes §5.5's third file-position exception safe to rely on.
 
+7. Every `lineage` entry **appended since the baseline** names a uid that was present in the baseline. This is check 1 run in the opposite direction — check 1 asks that nothing published vanishes undisposed, check 7 asks that nothing is disposed of that was never published — and neither implies the other. A ledger entry naming a typo'd or invented uid disposes of nothing, and §12.5's fold treats a non-matching entry as a no-op, so without this check the error is completely silent at runtime. **"Appended since the baseline" is load-bearing, not a scoping convenience:** the ledger is append-only and never pruned (§5.4), so a `retired` uid is legitimately absent from the baseline three releases later. Re-evaluating that old entry would fail forever and block every future PR on that tree with no author action able to clear it. Check 6 is what makes the appended suffix well defined.
+
+**The baseline is `main`**, because merging deploys (§16.1) and therefore merging publishes. There is no release tag anywhere in this spec to compare against, and §16.1 has no step that would create one.
+
+Precisely: the baseline is the tip of **`origin/main`**, and the head is the PR **merged into it** — not the PR branch alone, and not the merge-base. The distinction is not pedantry; merge-base is unsound for checks 5 and 6 the moment two PRs are in flight. Two branches cut from the same commit can each bump one tree from `contentVersion` 4 to 5, and each passes against its own merge-base — leaving `main` with a version 5 whose compiled output is not the output that shipped as 5, so §12.5's `>` comparison means every user who already saw 5 never runs the migration for the second change. Silent, permanent, and undetectable under §16.5's no-telemetry rule. Check 6 fails the same way: two branches each append one ledger entry, both pass, and the merged order on `main` satisfies neither one's prefix claim. Comparing against the tip catches both, at the cost of one requirement on the repository: **a branch must be up to date with `main` before it merges** — GitHub's "require branches to be up to date", or a merge queue. That is the only operational obligation this section imposes, and it exists because the alternative is a class of failure no gate downstream can see.
+
+The job must also **check out enough history to resolve `origin/main`** — `fetch-depth: 0`, or an explicit fetch. `actions/checkout` clones at depth 1 by default, which is the same trap §16.1 records for git-derived counters: at depth 1 there is no `origin/main` and no merge-base, so checks 1–7 do not error, they silently pass on nothing. For a repository of this size full history costs nothing.
+
 This is Buf's `breaking --against '.git#tag=vN'` pattern, applied to content rather than protobuf. Buf's own framing is the right one to give reviewers: the tool mechanically identifies breaking changes so the humans can spend their attention on whether to *allow* them.
 
-**The baseline is `main`**, because merging deploys (§16.1) and therefore merging publishes. A tree that has never been merged has no baseline uids at all, so an author may iterate freely across review rounds — reordering, renaming, splitting, deleting — with no ledger entries. Its uids freeze at the moment of merge, which is precisely the moment a user can first have progress against them.
+A tree that has never been merged has no baseline uids at all, so an author may iterate freely across review rounds — reordering, renaming, splitting, deleting — with no ledger entries. Its uids freeze at the moment of merge, which is precisely the moment a user can first have progress against them.
 
 ### 6.5 CI job graph
 
@@ -859,7 +883,7 @@ This is Buf's `breaking --against '.git#tag=vN'` pattern, applied to content rat
 flowchart TD
     PR([Pull request]) --> SETUP["setup<br/><small>Node 20 LTS, npm ci, cache</small>"]
 
-    SETUP --> V["content: validate<br/><small>schema + 15 semantic rules</small>"]
+    SETUP --> V["content: validate<br/><small>schema + 15 semantic rules<br/>+ 5 taxonomy rules</small>"]
     SETUP --> B["content: baseline<br/><small>uid immutability + contentVersion bump</small>"]
     SETUP --> L["content: lint<br/><small>advisory annotations</small>"]
     SETUP --> ST["content: status<br/><small>REVIEW-STATUS.md is current</small>"]
@@ -919,7 +943,7 @@ The documented workflow is four steps:
 1. **Gather** an existing curriculum or graded framework for the skill (F44) — ABRSM syllabus, CEFR descriptors, a belt curriculum, a published course outline — plus the author's own expertise. F45's copyleft carve-out is checked *here*, before any drafting, because that is the last cheap moment to check it.
 2. **Draft** against a published prompt template that carries the house rules inline: the 1–10 spine, 4–8 milestones per level, achievement phrasing with observable completion conditions, no effort quantities, and the professionalization-is-not-mastery rule from F43.
 3. **Normalize** by hand. The author rewrites every milestone in their own words and deletes anything they cannot personally judge. This step is the one the guide should press hardest on, because an unedited draft is exactly the "empty container with an AI-generated veneer" the PRD's §3 trade-offs name as the failure mode to avoid.
-4. **Validate** with `lst validate` and `lst lint`, then open the PR.
+4. **Validate** with `lst validate`, `lst baseline`, and `lst lint`, then open the PR. `lst baseline` belongs in that list because §6.1 promises no CI-only check an author cannot reproduce locally, and since §6.4 check 7 moved the lineage-versus-history rule out of `lst validate`, an author running validate alone would no longer see it. It needs an up-to-date local `main` (`git fetch origin main`) for the same reason CI does.
 
 The prompt template is versioned in the repository so that its output quality is itself reviewable, and so a maintainer who notices a recurring flaw across submissions can fix it once at the source.
 
@@ -927,7 +951,7 @@ The prompt template is versioned in the repository so that its output quality is
 
 ### 6.8 What this section does not cover
 
-The schema the validator enforces is §5. The compiled output `lst compile` produces is §7. Release tagging and the deploy workflow are §16.2.
+The schema the validator enforces is §5. The compiled output `lst compile` produces is §7. The deploy workflow is §16.2 — which has no tagging step, because merge is publication (§16.1).
 
 ---
 
@@ -1310,7 +1334,7 @@ regions:
   …
 ```
 
-Validated by CI: every domain in `domains.yaml` has a region; no tile is claimed twice; each region is contiguous; subregion tiles partition their parent's tiles exactly; subregions appear only under `making`.
+These five invariants are enforced by `lst validate` as §6.2's **layer 2b** taxonomy rules M1–M5, and they gate: every domain in `domains.yaml` has a region; no tile is claimed twice; each region is contiguous; subregion tiles partition their parent's tiles exactly; subregions appear only under `making`. §6.2 states each one's exact scope — M2 in particular ranges over every tile in every region, not only across domains.
 
 **Region size does not encode anything.** A domain with more skills does not get more tiles, and the schema offers no way to express that it should. Region area is visual identity; the quantitative channels are fill, recency, and breadth (§10.5). Making being 27% of the projected library must not become 27% of the map, or the map starts making the cross-domain comparison the PRD spends F12 and NG9 refusing to make.
 
@@ -1334,7 +1358,7 @@ For each region:
 
 Emitted into `manifest.taxonomy.map`, so the map renders from the manifest alone with no further fetch — which is what §3.3's cold-load sequence requires.
 
-A region with a hole (a domain drawn as a ring) would produce two loops. The compiler emits both as sub-paths and CI warns, because it is far more likely to be an authoring mistake than an intention.
+A region with a hole (a domain drawn as a ring) would produce two loops. The compiler emits both as sub-paths and warns, because it is far more likely to be an authoring mistake than an intention. **This warning covers holes only.** The other way to get two loops — a region in two disconnected pieces — is a hard failure at validation (§6.2, rule M3) and never reaches the compiler, which is what keeps a warning here from quietly standing in for a gate. Loop count alone cannot distinguish the two cases, so the compiler must not try to.
 
 ### 10.5 Rendering the three channels
 

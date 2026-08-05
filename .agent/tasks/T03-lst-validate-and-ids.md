@@ -6,7 +6,7 @@
 | **Phase** | 0 |
 | **Cluster** | cli-toolchain |
 | **Blocked by** | T02 |
-| **Blocks** | T04, T05, T22, T23 |
+| **Blocks** | T04, T05, T12, T22, T23 |
 | **Spec** | ARCHITECTURE §6.1, §6.2, §5.4 |
 | **PRD** | F40, F41, F45 |
 
@@ -15,9 +15,9 @@
 `tools/src/validate/` and `tools/src/ids/` exist and are wired into the `lst` CLI
 (`tools/src/cli.ts`, stubbed by T01) as `lst validate [files…]` and `lst ids [files…]`.
 After this task, a tree YAML file can be checked in one pass against both the JSON Schema
-layer (T02's `schema/*.json`, via Ajv) and the 15 semantic rules of §6.2 that JSON Schema
-cannot express, with every violation reported with file, line, and column rather than
-stopping at the first. `lst ids` fills in every missing `uid:` in a drafted tree in place,
+layer (T02's `schema/*.json`, via Ajv) and §6.2's layer 2 — the 15 semantic rules, plus the
+five taxonomy rules M1–M5 over `map.yaml` — none of which JSON Schema can express, with
+every violation reported with file, line, and column rather than stopping at the first. `lst ids` fills in every missing `uid:` in a drafted tree in place,
 generating repository-unique 8-character Crockford base32 values, and fails when a `uid`
 is still missing after it runs. This is the first point in the pipeline where content is
 actually gated — CI's `content: validate` job (§6.5) becomes real for the first time.
@@ -42,11 +42,15 @@ identifier user state will key on.
 **In scope**
 
 - `lst validate [files…]`: Layer 1 (Ajv against `schema/*.json`) followed by Layer 2, all
-  15 semantic rules in §6.2's table, run in one pass per invocation.
+  15 semantic rules in §6.2's table, **and layer 2b's five taxonomy rules M1–M5 over
+  `content/taxonomy/map.yaml`** (T26/F17), run in one pass per invocation.
 - Error reporting that accumulates every violation found — schema and semantic — into one
   report with file, line, and column, rather than exiting on the first (§6.1).
 - Semantic rule 2's repository-wide uid-uniqueness check, which requires reading every
-  tree in `content/trees/`, not just the file(s) passed on the command line.
+  tree in `content/trees/`, not just the file(s) passed on the command line. §6.2 now
+  states the general form of this: **the file list scopes what is reported, not what is
+  read** (T26/F17). Scoping M1–M5 to argv would silently run no map checks on the common
+  invocation, which is the failure that sentence exists to prevent.
 - `lst ids [files…]`: assigns a missing `uid:` to every milestone and mastery entry that
   lacks one, writing the value back into the YAML file in place; 8-character Crockford
   base32, checked for uniqueness against every existing uid in the repository before it is
@@ -62,16 +66,16 @@ identifier user state will key on.
 **Out of scope**
 
 - `lst lint`, `lst status`, `lst new` — T22.
-- `lst baseline` — T23. In particular, the git-history comparison against the baseline
-  (last release tag / `main`, §6.4) that answers "did an existing uid disappear" belongs
-  to T23, not to this task.
+- `lst baseline` — T23. In particular, every comparison needing git history belongs there:
+  the baseline is the tip of `origin/main` (T26/F6 settled this — not a release tag, and not
+  the merge-base), and that includes §6.4 **check 7**, the historical half of what used to be
+  rule 15. `lst validate` performs no git operation at all.
 - `lst compile` and the YAML→JSON transformations of §7.3 — T04. Validate only checks
   correctness; it emits no compiled artifact.
 - The full schema definitions and their generated TypeScript — T02. This task consumes
   `schema/*.json`, it does not author it.
-- Applying `lineage` operations to user state at load time — T17 (§12.5). Rule 15 here
-  only checks that lineage entries are internally well-formed, not how the runtime uses
-  them.
+- Applying `lineage` operations to user state at load time — T17 (§12.5). Rule 15 here only
+  checks that an entry's `into` targets resolve, not how the runtime uses them.
 - Auto-recording a changed slug into `aliases` — that correction is described in §6.4 as
   something "CI can auto-fix by pushing a commit," which is baseline's job (T23), not
   validate's. `lst validate` may *reject* a missing alias if some future rule requires it,
@@ -80,15 +84,16 @@ identifier user state will key on.
 ## Deliverables
 
 ```
-tools/src/validate/index.ts        orchestrates layer 1 (Ajv) + layer 2 (15 rules)
+tools/src/validate/index.ts        orchestrates layer 1 (Ajv) + layer 2 (15 rules) + 2b (M1–M5)
 tools/src/validate/schema.ts       Ajv wiring against schema/*.json
 tools/src/validate/rules/          one module per §6.2 semantic rule (or logical grouping)
+tools/src/validate/map-rules.ts    layer 2b — M1–M5, moved here from T12 by T26/F17
 tools/src/validate/report.ts       error accumulation and file:line:column formatting
 tools/src/validate/index.test.ts
 tools/src/ids/index.ts             uid generation, repo-wide uniqueness check, in-place write
 tools/src/ids/crockford.ts         8-char Crockford base32 generator
 tools/src/ids/index.test.ts
-tools/test/fixtures/validate/      one fixture pair (pass/fail) per semantic rule
+tools/test/fixtures/validate/      one fixture pair (pass/fail) per semantic and taxonomy rule
 ```
 
 ## Interface contract
@@ -98,8 +103,8 @@ gating rows:
 
 | Command | Purpose | Gates? |
 |---|---|---|
-| `lst validate [files…]` | Schema + semantic rules (F41) | **yes** |
-| `lst baseline` | uid immutability vs. last release tag (§6.4) | **yes** |
+| `lst validate [files…]` | Schema + semantic rules, trees **and taxonomy** (F41) | **yes** |
+| `lst baseline` | uid immutability vs. `main` (§6.4) | **yes** |
 | `lst lint [files…]` | Advisory coherence and style warnings | no |
 | `lst ids [files…]` | Fill missing `uid` values in place | **yes** (missing uid fails) |
 | `lst status` | Regenerate `content/REVIEW-STATUS.md` | **yes** (drift fails) |
@@ -128,7 +133,23 @@ The 15 semantic rules, copied verbatim from §6.2:
 | 12 | Every facet exists in `facets.yaml` | F19, F41 |
 | 13 | `copyleftDerived` is present and answered | F45 |
 | 14 | Mastery entries carry no level, track, order, or requirement group | F5, §5.7 |
-| 15 | Every `lineage` entry references a uid that existed in the published tree | §5.4 |
+| 15 | Every `lineage` entry's `into` targets resolve to a uid present in the repository head | §5.4 |
+
+**Layer 2b — taxonomy rules, over `content/taxonomy/`, copied verbatim from §6.2. Added by
+T26/F17, 2026-08-05: these are §10.3's five geometry invariants, which that section required
+and never assigned an owner.**
+
+| # | Rule | Spec |
+|---|---|---|
+| M1 | Every domain in `domains.yaml` has a region in `map.yaml` | §10.3 |
+| M2 | No tile is claimed twice — over the **multiset of every tile in every region**, not merely across domains | §10.3 |
+| M3 | Each region is contiguous under hex adjacency | §10.3 |
+| M4 | Subregion tiles partition their parent's tiles exactly — no gap, no overlap, no stray | §10.3 |
+| M5 | Subregions appear only under `making` | §10.3, F26 |
+
+> **The file list scopes what is *reported*, not what is *read*.** `lst validate
+> content/trees/foo.yaml` still loads `domains.yaml`, `facets.yaml`, `map.yaml`, and every
+> other tree — rules 2, 10, 11 and 12 have always required this. (§6.2)
 
 > Rule 13 deserves comment: CI cannot detect a copyleft derivation, only the *absence of
 > an answer*. A tree answering `true` passes CI and is rejected at review (F45). The gate
@@ -155,10 +176,23 @@ The identifier table, copied verbatim from §5.4:
 - [ ] `lst validate` run against a fixture that violates every one of the 15 semantic
       rules in a single file reports all 15 violations in one invocation, each with file,
       line, and column.
+- [ ] `lst validate` performs no git operation at all — verifiable by
+      `grep -rn "child_process\|simple-git\|exec(" tools/src/validate/` returning nothing.
+      Everything needing history is `lst baseline`'s (T23, §6.4 check 7).
 - [ ] Each of the 15 rules has an independent fixture pair: one file that violates only
       that rule and fails, one clean file that passes.
 - [ ] Rule 2's repository-wide uid uniqueness is exercised across **two** fixture tree
       files sharing a duplicate uid — a single-file fixture cannot prove this rule.
+- [ ] Each of M1–M5 has an independent fixture pair against a `map.yaml`. M2's failing
+      fixture claims a tile twice **within one region**, not across two — the cross-domain
+      case is the easy one and the intra-region case is the silent one (T26/F17).
+- [ ] M3's failing fixture is a region in two disconnected pieces; a separate fixture
+      shaped as a **ring** passes M3, since a hole is contiguous. Asserting both is what
+      proves contiguity was not inferred from a loop count.
+- [ ] `lst validate content/trees/one-tree.yaml` — a single tree file, no taxonomy file on
+      the command line — still runs M1–M5 and still fails on a broken `map.yaml`. This is
+      §6.2's read-versus-report rule, and it is the invocation an implementer is most
+      likely to get wrong.
 - [ ] Rule 13 is exercised with `copyleftDerived` absent (fails) and with it present as
       `false` (passes) — per the rule's own text, CI does not evaluate `true` vs `false`.
 - [ ] `lst validate` against a schema-valid, semantically-clean fixture exits 0.
@@ -185,21 +219,38 @@ npx lst ids tools/test/fixtures/ids/draft-no-uids.yaml && cat tools/test/fixture
 ```
 
 Passing looks like: every fixture in the suite landing on its expected verdict, all 15
-rules independently exercised, and a re-run of `lst ids` on an already-id'd file producing
-no diff.
+semantic rules and all five taxonomy rules independently exercised, and a re-run of
+`lst ids` on an already-id'd file producing no diff.
 
 ## Notes and hazards
 
-- **Rule 15 quietly requires git/history awareness that the rest of validate does not.**
-  "References a uid that existed in the **published tree**" means *the state of the tree
-  as previously merged*, which is exactly the kind of baseline comparison §6.4 assigns to
-  `lst baseline` (T23). The architecture does not say whether rule 15 is checked against
-  git history from within `lst validate` itself, or whether it is really a re-statement of
-  one of baseline's four checks placed in the wrong table. Do not duplicate the
-  git-diffing machinery between this task and T23's; if `lst validate` needs to answer
-  "did this uid exist in the last published tree" it should call into whatever baseline
-  comparison T23 builds, not reimplement it. Flagging rather than resolving — this is
-  exactly the kind of boundary call an implementer needs to make once T23 exists.
+- **~~Rule 15 quietly requires git/history awareness.~~ RESOLVED by T26/F7, 2026-08-05, and
+  this note's suspicion was correct.** The rule split along the line between "answerable
+  from the working tree" and "needs history". What stays here is the git-free half — every
+  `into` target resolves to a uid in the repository **head**. The historical half is §6.4
+  **check 7** and belongs to T23: every entry *appended since the baseline* names a uid
+  present in the baseline. `lst validate` is now git-free by construction, so there is no
+  git-diffing machinery to duplicate. Note the rule count stays at **15** deliberately, so
+  every "15" in this document is still correct.
+- **The new rule 15 is not implementable until T26/F21 lands — do not guess.** "Resolve"
+  depends on the `into` grammar, which differs per `op`: `moved` targets are tree-qualified
+  (`bladesmithing/c5fj92tk`) and resolve into a *different* tree, while `split` and `merged`
+  targets are bare uids. F21 records that neither grammar is validated anywhere and neither
+  is specified per `op`. Resolution is repo-wide and head-only, which this task already does
+  for rule 2 — but the parsing rule has to come from F21.
+- **M1–M5 are new here, and M3 is the one with a wrong shortcut.** Contiguity is a
+  connectivity pass over tile adjacency. Do **not** infer it from §10.4's loop count: a
+  region with a hole and a region in two disconnected pieces both produce two closed loops,
+  and §10.4's warning is now explicitly scoped to holes because M3 rejects disconnection
+  first (T26/F17). M2's multiset scope matters for the same reason — the intra-region
+  duplicate is the silent case, since §10.4 discards both copies of every doubled edge and
+  the tile vanishes from the outline with the path still closed.
+- **T26/F25 is open and lands squarely here.** §5.4 says CI fails a merge on a missing
+  `uid` and §6.1 marks `lst ids` as the gate — but `lst ids` writes files in place, which a
+  gate cannot do. This document already resolves it by inference (the check in `lst
+  validate`, the write in `lst ids`) and that is almost certainly right, but it is an
+  inference from two sentences rather than a reading of either. Do not harden it into a
+  numbered rule before F25 lands.
 - **D-05, dual identifiers.** `id` is mutable and unique within the tree; `uid` is
   immutable and unique across the whole repository. This task is what makes both halves
   of that guarantee real: schema (T02) cannot express repository-wide uniqueness, so rule

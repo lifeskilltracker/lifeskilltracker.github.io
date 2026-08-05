@@ -1,10 +1,10 @@
 # Spec Findings — Architecture Reconciliation
 
-Decision record for T26. Twenty-three findings have been raised against
+Decision record for T26. Twenty-five findings have been raised against
 `docs/ARCHITECTURE.md` during the v1 task breakdown — seventeen from the breakdown itself,
-F18 and F19 found while resolving F3 and F4, and F20–F23 found while resolving F12–F14.
-Each gets a verdict of **amend**, **tolerate**, or **not a defect**, with a reason and a
-date.
+F18 and F19 found while resolving F3 and F4, F20–F23 found while resolving F12–F14, and
+F24–F25 found while resolving F17 and F7. Each gets a verdict of **amend**, **tolerate**,
+or **not a defect**, with a reason and a date.
 
 This file is the audit trail. The resolutions themselves live in the spec.
 
@@ -15,8 +15,8 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F3 | amend | 2026-08-05 | Six types defined in §14.4/§14.5; `tier` is `null` at level 0; `Taxonomy` is `Manifest['taxonomy']` |
 | F4 | amend | 2026-08-05 | `DomainSkillRow` gains `lastActivityAt`; the engine owns both rollups; the shell owns the join |
 | F5 | amend | 2026-08-05 | Exemption struck; the decay language removed from all four sites |
-| F6 | — | — | pending |
-| F7 | — | — | pending |
+| F6 | amend | 2026-08-05 | Baseline is `origin/main` tip vs the PR merge result; branches must be up to date; three stray tag references removed |
+| F7 | amend | 2026-08-05 | Rule 15 splits — git-free `into` resolution stays in §6.2, history becomes §6.4 check 7, scoped to appended entries |
 | F8 | amend | 2026-08-05 | `contentVersion` is per-tree and authored; the global counter is deleted |
 | F9 | amend | 2026-08-05 | `schema/{compiled-tree,manifest}.schema.json`; build-time and codegen only |
 | F10 | amend | 2026-08-05 | Service worker → phase 2; pinning moves in-page; gap is R-26 |
@@ -26,13 +26,15 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F14 | amend | 2026-08-05 | The pass is a fold in file order; `merged` groups by target; the unknown row is a final sweep |
 | F15 | — | — | pending |
 | F16 | amend | 2026-08-05 | §11 splits at §11.5; §11.1–§11.4 ship in phase 0 |
-| F17 | — | — | pending |
+| F17 | amend | 2026-08-05 | `lst validate` owns the five geometry invariants as §6.2 layer 2b (M1–M5) |
 | F18 | — | — | pending — raised 2026-08-05 while resolving F3 |
 | F19 | — | — | pending — raised 2026-08-05 while resolving F4 |
 | F20 | — | — | pending — raised 2026-08-05 while resolving F14 |
 | F21 | — | — | pending — raised 2026-08-05 while resolving F13 |
 | F22 | — | — | pending — raised 2026-08-05 while resolving F12 |
 | F23 | — | — | pending — raised 2026-08-05 while resolving F13 |
+| F24 | — | — | pending — raised 2026-08-05 while resolving F17 |
+| F25 | — | — | pending — raised 2026-08-05 while resolving F7 |
 
 ---
 
@@ -1074,6 +1076,213 @@ unprompted, and the user should have been told it was coming.
 test must now cover a skill row, not only milestones. **T17** is the beneficiary of the
 rewind and must not assume `contentVersionSeen` only ever rises. **T09** writes
 `contentVersionSeen` into the export shape. **T18** — no change.
+
+---
+
+## F6 — §6.4's baseline ref contradicted itself
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+§6.4 opened by checking out tree files "as of the **last release tag**" and closed with
+"**the baseline is `main`**". §6.1's table said "vs. last release tag". §16.1 and §16.2
+describe merge-to-`main` as the entire release process with no tagging step anywhere, so
+"last release tag" had no referent in the spec.
+
+### Resolution
+
+`main` wins, and the evidence is one-sided rather than balanced: §5.4 ("diffing against
+`main`"), §6.4's closing, §16.1 and D-12 all say `main`, against two stray phrases. Nothing
+in the spec needs a tag — app semver has no stated git-tag source, §16.2 has no tagging
+item, `contentVersion` is per-tree and authored, and the manifest's `generated` timestamp
+covers human build identification. Introducing tagging would have contradicted §16.1's "no
+separate publish step".
+
+A **third** stray reference turned up during resolution and would have survived a fix aimed
+only at the two the finding named: §6.8 forwards the reader to "Release tagging and the
+deploy workflow are §16.2", and §16.2 contains no tagging step. All three are gone.
+
+### Which `main` — the rider, and it had a wrong answer
+
+The finding did not ask this, but T23 could not be written without it, and the two readings
+are not merely different. **The baseline is the tip of `origin/main` and the head is the PR
+merged into it** — not the merge-base, which `T23-lst-baseline.md` had been instructed to
+implement.
+
+Merge-base is unsound the moment two PRs are in flight, and the failure is silent:
+
+| Check | How merge-base breaks it |
+|---|---|
+| 5 (`contentVersion` bump) | Two branches cut from the same commit each bump one tree 4 → 5. Each passes against its own merge-base. `main` ends with a version 5 whose compiled output is not the output that shipped as 5 — so §12.5's `>` comparison means every user who already saw 5 never runs the migration for the second change. Undetectable under §16.5's no-telemetry rule. |
+| 6 (ledger prefix) | Two branches each append one entry. Both pass. The merged order on `main` satisfies neither one's prefix claim, and §12.5's fold depends on that claim. |
+
+Comparing against the tip catches both. The price is one operational obligation — **a branch
+must be up to date with `main` before it merges** — and it is stated in §6.4 rather than left
+to be discovered, because it is the only such obligation the section imposes and the
+alternative is a class of failure no downstream gate can see.
+
+### The shallow-clone trap, which would have made all of this vacuous
+
+§6.4 said nothing about checkout depth. `actions/checkout` clones at `fetch-depth: 1` by
+default, and at depth 1 there is no `origin/main` and no merge-base — so checks 1–7 do not
+error, they pass on nothing. §16.1 already records this exact trap as the reason git-derived
+counters were rejected ("fail quietly in exactly the environment they would run in"), which
+makes its absence here the more conspicuous. Note it would have broken the tag reading too.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §6.1, §6.4, §6.8.
+
+### Downstream
+
+**T23** implements against `origin/main`'s tip, not the merge-base its notes previously
+specified, and its CI job sets `fetch-depth: 0`. **T03** drops the "last release tag /
+`main`" hedge. **T25** carries the branch-up-to-date repository setting.
+
+---
+
+## F7 — §6.2 rule 15 needed git history, which §6.4 owns
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+Rule 15 required every `lineage` entry to reference a uid that existed in the published tree
+— a baseline comparison, assigned to `lst validate`, while §6.4's near-identical comparison
+is assigned to `lst baseline`. §6.5 runs them as separate parallel jobs, so the primitive
+would be built twice or reached across a job boundary.
+
+### Resolution
+
+The rule splits along the line that actually matters, which is not "validate versus
+baseline" but "answerable from the working tree versus needing history":
+
+- **§6.2 rule 15 is replaced** by its git-free half — every `lineage` entry's `into` targets
+  resolve to a uid present in the repository head. `lst validate` stays git-free by
+  construction, and the table stays at fifteen rules, so §6.5's diagram label and T03's five
+  hard-coded counts are untouched.
+- **§6.4 gains check 7** — every entry *appended since the baseline* names a uid present in
+  the baseline.
+
+Moving it wholesale and dropping to fourteen rules was the other option. It is cleaner
+conceptually and strictly worse in practice: it discards a check that is genuinely
+git-free, and it forces edits to the CI diagram and to five sites in a task document, for
+nothing.
+
+### Rule 15 was a time bomb, and moving it unchanged would have relocated the defect
+
+The word **appended** in check 7 is load-bearing. As rule 15 was worded, the check
+re-evaluates the whole ledger against today's baseline. The ledger is append-only and never
+pruned (§5.4), so a `retired` uid is legitimately absent from `main` three releases later —
+at which point the already-merged entry that retired it starts failing, **permanently
+blocking every future PR on that tree, with no author action able to clear it.**
+
+The fix was only expressible because Group C's check 6 exists: the baseline ledger being a
+prefix of the head's is what makes "the appended suffix" a well-defined set. This is the
+second time check 6 has paid for itself in the same section.
+
+### Check 7 is not check 1 restated
+
+They run in opposite directions and neither implies the other. Check 1 asks that nothing
+published vanishes undisposed. Check 7 asks that nothing is disposed of that was never
+published. Check 1 cannot catch a ledger entry naming a typo'd or invented uid, because such
+an entry disposes of nothing — and §12.5's fold treats a non-matching entry as a no-op, so
+the error is completely silent at runtime. Folding them together would have lost the check.
+
+### The local-ergonomics regression, and its one-line fix
+
+§6.1 promises "no CI-only check an author cannot reproduce locally", but §6.7's authoring
+workflow told authors to run only `lst validate` and `lst lint`. After this split, an author
+following the spec's own instructions would stop seeing the lineage-versus-history error.
+§6.7 step 4 gains `lst baseline`, and notes it needs an up-to-date local `main`.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §6.2, §6.4, §6.7.
+
+### Downstream
+
+**T03** implements the git-free rule 15 only — but **its implementation depends on F21**,
+still open, for what "resolve" means per `op` (`moved` targets are tree-qualified,
+`split`/`merged` are bare uids). **T23** implements check 7 and owns the suffix scoping.
+**T22** — no change.
+
+---
+
+## F17 — §10.3's five geometry invariants were "Validated by CI" with no owner
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+§10.3 closed: "Validated by CI: every domain in `domains.yaml` has a region; no tile is
+claimed twice; each region is contiguous; subregion tiles partition their parent's tiles
+exactly; subregions appear only under `making`." Nothing owned those checks. §6.1 scoped
+`lst validate` to "Schema + semantic rules (F41)"; §6.2's rules were entirely `tree.yaml`
+-scoped; §6.5's job graph named no map job; and §5.9 handed `map.yaml` off with "specified
+in §10.3", closing the loop without assigning it. This is the spec's only occurrence of the
+phrase "Validated by CI", so there was no established pattern to read it against.
+
+### Resolution
+
+`lst validate` extends to `content/taxonomy/`, and the five invariants become **layer 2b**,
+rules **M1–M5**, in §6.2. §10.3's sentence points at them; §6.1's table row says "trees and
+taxonomy"; §5.9's handoff now names the validator. No new subcommand.
+
+Three of the five are exactly the "JSON Schema cannot express this" class that layer 2
+exists for, and validate runs in the seconds-long pre-build job with file and line, where a
+geometry error belongs. They go in a **separate sub-table** rather than as rules 16–20:
+rules 1–15 are all tree-scoped, and the per-rule fixture convention downstream reads the
+numbering.
+
+### Putting them in `lst compile` had a failure the task document could not have known about
+
+`T12-map-geometry.md` had already assumed the opposite, placing `map-validate.ts` under
+`tools/src/compile/` and failing the build on a violation. That placement is unsafe for a
+reason outside §10: §6.5's `build` job `needs` the app jobs, and §6.5 says the app jobs are
+skipped by path filter on a content-only PR. A skipped dependency skips the dependent, so
+**`build` does not run on the PRs that change `map.yaml`** — the checks would have been in a
+job that never fires on the input they guard. That is a defect in §6.5 in its own right and
+is recorded as **F24**; it is also decisive here, because the validate placement does not
+depend on how F24 is resolved.
+
+### Contiguity does not fall out of §10.4 for free
+
+The tempting economy is to read contiguity off §10.4's loop-chaining, which already discards
+interior edges and warns when a region produces more than one closed loop. It does not work:
+a region with a hole and a region in two disconnected pieces both produce two loops.
+Distinguishing them needs either a containment test or the tile-adjacency pass M3 was going
+to be anyway — and the "free" reading would silently downgrade §10.3's hard requirement into
+§10.4's warning.
+
+So §10.4's warning is now **scoped to holes**, with a sentence saying disconnection fails
+validation first. Without it, two jobs would return different verdicts on the same input.
+
+### Two riders that make the rules implementable
+
+**M2's scope.** "No tile is claimed twice" was unqualified, and the intra-region case is both
+the easier mistake and the silent one: a tile listed twice inside one region gives each of
+its six edges a duplicate, §10.4 step 2 discards every doubled edge, and the tile disappears
+from the outline with a still-closed path and no diagnostic. M2 ranges over the multiset of
+every tile in every region.
+
+**What the file list means.** `lst validate content/trees/foo.yaml` must still read
+`map.yaml`, `domains.yaml`, and every other tree. This was already true — rules 2, 10, 11
+and 12 cannot be answered from one file — and was nowhere stated. The taxonomy rules make
+the consequence visible, since an implementer who scopes M1–M5 to argv runs no map checks on
+the common invocation. §6.2 now says the list scopes reporting, not reading.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §5.9, §6.1, §6.2, §6.5, §10.3, §10.4.
+
+### Downstream
+
+**T12** moves `map-validate.ts` out of `tools/src/compile/`, changes its acceptance criteria
+from "fails compilation" to "fails validation", and gains **T03** as a blocker. **T03** owns
+M1–M5 and the read-versus-report scoping. **T04** — no change; the compiler still emits the
+unioned paths and still warns on a hole.
 
 ---
 
