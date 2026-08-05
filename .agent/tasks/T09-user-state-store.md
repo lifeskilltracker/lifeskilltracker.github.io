@@ -246,6 +246,13 @@ and the grep showing exactly one module touching IndexedDB.
 
 ## Notes and hazards
 
+- **T26 F8 (2026-08-05): `contentVersionSeen` is per-tree.** It is compared against the
+  owning tree's own `contentVersion` (§5.3), never a library-wide counter, and the
+  comparison is `>` rather than `!=` — §12.5 explains why, and it is a correctness matter.
+  `SKILL.grandfathered[L].contentVersion` is likewise that tree's version.
+- **T26 F11 (2026-08-05): `startSkill` stays free of loader knowledge.** The pin sequence
+  lives in `lib/actions` (§14.1). Do not import `lib/content` here — §14.7 now gates it.
+
 - **The dangerous failure is not "cannot read progress" but "read as empty, then wrote."**
   §13.3 is explicit that this is why the store refuses all writes for the session after a
   hydration error. An implementer who treats a hydration failure as "start fresh" has

@@ -291,7 +291,7 @@ Resolves **D1** and **D17**.
 |---|---|---|
 | Language | **TypeScript**, `strict: true` | The Layout and Scoring engines are pure functions over content data; types are the cheapest correctness tool available to a part-time maintainer (N10). |
 | Framework | **Svelte 5** (runes) | Compiled fine-grained reactivity suits the unlock cascade — toggling one milestone changes derived state on many others (§11). ~11.5 kB brotli runtime floor against React's ~50 kB, which matters for N4 and N9. 22 months of 5.x with no breaking major. See §18 D-01. |
-| App framework | **SvelteKit** with `adapter-static` | The only candidate with a first-party documented static-host path. Supplies route-based code splitting (N4), the `base` path handling and SPA fallback GitHub Pages requires, and a maintained `@vite-pwa/sveltekit` integration for N9. |
+| App framework | **SvelteKit** with `adapter-static` | The only candidate with a first-party documented static-host path. Supplies route-based code splitting (N4), the `base` path handling and SPA fallback GitHub Pages requires, and a maintained `@vite-pwa/sveltekit` integration for phase 2's offline hardening. N9 itself is met in v1 without it, in-page (§7.4). |
 | Bundler | **Vite** (8.x, Rolldown) | SvelteKit's native toolchain. See the version caveats in §4.5. |
 | Rendering | **SVG** for both the tree and the map | Forced by N5: Canvas is opaque to assistive technology, and making a Canvas graph navigable means building a parallel hidden DOM tree — strictly more work than using real DOM in the first place. Node counts (40–80 tree nodes, 8 map regions after unioning) are an order of magnitude below where Canvas starts to win. See §18 D-02. |
 | Styling | **Plain CSS**, custom properties, CSS Grid | No utility framework. Domain palettes are *content* (D19), delivered as data and injected as custom properties at runtime; a utility-class system cannot express a palette it has never seen. See §18 D-03. |
@@ -324,6 +324,8 @@ life-skill-tracker/
 │   ├── domains.schema.json
 │   ├── facets.schema.json
 │   ├── map.schema.json
+│   ├── compiled-tree.schema.json # internal; build-time + codegen only (§14.6)
+│   ├── manifest.schema.json      #   ditto — never shipped to the client
 │   └── export.schema.json       # the user-facing export contract (§12)
 ├── tools/                       # ─── workspace: content toolchain ────────
 │   ├── package.json             #     deps: yaml, ajv, commander. NO app deps.
@@ -345,6 +347,7 @@ life-skill-tracker/
 │       │   ├── layout/          #     Layout Engine — pure (§8)
 │       │   ├── scoring/         #     Scoring Engine — pure (§11)
 │       │   ├── state/           #     User State Store (§12)
+│       │   ├── actions/         #     cross-subsystem sequences only (§14.1)
 │       │   ├── types/           #     shared types, generated from schema/
 │       │   └── components/
 │       ├── routes/
@@ -387,7 +390,7 @@ Four GitHub Pages constraints, all handled in `svelte.config.js`:
 | Constraint | Handling |
 |---|---|
 | Site served from `/<repo-name>/` | `kit.paths.base` set from an env var; `/` for a future custom domain. |
-| No server, so deep links 404 | `adapter-static` with `fallback: '404.html'`. Preferred over hash routing for clean URLs. The fallback response carries HTTP 404 with the app body — harmless for an app, but it means the service worker must precache the shell so offline deep links resolve locally rather than hitting the network. |
+| No server, so deep links 404 | `adapter-static` with `fallback: '404.html'`. Preferred over hash routing for clean URLs. The fallback response carries HTTP 404 with the app body. **In v1 this is accepted as-is** — the fix is shell precaching by a service worker, which §16.4 defers to phase 2 (§7.4). The consequence is that a deep link opened with no network fails to §16.3's cold-start screen rather than resolving locally. N9 is still met, because N9 scopes to "once loaded". Recorded as **R-26** in §19.3. |
 | Jekyll strips `_`-prefixed directories | Empty `.nojekyll` emitted into the build output. Omitting it silently breaks every Vite build. |
 | Aggressive asset caching | Vite's content-hashed filenames handle app assets. The **content manifest is the exception** — see §7.3, which treats manifest freshness explicitly. |
 
@@ -427,6 +430,7 @@ Resolves **D8**, **D10**, **D11**, **D13**. This section is **normative**. `sche
 classDiagram
     class Tree {
         +int schemaVersion
+        +int contentVersion
         +string id
         +string title
         +string summary
@@ -596,6 +600,7 @@ lineage: []                     # grows only; see §5.4
 | Field | Req. | Notes |
 |---|---|---|
 | `schemaVersion` | ✔ | Integer. §5.8. |
+| `contentVersion` | ✔ | Integer, **scoped to this tree**, starting at 1. Increments whenever the tree's compiled output changes. Written by `lst version`, never by hand; CI fails the merge if the compiled output moved and this did not (§6.5). It is the sole trigger for §12.5's migration pass and the sole cache key for §8.6's layout memo, which is why §16.1 no longer carries a library-wide counter. |
 | `id` | ✔ | Tree slug, unique across the repository. Appears in URLs. |
 | `title`, `summary` | ✔ | Display. `summary` is prose for the library listing and the Curious Browser (§4.4 of the PRD). |
 | `domain` | ✔ | Exactly one primary domain id (F18). |
@@ -776,6 +781,7 @@ One command, several subcommands, living in the `tools/` workspace with no appli
 | `lst baseline` | uid immutability vs. last release tag (§6.4) | **yes** |
 | `lst lint [files…]` | Advisory coherence and style warnings | no |
 | `lst ids [files…]` | Fill missing `uid` values in place | **yes** (missing uid fails) |
+| `lst version [files…]` | Bump `contentVersion` in place where compiled output changed | **yes** (stale version fails, §6.4) |
 | `lst status` | Regenerate `content/REVIEW-STATUS.md` | **yes** (drift fails) |
 | `lst compile` | YAML → JSON bundles + manifest (§7) | **yes** (build step) |
 | `lst new <id>` | Scaffold a tree skeleton from a template | no |
@@ -838,6 +844,7 @@ The job that makes §5.4's identifier guarantees real. On every PR it checks out
 2. No `uid` has been reassigned to a different milestone.
 3. No retired slug has been reused by a different `uid`.
 4. Every slug that changed has its old value in `aliases`. This one CI can auto-fix by pushing a commit to the PR.
+5. Every tree whose **compiled output** differs from the baseline has a higher `contentVersion` than the baseline's. Compile both sides, elide the `contentVersion` field from each, compare the remaining bytes; if they differ and the field did not increase, fail and print the value to paste. This rides on the checkout and compile the job already performs, and mirrors §5.4's uid ergonomics exactly — the tool writes the value locally (`lst version`), CI refuses the merge without it.
 
 This is Buf's `breaking --against '.git#tag=vN'` pattern, applied to content rather than protobuf. Buf's own framing is the right one to give reviewers: the tool mechanically identifies breaking changes so the humans can spend their attention on whether to *allow* them.
 
@@ -850,7 +857,7 @@ flowchart TD
     PR([Pull request]) --> SETUP["setup<br/><small>Node 20 LTS, npm ci, cache</small>"]
 
     SETUP --> V["content: validate<br/><small>schema + 15 semantic rules</small>"]
-    SETUP --> B["content: baseline<br/><small>uid immutability vs last tag</small>"]
+    SETUP --> B["content: baseline<br/><small>uid immutability + contentVersion bump</small>"]
     SETUP --> L["content: lint<br/><small>advisory annotations</small>"]
     SETUP --> ST["content: status<br/><small>REVIEW-STATUS.md is current</small>"]
     SETUP --> TC["app: typecheck<br/><small>tsc + svelte-check</small>"]
@@ -945,8 +952,7 @@ Everything needed to render the world map, the domain listings, and the library 
 ```jsonc
 {
   "schemaVersion": 1,
-  "contentVersion": 7,          // increments on every content release
-  "generated": "2026-09-14T00:00:00Z",
+  "generated": "2026-09-14T00:00:00Z",   // build timestamp; names a library state for humans
   "taxonomy": {
     "domains": [ /* domains.yaml, compiled */ ],
     "facets":  [ /* facets.yaml, compiled */ ],
@@ -955,6 +961,7 @@ Everything needed to render the world map, the domain listings, and the library 
   "trees": [
     {
       "id": "blacksmithing",
+      "contentVersion": 4,      // this tree's own version — §5.3, the §12.5 trigger
       "title": "Blacksmithing",
       "summary": "Shaping hot metal by hand …",
       "domain": "making",
@@ -972,6 +979,8 @@ Everything needed to render the world map, the domain listings, and the library 
 
 **The manifest deliberately excludes milestones.** A tree's milestones are the bulk of its bytes and are needed only when the tree is opened.
 
+**`contentVersion` is per-tree and nowhere else.** There is no library-wide content counter. Carrying each tree's version in its manifest entry lets the map and browse views compare against `SKILL.contentVersionSeen` without fetching a bundle, and — the point of the whole arrangement — means a release that touches one tree invalidates one tree's layout memo (§8.6) and fires one tree's migration pass (§12.5). A global counter would fire both on every started tree on every release, including trees nothing changed in. `generated` carries "which state of the library is this" for human readers, and is explicitly not comparable across trees.
+
 Sizing: roughly 250 bytes per tree entry, so the PRD's 164-skill projection lands near 41 kB raw and ~10 kB compressed — comfortably inside a first-paint budget (§17). At ~500 trees it approaches 125 kB raw, which is the point to shard the manifest by domain. Not built now; tracked as **R-05**.
 
 ### 7.3 What the compiler changes
@@ -988,9 +997,14 @@ Sizing: roughly 250 bytes per tree entry, so the PRD's 164-skill projection land
 | Slug references resolved to array indices, slugs retained | Fast lookup without a runtime map build |
 | `detail` prose retained verbatim | It is the content |
 | `lineage` retained | The runtime migration needs it (§12.5) |
+| `contentVersion` retained verbatim | It is §12.5's migration trigger and §8.6's memo key (§5.3) |
 | Comments stripped | They are for authors |
 
 The rule: **the compiled bundle contains no implicit values.** Every default is materialized. This is what allows the Layout and Scoring engines to be total functions with no fallback branches, which is in turn what makes them cheap to test exhaustively.
+
+**The compiled shape is a schema, not a convention.** `schema/compiled-tree.schema.json` and `schema/manifest.schema.json` are normative for the compiler's output. `lst compile` validates what it emits against them and fails the build on a mismatch; `app/` generates its `CompiledTree` and `Manifest` types from them, exactly as it generates authored types from `tree.schema.json`. Without this the compiler in `tools/` and the types in `app/` are two hand-maintained descriptions of the same JSON on opposite sides of the §4.2 import boundary, with nothing to catch the drift — `tools/ → app/` is forbidden, so the compiler could never have imported those types directly.
+
+These two schemas are **build-time and codegen artifacts only**. The app does not ship a validator and does not validate bundles at runtime: the runtime check is §7.5's narrow shape assertion, and carrying ajv into the client would spend a meaningful share of §17.1's 70 kB budget to re-prove something CI already proved. "Internal" in §14.6 means unversioned — free to change with the app in a single commit — not unspecified.
 
 ### 7.4 Fetch and cache behaviour
 
@@ -1025,17 +1039,19 @@ flowchart TD
 
 Three behaviours are load-bearing:
 
-- **Pinning on start.** When a user starts a skill, its bundle is pinned in Cache Storage rather than left to ordinary cache eviction. N9 says the app keeps working offline; a user whose active skills silently stopped opening on a train would reasonably call that broken. Trees merely browsed are not pinned.
+- **Pinning on start.** When a user starts a skill, its bundle is pinned in Cache Storage rather than left to ordinary cache eviction. N9 says the app keeps working offline; a user whose active skills silently stopped opening on a train would reasonably call that broken. Trees merely browsed are not pinned. The sequence lives in `lib/actions` (§14.1) — the store's `startSkill` and the loader's `pin` are on opposite sides of §14.1's I/O split and neither may call the other. **Pinning is best-effort:** Cache Storage writes fail under quota pressure (§12.7), and a failed pin must never fail the start. The skill is started; the tree is simply not guaranteed offline, which is the honest outcome and the one §12.7's prompting already addresses.
 - **Per-tree failure isolation.** A failed bundle fetch disables one tree, never the app. The map and every other tree keep working.
 - **Honest offline state.** When serving a cached manifest without revalidation, the UI says so. Content that has never been fetched is not available offline, and pretending otherwise is worse than a clear message.
 
-The service worker is generated by `@vite-pwa/sveltekit`: precache the app shell and `manifest.json`, runtime-cache `trees/*.json` CacheFirst. Precaching the shell also fixes the §4.4 deep-link problem — GitHub Pages serves `404.html` with a 404 status, but an offline deep link resolves from the service worker without touching the network at all.
+**Everything above is implemented in the page, without a service worker.** The Cache Storage API is available to ordinary window script: the Content Loader opens a named cache, writes pinned bundles into it, and checks `caches.match()` before `fetch()` on every bundle read. That is the whole of N9 — "**once loaded**, the application shall continue to function without network access" — because a user who has loaded the app and started a skill keeps that skill working with the network gone.
+
+A service worker buys two further things, and **both are phase 2** per §16.4: the app shell booting with no network at all, and §4.4's offline deep links resolving locally instead of through GitHub Pages' 404-status fallback. Neither is required by N9, which scopes to "once loaded", so v1 ships without one. When it lands it is `@vite-pwa/sveltekit`: precache the app shell and `manifest.json`, runtime-cache `trees/*.json` CacheFirst. The v1 gap is recorded as **R-26** in §19.3 rather than left to be rediscovered.
 
 ### 7.5 Content integrity
 
 The bundle hash in the manifest is a build-time content hash used for cache busting and for detecting a truncated or corrupted response. It is **not** a security control, and the spec should not pretend otherwise: content and manifest come from the same origin over HTTPS, there is no user-supplied content, and there is no threat model in which an attacker who controls the origin is stopped by a hash the origin also serves. Subresource Integrity would add ceremony for the same non-guarantee.
 
-The one genuine check worth running is a **shape assertion on parse** — the bundle's `schemaVersion` is one the app understands, and the tree has ten levels. That catches the realistic failure, which is a stale service-worker cache serving a bundle from before a schema migration, and it routes to §16.3's error handling rather than to a stack trace inside the Layout Engine.
+The one genuine check worth running is a **shape assertion on parse** — the bundle's `schemaVersion` is one the app understands, and the tree has ten levels. That catches the realistic failure, which is a stale Cache Storage entry serving a bundle from before a schema migration, and it routes to §16.3's error handling rather than to a stack trace inside the Layout Engine. It is deliberately *not* validation against `schema/compiled-tree.schema.json`: that schema is enforced in `lst compile` and in type generation (§7.3), so a bundle that reaches the client has already been checked by the only party who can do anything about a failure.
 
 ### 7.6 What this section does not cover
 
@@ -1156,7 +1172,7 @@ This also yields, for free, the layout-free fallback that `docs/RESEARCH.md` §3
 
 ### 8.6 Memoization
 
-Layout depends only on `(tree.id, tree.contentVersion, viewport)`. It is computed once per tree per viewport class and cached in memory. It does **not** depend on user state, so completing a milestone never triggers a re-layout — only a class change on already-positioned nodes (§9.3). Keeping user state out of the layout signature is what makes the interaction cost of a milestone toggle effectively zero.
+Layout depends only on `(tree.id, tree.contentVersion, viewport)` — where `contentVersion` is that tree's own, per §5.3, so a release touching one tree evicts one tree's entry. It is computed once per tree per viewport class and cached in memory. It does **not** depend on user state, so completing a milestone never triggers a re-layout — only a class change on already-positioned nodes (§9.3). Keeping user state out of the layout signature is what makes the interaction cost of a milestone toggle effectively zero.
 
 ### 8.7 What this section does not cover
 
@@ -1199,7 +1215,7 @@ Edges carry `aria-hidden`: a screen reader cannot usefully consume a drawn line,
 
 ### 9.3 Node state and its visual encoding
 
-Five presentational states. Four come from the Scoring Engine (§11.4); `dismissed` comes from user state directly.
+Five presentational states. Four come from the Scoring Engine (§11.4); `dismissed` comes from user state directly. Those four are produced by §11.1–§11.4, the tree-local slice that ships in phase 0 alongside this renderer — see §11's opening note and §16.4. Nothing here depends on §11.5–§11.8.
 
 | State | Meaning | Glyph | Fill | Border |
 |---|---|---|---|---|
@@ -1360,6 +1376,8 @@ The numbers driving fill, recency, and breadth are computed in §11 — this sec
 
 Resolves **D6**, and resolves **D7** by declining it — see §11.8, which raises a PRD change rather than settling F35 at the architecture level.
 
+**This section spans the phase boundary, and the seam is §11.5.** §11.1–§11.4 are *tree-local evaluation*: requirement groups, attained level, and the five node states, computed from one compiled tree plus that tree's progress. They ship in **phase 0**, because §16.4's walking skeleton must render a tree that is "completable", and `complete`, `available` and `locked` have no other producer — §9.3 reads them directly. §11.5–§11.8 are *grandfathering and cross-tree aggregation*: frozen satisfaction, domain score, fill, recency, breadth, and self-assessment. They ship in **phase 1**, and they are what §16.4 means when it says the skeleton has "no domain scoring". The split is not arbitrary: §11.5 is the first thing in this section that writes to persisted state (`SKILL.grandfathered`, §12.2), so it belongs after T10's schema gate rather than before it.
+
 Like the Layout Engine, this is a **pure function with no dependencies**. Its signature is in §14.4. It is the most invariant-dense part of the system, so this section is organized around what must be true rather than around code structure.
 
 ### 11.1 Evaluation pipeline
@@ -1448,7 +1466,7 @@ Two affordances follow, and both are cheap:
 
 Without this, a contributor adding one milestone to level 2's `all` group drops every user who had satisfied level 2 — and under contiguous ranking that can mean attained 8 → attained 1, from someone else's pull request, with no user action, and with §16.5's no-telemetry rule guaranteeing nobody ever finds out.
 
-User state therefore persists, per satisfied level, **the set of milestone uids that first satisfied it** and the `contentVersion` at that moment. It is stored as `SKILL.grandfathered` (§12.2) — a field on the skill row, not a separate store, because it is per-skill, small, always read with the skill, and written inside the transaction §12.4 already opens on that row.
+User state therefore persists, per satisfied level, **the set of milestone uids that first satisfied it** and **that tree's** `contentVersion` at that moment (§5.3 — the value is per-tree, so the two versions compared by §12.6's earliest-wins merge are always versions of the same tree). It is stored as `SKILL.grandfathered` (§12.2) — a field on the skill row, not a separate store, because it is per-skill, small, always read with the skill, and written inside the transaction §12.4 already opens on that row.
 
 The rule is one line:
 
@@ -1632,6 +1650,8 @@ erDiagram
 
 `state` is `complete` or `dismissed`. **Incomplete is the absence of a record**, not a record with a state — writing a row for every untouched milestone would multiply the store by an order of magnitude to represent nothing.
 
+**`contentVersionSeen` and every `contentVersion` in this diagram are the owning tree's own version** (§5.3), never a library-wide counter. `MILESTONE.contentVersion` is the tree's version at the moment that milestone was completed.
+
 **`grandfathered`** is D-19's frozen satisfaction record (§11.5), shaped
 `{ [level: number]: { uids: string[]; contentVersion: number } }`. Levels appear only once satisfied; the field is `{}` for a skill that has satisfied none. Roughly 100 bytes per skill at ten satisfied levels. It is written in §12.4's transaction, migrated by §12.5, and exported by §12.6 — all three are required, and omitting any one silently breaks invariant 7.
 
@@ -1661,7 +1681,9 @@ One transaction, so a crash between steps cannot leave the denormalized level di
 
 ### 12.5 Applying lineage at load (§5.4)
 
-When a tree bundle's `contentVersion` exceeds the `contentVersionSeen` on that skill, the store runs a migration pass over its `lineage` before the tree renders.
+When a tree bundle's `contentVersion` exceeds the `contentVersionSeen` on that skill, the store runs a migration pass over its `lineage` before the tree renders. Both values are that one tree's (§5.3), so the pass runs for trees that actually changed and no others.
+
+**The comparison is `>`, not `!=`, and that is load-bearing.** `lineage` is append-only (§5.4), so an older bundle carries a *shorter* ledger. Running the pass against one would drive every already-migrated record into the final row below — "uid in neither bundle nor lineage" — and orphan it as `unknown`. Under a content rollback the correct behaviour is therefore to do nothing, which `>` gives for free.
 
 | `op` | Applied to a **complete** record | Applied to a **dismissed** record |
 |---|---|---|
@@ -1694,7 +1716,7 @@ Plain JSON, one file, no archive, no photos in phase 1.
   "schemaVersion": 1,
   "exportedAt": "2026-08-04T11:03:00Z",
   "appVersion": "1.4.2",
-  "contentVersion": 7,
+  "generated": "2026-09-14T00:00:00Z",
   "skills": [
     { "treeId": "blacksmithing", "startedAt": "2026-05-01T…",
       "attainedLevel": 3, "lastActivityAt": "2026-08-04T…",
@@ -1720,7 +1742,9 @@ It carries both identifiers on purpose, because the file has two readers with di
 
 **Import** defaults to **merge**: union by `uid`, newest `at` wins on conflict. That is what makes the two-device flow F38 implies actually work.
 
-`grandfathered` merges per level with the **earliest `contentVersion` winning**, not the newest. Grandfathering is a historical fact and the older freeze is the more protective one; "newest wins" is the right rule for a milestone's current state and the wrong rule for a record of what was already true. A level present on one side only is taken as-is. An explicit **replace all** option exists behind a confirmation for restoring a known-good backup. Import validates against the export schema and migrates older `schemaVersion` values through the chain (§5.10) before merging; an unreadable file is rejected whole, never partially applied.
+There is no top-level `contentVersion` in the file, because there is no library-wide counter (§7.2). `generated` is copied from the manifest the export was taken against and is archaeology for a human reader — deliberately not comparable and never used by the import path. The per-tree versions that *are* comparable live inside `grandfathered`.
+
+`grandfathered` merges per level with the **earliest `contentVersion` winning**, not the newest. Both sides of that comparison are versions of the same tree (§5.3), which is what makes it meaningful; under the library-wide counter this section previously assumed, two exports could carry equal versions that meant different states of the tree in question. Grandfathering is a historical fact and the older freeze is the more protective one; "newest wins" is the right rule for a milestone's current state and the wrong rule for a record of what was already true. A level present on one side only is taken as-is. An explicit **replace all** option exists behind a confirmation for restoring a known-good backup. Import validates against the export schema and migrates older `schemaVersion` values through the chain (§5.10) before merging; an unreadable file is rejected whole, never partially applied.
 
 ### 12.7 Durability, quota, and prompting (F39)
 
@@ -1834,6 +1858,9 @@ flowchart TD
         LOADER["lib/content<br/><small>the only content reader</small>"]
         STATE["lib/state<br/><small>the only user-data writer</small>"]
     end
+    subgraph orch["Orchestration"]
+        ACTIONS["lib/actions<br/><small>cross-subsystem sequences only</small>"]
+    end
     subgraph view["View"]
         COMP["lib/components"]
         ROUTES["routes/"]
@@ -1845,6 +1872,9 @@ flowchart TD
     TYPES --> STATE
     LOADER --> ROUTES
     STATE --> ROUTES
+    LOADER --> ACTIONS
+    STATE --> ACTIONS
+    ACTIONS --> ROUTES
     LAYOUT --> COMP
     SCORING --> ROUTES
     COMP --> ROUTES
@@ -1852,14 +1882,22 @@ flowchart TD
     LAYOUT -.->|"FORBIDDEN"| STATE
     SCORING -.->|"FORBIDDEN"| LOADER
     COMP -.->|"FORBIDDEN"| STATE
+    LOADER -.->|"FORBIDDEN"| STATE
+    STATE -.->|"FORBIDDEN"| LOADER
 
     classDef pure fill:#e8f4ea,stroke:#4a7a55,color:#1d3323
     classDef io fill:#eef2fa,stroke:#4a5f8a,color:#1c2740
+    classDef orch fill:#f6eefa,stroke:#7a4a8a,color:#2c1c33
     class TYPES,LAYOUT,SCORING pure
     class LOADER,STATE io
+    class ACTIONS orch
 ```
 
-The forbidden edges are the ones that would matter. `lib/layout` importing state would make layout depend on progress and destroy N11's stability guarantee. `lib/scoring` importing the loader would make scoring do I/O and stop it being testable as arithmetic. Components importing state directly would create writers outside §12.4's single path.
+The forbidden edges are the ones that would matter. `lib/layout` importing state would make layout depend on progress and destroy N11's stability guarantee. `lib/scoring` importing the loader would make scoring do I/O and stop it being testable as arithmetic. Components importing state directly would create writers outside §12.4's single path. And the two I/O owners may not import each other, which is what keeps "the only content reader" and "the only user-data writer" true statements rather than aspirations.
+
+**`lib/actions` exists because that last rule leaves real work homeless.** Some user intentions span both I/O owners — starting a skill writes user state *and* pins a bundle (§7.4) — and neither owner may call the other. `lib/actions` is the one module permitted to import both, and it contains nothing else: no rendering, no persistence of its own, no business rules. Each export is a named sequence of calls into `lib/content` and `lib/state`.
+
+It is a module rather than a rule about `routes/` because more than one route reaches these sequences — the tree route and §11.8's placement flow both start skills — and an orchestration rule that lives in a route gets implemented once and forgotten at the second call site. Keeping it to sequences is what stops it becoming the god-object such modules usually decay into; if an export starts making decisions rather than ordering calls, the decision belongs in an engine.
 
 ### 14.2 Content Loader
 
@@ -1954,6 +1992,15 @@ export interface UserStateStore {
 
 Contract: every mutating call is a single transaction and resolves only after the write is durable. `writable` is false for the whole session after a hydration failure, and every mutator rejects while it is false.
 
+**`lib/actions`** — the §14.1 orchestration seam. Sequences only; no state of its own.
+
+```ts
+// starts the skill, then pins its bundle for offline use (§7.4)
+export function startSkill(treeId: string): Promise<{ pinned: boolean }>;
+```
+
+Contract: the store write happens first and its failure propagates. The pin is **best-effort** — it is attempted only after the write succeeds, and a rejected pin resolves the call with `pinned: false` rather than throwing. A user near their storage quota (§12.7) must still be able to start a skill; refusing the start because the offline guarantee could not be met would deny the primary action to protect a secondary one.
+
 ### 14.6 Data contracts and their versioning
 
 Five contracts cross a boundary someone else owns. Each has a schema and a versioning rule.
@@ -1962,7 +2009,7 @@ Five contracts cross a boundary someone else owns. Each has a schema and a versi
 |---|---|---|---|
 | Authored tree YAML | Tree Authors, validator | `schema/tree.schema.json` | `schemaVersion`, §5.10 |
 | Taxonomy YAML | maintainer, validator | `schema/{domains,facets,map}.schema.json` | `schemaVersion` |
-| Compiled bundle + manifest | the app only | internal | `contentVersion`; may change freely with the app |
+| Compiled bundle + manifest | the app only | `schema/{compiled-tree,manifest}.schema.json` | internal — unversioned; may change freely with the app, in one commit across both workspaces |
 | **Export file** | **users, forever** | `schema/export.schema.json` | `schemaVersion`, migrated on import, §12.6 |
 | Published URLs | the web | — | slugs plus `aliases`, §13.1 |
 
@@ -1975,7 +2022,9 @@ Contracts checked in CI, not merely asserted here:
 - **Import rules** (ESLint `no-restricted-imports`) implementing the forbidden edges in §14.1.
 - **A grep gate** proving `archetype` appears nowhere under `lib/layout/`, `lib/scoring/`, or `lib/components/`. This is the mechanical form of **S1**, and it costs one line.
 - **Purity check**: `lib/layout` and `lib/scoring` import nothing from `svelte`, `$app`, or `lib/state`.
-- **Type generation**: `lib/types` is generated from `schema/*.json`, so validator and renderer cannot drift (§4.2).
+- **Type generation**: `lib/types` is generated from `schema/*.json`, so validator and renderer cannot drift (§4.2). This now covers the compiled bundle and the manifest as well as the authored forms (§7.3).
+- **Compiler output validation**: `lst compile` validates every bundle and the manifest it emits against `schema/{compiled-tree,manifest}.schema.json` and fails the build on a mismatch. This is the other half of the same guarantee — codegen keeps `app/` honest about the shape, this keeps `tools/` honest about it, and neither workspace can import the other (§4.2).
+- **A second `no-restricted-imports` rule** confining cross-subsystem orchestration to `lib/actions`: `lib/content` may not import `lib/state`, and `lib/state` may not import `lib/content`. Without it §14.1's newest forbidden pair is a diagram rather than a constraint.
 - **Property tests** for the monotonicity invariant in §14.4.
 
 ### 14.8 What this section does not cover
@@ -2085,16 +2134,19 @@ Two version numbers, doing different jobs:
 
 | Version | Increments | Meaning |
 |---|---|---|
-| `contentVersion` | on every merge touching `content/` | Names a state of the library. Consumed by the §12.5 migration pass to decide whether to apply lineage. |
+| `contentVersion` | **per tree**, when that tree's compiled output changes (§5.3) | Names a state of *one tree*. Consumed by the §12.5 migration pass to decide whether to apply lineage, and by §8.6's layout memo. Authored in the tree file, written by `lst version`, enforced by §6.4. |
 | App semver | on app changes | Human-facing; recorded in exports for support and archaeology. |
 
 `schemaVersion` (§5.10) is independent of both and moves rarely.
+
+**There is deliberately no library-wide content counter.** An earlier draft of this section had one incrementing "on every merge touching `content/`", which was unimplementable — `lst compile` is a build step with no notion of a merge, and no counter source was ever named — and harmful, because it made every content release invalidate every tree's layout memo and run §12.5's migration pass against every started tree. Git-derived alternatives fail quietly in exactly the environment they would run in: `actions/checkout` clones at `fetch-depth: 1`, so `git rev-list --count` returns 1 forever with no error. The manifest's `generated` timestamp (§7.2) covers the one job the counter was actually doing, which is telling a human which build they are looking at.
 
 ### 16.2 Release checklist
 
 Automated in CI except where marked. Manual items are deliberately few, because a checklist a part-time maintainer skips is worse than none.
 
 - All §6.5 gating jobs green
+- `contentVersion` bumped on every tree whose compiled output changed — enforced by §6.4's baseline job, not by memory
 - Two review rounds recorded in `provenance`, for content PRs (F42)
 - `lst status` clean — the review table matches reality
 - Bundle budget within §17.1 — CI fails on regression
@@ -2110,7 +2162,8 @@ The system's failure modes are few, because there is almost nothing to fail. Eac
 | Manifest fetch fails, cache present | Offline mode; render from cache and say so (§7.4) |
 | Manifest fetch fails, no cache | Cold-start failure screen: what happened, retry, and a link to `/data` so an export is still possible if hydration worked |
 | Tree bundle fetch fails | That tree only is unavailable; map and other trees unaffected |
-| Bundle fails the §7.5 shape assertion | Treat as unavailable; clear that bundle from Cache Storage so a stale service-worker entry self-heals on retry |
+| Bundle fails the §7.5 shape assertion | Treat as unavailable; clear that bundle from Cache Storage so a stale entry self-heals on retry. The loader owns this cache directly (§7.4), so it holds in v1 with no service worker |
+| Deep link opened with no network | Cold-start failure screen. GitHub Pages' `404.html` fallback needs the network; shell precaching is phase 2 (§4.4, R-26) |
 | IndexedDB hydration fails | Render read-only, surface loudly, **refuse all writes for the session** (§13.3) |
 | IndexedDB write fails (quota) | Surface immediately, do not update the UI as though it succeeded, prompt export |
 | Import file invalid | Reject whole, never partially apply; report which field failed |
@@ -2127,12 +2180,13 @@ flowchart LR
         A1["schema v1 + JSON Schema"] --> A2["lst validate + ids + compile"]
         A2 --> A3["one exemplar tree, linear"]
         A3 --> A4["Layout Engine (§8)"]
-        A4 --> A5["TreeView (§9)"]
+        A4 --> A45["node-state evaluation<br/><small>§11.1–§11.4, tree-local</small>"]
+        A45 --> A5["TreeView (§9)"]
         A5 --> A6["IndexedDB: complete/uncomplete"]
     end
     subgraph P1["Phase 1 — v1"]
         direction TB
-        B1["Scoring Engine (§11)"] --> B2["World map (§10)"]
+        B1["Scoring Engine, rest of<br/><small>§11.5–§11.8: grandfathering,<br/>domain score, recency, breadth</small>"] --> B2["World map (§10)"]
         B2 --> B3["Placement + estimator (F29/F30)"]
         B3 --> B4["Export / import (§12.6)"]
         B4 --> B5["dismissed state (F46)"]
@@ -2152,12 +2206,16 @@ flowchart LR
     classDef p0 fill:#e8f4ea,stroke:#4a7a55,color:#1d3323
     classDef p1 fill:#eef2fa,stroke:#4a5f8a,color:#1c2740
     classDef p2 fill:#fdf6e3,stroke:#a3903f,color:#3d3416
-    class A1,A2,A3,A4,A5,A6 p0
+    class A1,A2,A3,A4,A45,A5,A6 p0
     class B1,B2,B3,B4,B5,B6,B7,B8,B9 p1
     class C1,C2,C3,C4 p2
 ```
 
-**Phase 0 exists to falsify the schema before content authoring starts.** C4 names authoring as the real bottleneck, so the expensive mistake is discovering a schema flaw after three trees are written. The skeleton is one tree end to end — authored, validated, compiled, laid out, rendered, and completable — and it deliberately has no map, no scoring, and no export.
+**Phase 0 exists to falsify the schema before content authoring starts.** C4 names authoring as the real bottleneck, so the expensive mistake is discovering a schema flaw after three trees are written. The skeleton is one tree end to end — authored, validated, compiled, laid out, rendered, and completable — and it deliberately has no map, **no domain scoring**, and no export.
+
+**A4.5 is why "no scoring" needed qualifying.** "Completable" is not demonstrable without `complete`, `available` and `locked`, and §9.3 has no producer for those other than §11.4. So the tree-local half of §11 — requirement groups, attained level, node states — ships here, and only the aggregation half waits for phase 1. See §11's opening note for the seam and the reason it falls at §11.5: that is the first point where §11 writes persisted state, and persisted state is exactly what this phase exists to break.
+
+**Phase 2's PWA item is load-bearing on two v1 behaviours**, not merely a nicety. Until it lands the app cannot boot with no network and §4.4's deep links resolve through GitHub Pages' 404-status fallback rather than locally. N9 is still satisfied, because N9 scopes to "once loaded" and §7.4's in-page Cache Storage pinning delivers that without a service worker. The gap is recorded as R-26 rather than left implicit.
 
 **Phase 1 is the v1 gate**, and it is defined by the PRD's success metrics rather than by a feature list: B7's three exemplars in different shapes are what prove **S1**; B8 and B9 are what make **S2** possible at all; B3 is what **S3** is measured against; and the whole of it is what **S4** requires to be worth using for thirty days.
 
@@ -2379,7 +2437,7 @@ Note the collision hazard restated from §1.5: `D-NN` (hyphenated) are architect
 
 ### D-19: Level satisfaction is grandfathered against content revision
 - **Context.** A direct consequence of D-18. Without it, a contributor adding one milestone to level 2's `all` group drops every affected user from attained 8 to attained 1 — no user action, and §16.5's no-telemetry rule (D-17) guarantees it is never detected.
-- **Decision.** Persist per satisfied level the **set of uids that first satisfied it** plus the `contentVersion` at that moment, as `SKILL.grandfathered` (§12.2). A level counts as satisfied if current evaluation satisfies it *or* every uid in its frozen set is still complete. It un-satisfies only when the user's own completions change.
+- **Decision.** Persist per satisfied level the **set of uids that first satisfied it** plus **that tree's** `contentVersion` at that moment (§5.3 — per-tree, never a library-wide counter), as `SKILL.grandfathered` (§12.2). A level counts as satisfied if current evaluation satisfies it *or* every uid in its frozen set is still complete. It un-satisfies only when the user's own completions change.
 - **Alternatives.** *Always recompute from current content* — one source of truth and defensible on honesty grounds, but makes every content revision a potential mass regression, catastrophic under contiguous ranking. *Grandfather only across schema bumps* — the dangerous case is the ordinary content edit, which this fails to cover. *Freeze the requirement groups rather than the completion set* — matches §11.5's original wording and is behaviourally identical on `all` groups, but stores 5–10× more and reopens which-`n`-counted on `n_of` groups. *A separate `SATISFACTION` object store* — cleaner indexing, but a fifth store and a second write in a transaction that already has the `SKILL` row open, for a record nothing queries independently.
 - **Consequences.** One JSON field on `SKILL`, ~100 bytes per skill. Un-checking still works, so the number stays falsifiable and invariant 7 is a real assertion rather than a ratchet. Three things become mandatory and each silently breaks D-19 if skipped: the write in §12.4's transaction, the lineage migration in §12.5 (where `retired` uids are **removed from** frozen sets rather than orphaned), and inclusion in §12.6's export — a restore without it loses grandfathering unrecoverably, since the content version it was frozen against may be gone. Same principle as §12.2's frozen title snapshots and CDDA's separation of learned recipes from skill level. Content revision becomes non-breaking, which materially lowers the cost of improving a published tree.
 - **Revisit if.** Never expected to; the alternative's failure mode is silent and unbounded.
@@ -2448,6 +2506,7 @@ Known trade-offs the architecture accepts, recorded so they are not re-derived l
 - **R-19 — Super-linear weighting is a cardinal difficulty claim.** D-21 makes level 8 worth 36 and level 2 worth 5, and the only reason is that level 8 is harder to reach. NG8 says levels do not encode estimated effort, and it is arguable that this is exactly that — an effort model differing from hour-weighting only in that the effort is estimated by fiat rather than measured. It also asserts that every skill escalates at the same rate, which the project's own evidence refutes (ABRSM Grade 7→8 is ~374 hours; an entire knife-skills tree might be 30). *Accepted with the flag understood.* The counterweight is that linear is also an exchange rate and "exactly equal" is itself a strong claim, and that `contribution` is a within-skill statement, which F12 explicitly permits. *Reversal cost: one config line*, which is why the table ships as data.
 - **R-21 — Shallow-tree farming.** Under D-21 a tree whose levels 9–10 are cheap pays out 142 for little. PSN demonstrates this at scale: Ratalaika ports exist to farm 300-point platinums, and the community objection is precise — the top weight is set by the content author's grading choice rather than by anything intrinsic. *Accepted;* the mitigation is F8's milestone bounds and F42's two-round review, not the scoring function. Linear does not have this surface, so it is a genuine new cost of D-21.
 - **R-22 — Un-check blast radius.** Under D-18, un-checking one milestone that was the last satisfying level 2 can drop attained from 8 to 1 and remove 100 from a domain score (§11.6's table, 108 − 8). *Accepted;* the engine recomputes honestly rather than ratcheting, because ratcheting would make an accidental check permanently inflating and destroy the number's meaning. Mitigated by stating the consequence before the action (§11.10) and by `cleared` surviving, so the user loses a rank rather than their history.
+- **R-26 — No offline cold start, and deep links carry a 404 status, in v1.** §16.4 defers the service worker to phase 2, so the app shell is not precached: opening the app with no network fails to §16.3's cold-start screen, and a shared milestone URL is served by GitHub Pages' `404.html` fallback with an HTTP 404 status rather than resolving locally (§4.4). *Accepted;* N9 asks only that the app keep working "once loaded", and §7.4's in-page Cache Storage pinning delivers that without a service worker. The residual cost is real and worth naming: a 404 status on a shared link is visible to crawlers and to anything that treats the status as authoritative, and the fix is one phase-2 config block rather than a design change.
 - **R-18 — Browser storage is not durable.** Safari's ITP evicts script-writable storage after seven days of non-use for non-installed sites, and `navigator.storage.persist()` is effectively unavailable there. This affects IndexedDB and `localStorage` equally, so no storage choice avoids it. *Accepted;* F39's export prompting (§12.7) is the entire mitigation, which is why it is specified as mandatory rather than optional.
 
 ### 19.4 Speculative and PRD-blocked

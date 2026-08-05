@@ -106,7 +106,7 @@ The file format, verbatim from ARCHITECTURE §12.6:
   "schemaVersion": 1,
   "exportedAt": "2026-08-04T11:03:00Z",
   "appVersion": "1.4.2",
-  "contentVersion": 7,
+  "generated": "2026-09-14T00:00:00Z",
   "skills": [
     { "treeId": "blacksmithing", "startedAt": "2026-05-01T…",
       "attainedLevel": 3, "lastActivityAt": "2026-08-04T…" }
@@ -206,6 +206,13 @@ export produced by the previous version and confirm it migrates.** The
 ceremonial — keep it, and add one per bump.
 
 ## Notes and hazards
+
+- **T26 F8 (2026-08-05): the export file has no top-level `contentVersion`.** The global
+  counter is gone (§7.2). §12.6's example now carries `generated`, copied from the manifest
+  the export was taken against — archaeology for a human reader, never used by the import
+  path. The per-tree versions that *are* comparable live inside `grandfathered`, and
+  earliest-wins now compares two versions of the same tree, which is what makes it mean
+  anything.
 
 - **§12.6 defines the merge rule for milestones only.** "Union by `uid`, newest `at` wins"
   has no analogue for `skills` (which have `startedAt` and `lastActivityAt`, not `at`) or

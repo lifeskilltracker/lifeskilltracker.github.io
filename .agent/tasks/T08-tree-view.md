@@ -5,7 +5,7 @@
 | **Status** | pending |
 | **Phase** | 0 |
 | **Cluster** | views |
-| **Blocked by** | T06, T07 |
+| **Blocked by** | T06, T07, T11a |
 | **Blocks** | T10, T19, T20 |
 | **Spec** | ARCHITECTURE §9 |
 | **PRD** | F10, F31, S1 |
@@ -174,6 +174,12 @@ Passing looks like: the component test suite green, the grep producing no output
 clean typecheck.
 
 ## Notes and hazards
+
+- **T26 F16 (2026-08-05) gives this task its node-state producer.** §9.3's four
+  scoring-derived states come from §11.1–§11.4, which now ship in Phase 0 as **T11a** — a
+  new blocker on this task. §16.4's "no scoring" was reworded to "no *domain* scoring". The
+  gate can therefore require `complete`, `available` and `locked` honestly, and this
+  renderer needs no mode flag and no reduced-state Phase 0 variant.
 
 - **S1 is only as strong as the grep gate.** A component that reads `archetype` for a
   label but stores it in a variable named `mode` and later branches on `mode` defeats the

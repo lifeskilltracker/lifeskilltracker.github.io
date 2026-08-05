@@ -5,7 +5,7 @@
 | **Status** | pending |
 | **Phase** | 1 |
 | **Cluster** | cli-toolchain |
-| **Blocked by** | T03 |
+| **Blocked by** | T03, T04 |
 | **Blocks** | T25 |
 | **Spec** | ARCHITECTURE §6.4, §5.4 |
 | **PRD** | D-05 |
@@ -169,6 +169,15 @@ passing fixture, the no-baseline-history case passing trivially, and the auto-fi
 producing a verifiable patch without being required to actually land it.
 
 ## Notes and hazards
+
+- **T26 F8 (2026-08-05) adds a fifth check to this job, and a blocker.** §6.4 now also
+  requires that every tree whose **compiled output** differs from the baseline has a higher
+  `contentVersion`: compile both sides, elide the field, compare the remaining bytes, fail
+  if they differ and it did not increase, printing the value to paste. This task therefore
+  gains **T04** as a blocker — it needs `lst compile`. The companion writer is the new
+  `lst version` subcommand (§6.1), which belongs here rather than with T03's `lst ids`
+  because it consumes the same baseline comparison. Note F6 (which ref the baseline is) and
+  F7 (who owns the comparison primitive) are still **open** in T26 — do not resolve them here.
 
 - **§6.4 names two different things as "the baseline" and does not reconcile them.** The
   section opens with "it checks out the tree files as of the **last release tag**" and

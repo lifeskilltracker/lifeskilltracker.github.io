@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | in progress — F1, F2 resolved 2026-08-05; F3–F17 open |
+| **Status** | in progress — F1, F2, F8, F9, F10, F11, F16 resolved 2026-08-05; F3–F7, F12–F15, F17 open |
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
@@ -91,32 +91,42 @@ comparison, assigned to `lst validate` while §6.4's near-identical comparison i
 to `lst baseline`. §6.5 runs them as separate parallel jobs. *Decide:* whether the
 comparison primitive is shared, and which subcommand owns it. Affects T03 and T23.
 
-**F8 — `contentVersion` has no increment mechanism, and its scope is never stated.** Two
-defects in one field. First: §16.1 says it increments on every merge touching `content/`;
-§7.2 shows it in the manifest; `lst compile` emits it as a build step with no counter
-source named, and a build step has no notion of "a merge". Second: §16.1 and §7.2 imply a
-**global** counter while §8.6's memo key and §12.5's trigger read it as though it were
-**per-tree** — never stated outright either way. If it is global, every content release
-invalidates every tree's layout memo and fires §12.5's migration pass on every started
-tree, including trees nothing changed in. This is not cosmetic: §12.5's entire pass
-triggers on `contentVersion > contentVersionSeen`, so getting either half wrong means
-migrations that never run, or run on every load. *Decide:* the source of truth and the
-scope. **Blocks T04, T07, T17.**
+**F8 — `contentVersion` has no increment mechanism, and its scope is never stated.
+✅ RESOLVED 2026-08-05 — amend.** §16.1 said it increments "on every merge touching
+`content/`", which `lst compile` cannot implement, and the scope was never stated —
+§16.1/§7.2 implied global, §8.6/§12.5 read it per-tree. **Adopted:** an **authored
+per-tree integer**, living in `content/trees/*.yaml` → bundle → manifest entry →
+`SKILL.contentVersionSeen`. The library-wide counter is **deleted**; §7.2's `generated`
+timestamp covers the human-facing job. Written by a new `lst version` subcommand and
+enforced as a fifth check in §6.4's baseline job: compile both sides, elide the field,
+compare bytes, fail if they differ and it did not increase — §5.4's uid ergonomics
+exactly. An intermediate proposal using the bundle content hash as the trigger was
+rejected: §7.5's hash is computed over emitted bytes, so any §7.3 compiler change moves
+every tree's hash at once, and `lineage` being append-only (§5.4) makes `>` rather than
+`!=` load-bearing on rollback. Git-derived counters fail silently under
+`actions/checkout`'s `fetch-depth: 1`. See `docs/SPEC-FINDINGS.md` F8.
 
-**F10 — §7.4 ships a service worker that §16.4 defers to phase 2.** §7.4's closing
-paragraph specifies the `@vite-pwa/sveltekit` service worker as part of the Content
-Loader; §16.4's phase diagram puts "PWA / offline hardening" in phase 2. The task
-breakdown resolves for §16.4, and the consequence must be accepted explicitly rather than
-discovered: **without shell precaching, §4.4's fix for GitHub Pages' 404-status deep links
-does not land in v1**, and §16.3's "so a stale service-worker entry self-heals on retry"
-assumes machinery that will not exist. *Decide:* accept the v1 gap and amend §7.4 and
-§16.3's wording, or promote the service worker into v1. **Blocks T07.**
+**F10 — §7.4 ships a service worker that §16.4 defers to phase 2. ✅ RESOLVED
+2026-08-05 — amend.** Settled by N9's actual wording: "**once loaded**, the application
+shall continue to function without network access". Once loaded — so a cold offline boot
+is not required. Against that, only two §7.4 behaviours need a service worker at all
+(shell boot, offline deep links); pinning and cache-first reads are plain Cache Storage,
+available to window script. **Adopted:** the Content Loader owns a named cache in-page
+and checks `caches.match()` before `fetch()`; the service worker stays phase 2. §16.3's
+"stale service-worker entry self-heals" loses the assumption (the loader owns the cache,
+so it holds), and gains a row for the offline deep link. The v1 gap — no offline cold
+start, deep links carrying HTTP 404 — is **R-26** in §19.3. See `docs/SPEC-FINDINGS.md` F10.
 
-**F11 — `pin()` has no caller.** §7.4 pins a bundle when the user starts a skill, but
-`pin()` lives on the Content Loader (§14.2) and `startSkill()` on the User State Store
-(§14.5), and no section says what joins them. §14.1's graph routes both through
-`routes/`, which makes the shell the only legal seam, but this is inference rather than
-specification. *Decide:* name the seam. **Blocks T07.**
+**F11 — `pin()` has no caller. ✅ RESOLVED 2026-08-05 — amend.** **Adopted:** a new
+`lib/actions` module, the one place permitted to import both I/O owners, containing
+only named sequences — `startSkill(treeId): Promise<{ pinned: boolean }>` is its sole v1
+export. Chosen over "`routes/` is the seam" because §11.8's placement flow and the tree
+route both start skills, and an orchestration rule living in a route gets forgotten at
+the second call site. The two forbidden edges it implies (`lib/content ↛ lib/state` and
+the reverse) are added to §14.1 and to §14.7's `no-restricted-imports` gate. **Pinning is
+best-effort:** the store write happens first, a rejected pin resolves `pinned: false`,
+because a user near quota must still be able to start a skill. See
+`docs/SPEC-FINDINGS.md` F11.
 
 **F12 — §12.6's merge rule covers milestones only.** "Union by `uid`, newest `at` wins"
 has no analogue for the `skills` array (which has no `at` field — `startedAt` and
@@ -153,13 +163,18 @@ afternoon if hit cold:
 - §12.7's 60%-of-quota trigger cannot fire in phase 1 given §17.4's sub-1 MB budget.
   Harmless, but it should be labelled phase-2 rather than read as live.
 
-**F9 — the compiled-bundle shape is unenforced across the workspace boundary.** §4.2
-forbids `tools/ → app/`, and §14.6 declares the compiled bundle "internal" with no
-schema. T02 therefore places the hand-written `CompiledTree` types in `app/`, where the
-compiler that produces the JSON cannot import them. The two can drift with nothing
-catching it. *Decide:* add a compiled-bundle JSON Schema under `schema/` — "internal"
-means unversioned, not unspecified — or enforce parity with shared fixtures.
-**Blocks T02, T04.**
+**F9 — the compiled-bundle shape is unenforced across the workspace boundary.
+✅ RESOLVED 2026-08-05 — amend.** **Adopted:** `schema/compiled-tree.schema.json` and
+`schema/manifest.schema.json`. `lst compile` validates its own output against them and
+fails the build on mismatch; `app/` generates `CompiledTree` and `Manifest` types from
+them. This invents nothing — §4.2 already makes `schema/` the one thing both workspaces
+read and §14.7 already gates type generation. §14.6's "internal" is restated as
+**unversioned, not unspecified**. Rider, stated in both §7.3 and §7.5: these are
+**build-time and codegen artifacts only**, the app ships no validator, and the runtime
+check remains §7.5's narrow shape assertion — ajv in the Content Loader would spend
+§17.1 budget re-proving what CI proved, in front of a user who can do nothing about it.
+Fixture parity was declined: it catches only what the fixture exercises. See
+`docs/SPEC-FINDINGS.md` F9.
 
 **F16 — §9.3 requires the Scoring Engine in a phase §16.4 says has no scoring.** §9.3
 opens: "Five presentational states. Four come from the Scoring Engine (§11.4);
@@ -171,10 +186,18 @@ shown without `complete`, `available`, and `locked`. So the walking skeleton mus
 four states whose only specified producer the phase diagram defers to the next phase.
 This is the same class as F10 (a section assuming a module §16.4 defers) with a
 different subject, and it cannot be resolved in the task graph: T08 → T10 → T11 is
-already an edge, so making T08 depend on T11 creates a cycle. *Decide:* name the Phase 0
-node-state source — a prerequisite-only derivation living with the Layout Engine, a
-scoring slice pulled forward into Phase 0, or an explicit statement that the Phase 0
-gate renders `complete`/`locked` only. **Blocks T08, T10.**
+already an edge, so making T08 depend on T11 creates a cycle. **✅ RESOLVED 2026-08-05 —
+amend.** **Adopted:** split §11 at §11.5. §11.1–§11.4 (requirement groups, attained
+level, node states) are tree-local, consume only the compiled bundle plus that tree's
+progress, and ship in **phase 0**; §11.5–§11.8 (grandfathering, domain score, fill,
+recency, breadth, self-assessment) ship in **phase 1**. §16.4's "no scoring" becomes "no
+**domain** scoring" — which the surrounding clauses (no map, no export) show was the
+intent. The seam falls at §11.5 because that is the first point §11 writes persisted
+state (`SKILL.grandfathered`, per F2), and persisted state is what Phase 0 exists to
+falsify. **T11 splits into T11a (phase 0, blocks T08) and T11b (phase 1, blocked by
+T10)**, and the cycle dissolves: `T11a → T08 → T10 → T11b`. Deriving node state in the
+Layout Engine was rejected outright — §14.1 marks `LAYOUT → STATE` FORBIDDEN and it
+would destroy N11. See `docs/SPEC-FINDINGS.md` F16.
 
 **F17 — §10.3's five geometry invariants are "Validated by CI" with no owner.** §10.3
 closes: "Validated by CI: every domain in `domains.yaml` has a region; no tile is claimed
@@ -238,23 +261,26 @@ skills: ReadonlyArray<{ treeId: string; domain: DomainId; attainedLevel: number 
 - [ ] F6: §6.4's opening, §6.4's closing, and §6.5's job label all name the same baseline.
 - [ ] F7: exactly one subcommand owns the baseline comparison primitive, and both §6.2
       rule 15 and §6.4 reference it.
-- [ ] F8: `contentVersion`'s source is named and is reproducible in a local build, not
-      only in CI.
-- [ ] F9: either `schema/` contains a compiled-bundle schema, or a fixture parity test is
-      specified with an owning task.
-- [ ] F10: §7.4 and §16.3 no longer assume a service worker that v1 does not ship, and
+- [x] F8: `contentVersion`'s source is named and is reproducible in a local build, not
+      only in CI. *`lst version` writes it into the tree file; §6.4 enforces it. No git
+      history, no CI-only state — an author reproduces the exact value offline.*
+- [x] F9: either `schema/` contains a compiled-bundle schema, or a fixture parity test is
+      specified with an owning task. *Both schemas added under `schema/`; T04 owns them.*
+- [x] F10: §7.4 and §16.3 no longer assume a service worker that v1 does not ship, and
       §4.4's offline deep-link consequence is stated wherever the gap is accepted.
-- [ ] F11: exactly one component is named as the caller of `pin()`, and it is one §14.1
-      permits.
+      *§4.4's table row, §16.3's new branch, §16.4's Phase 0 prose, and R-26.*
+- [x] F11: exactly one component is named as the caller of `pin()`, and it is one §14.1
+      permits. *`lib/actions`, added to §14.1 with the two forbidden edges it implies.*
 - [ ] F12: §12.6 states a merge rule for `skills` and for `orphans`, not only milestones.
 - [ ] F13: §12.5's unknown-uid row and its `moved` row cannot both claim the same record.
       Verified by a fixture where a milestone moves and the source tree is never reopened.
 - [ ] F14: §12.5 states whether the pass is replay-safe across skipped content versions,
       and the ordering rule for composing dispositions.
 - [ ] F15: every item in the cluster is either fixed in the spec or recorded as tolerated.
-- [ ] F16: §9.3 and §16.4 agree on what produces node state in Phase 0. Verified by
+- [x] F16: §9.3 and §16.4 agree on what produces node state in Phase 0. Verified by
       reading §16.4's Phase 0 prose and confirming that every state T10's gate requires
-      has a named producer scheduled no later than T08.
+      has a named producer scheduled no later than T08. *§16.4's Phase 0 chain gains the
+      §11.1–§11.4 node before TreeView; T11a is that producer and blocks T08.*
 - [ ] F17: §6.1's subcommand table names the command that validates `map.yaml`, and
       §10.3's "Validated by CI" sentence points at it. Verified by
       `grep -n "map.yaml" docs/ARCHITECTURE.md` returning a §6 hit.

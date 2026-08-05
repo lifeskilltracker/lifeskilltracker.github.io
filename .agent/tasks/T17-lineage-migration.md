@@ -250,11 +250,18 @@ version — this check is what makes the assumption explicit.
   strictly to records whose `treeId` matches the tree being migrated, and do not treat a
   missing uid in an unrelated tree as unknown. The residual gap — a `moved` record stranded
   on an unvisited source tree — should be reported upward rather than papered over.
-- **`contentVersion` is global (§16.1).** It increments on every merge touching `content/`,
-  not per tree, so every content release makes `contentVersion > contentVersionSeen` for
-  every started skill and triggers this pass on every tree the user opens — usually finding
-  nothing to do. That is correct but wasteful; keep the empty-lineage path cheap and make
-  sure it produces no summary (see the no-op criterion).
+- **`contentVersion` is per-tree — T26 F8, 2026-08-05. This note previously said the
+  opposite.** It is an authored integer on each tree (§5.3), so
+  `contentVersion > contentVersionSeen` is true only for trees whose content actually
+  changed. The pass no longer fires on every started skill on every release. Keep the
+  empty-lineage path cheap anyway — a tree can change without any structural lineage entry
+  (a reword bumps the version but produces no dispositions) — and make sure that case still
+  produces no summary (see the no-op criterion).
+- **The comparison is `>`, never `!=`.** §12.5 now states why, and it is a correctness
+  matter rather than an optimization: `lineage` is append-only (§5.4), so an older bundle
+  carries a *shorter* ledger. Running the pass against one drives every already-migrated
+  record into the "uid in neither bundle nor lineage" row and orphans it as `unknown`.
+  Under a content rollback the correct behaviour is to do nothing, which `>` gives free.
 - **The frozen snapshot survives migration.** §12.2's `slug` and `title` are written at
   completion time and never refreshed. A `split` successor inherits the *predecessor's*
   timestamp and note per the table, but must take its own `slug`/`title` snapshot from the

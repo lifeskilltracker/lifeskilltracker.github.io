@@ -6,7 +6,7 @@
 | **Phase** | 0 |
 | **Cluster** | substrate-schema |
 | **Blocked by** | T01 |
-| **Blocks** | T03, T04, T06, T09 |
+| **Blocks** | T03, T04, T06, T09, T11a |
 | **Spec** | ARCHITECTURE §5 (normative), §14.6, §4.2 |
 | **PRD** | F5, F7, F8, F14, F18, F19, F26, D8, D10, D11, D13 |
 
@@ -157,6 +157,14 @@ Passing looks like: no diff after regeneration, every fixture in the suite landi
 expected verdict, and a clean typecheck.
 
 ## Notes and hazards
+
+- **T26 resolutions landing here (2026-08-05).** **F8:** `tree.yaml` gains a required
+  `contentVersion` integer (§5.3) — per-tree, authored, starting at 1. Add it to
+  `tree.schema.json` and to the generated types. **F9:** `schema/compiled-tree.schema.json`
+  and `schema/manifest.schema.json` now exist, and `CompiledTree` and `Manifest` are
+  **generated from them**, not hand-written in `app/`. That removes this task's original
+  reason for hand-maintaining those types across the §4.2 boundary the compiler cannot
+  cross. **F16:** this task now blocks T11a as well as T03/T04/T06/T09.
 
 - **R-14 — the schema is being fixed before any content exists.** Expect at least one
   breaking bump between phase 0 and phase 1; T10 is the scheduled window for it. Do not

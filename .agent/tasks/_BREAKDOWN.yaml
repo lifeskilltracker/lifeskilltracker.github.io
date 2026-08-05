@@ -59,7 +59,7 @@ tasks:
     phase: 0
     cluster: substrate-schema
     blocked_by: [T01, T26]
-    blocks: [T03, T04, T06, T09]
+    blocks: [T03, T04, T06, T09, T11a]
     spec: ["§5", "§14.6", "§4.2"]
     prd: [F5, F7, F8, F14, F18, F19, F26, D8, D10, D11, D13]
     status: written
@@ -126,7 +126,7 @@ tasks:
     title: TreeView renderer
     phase: 0
     cluster: views
-    blocked_by: [T06, T07, T26]
+    blocked_by: [T06, T07, T11a, T26]
     blocks: [T10, T19, T20]
     spec: ["§9"]
     prd: [F10, F31, S1]
@@ -149,7 +149,7 @@ tasks:
     phase: 0
     cluster: judgment
     blocked_by: [T05, T08, T09, T26]
-    blocks: [T11, T12, T21]
+    blocks: [T11b, T12, T21]
     spec: ["§5.10", "§16.4", "§19.2"]
     prd: [R-14, N8]
     status: written
@@ -159,17 +159,40 @@ tasks:
       rendered and completable. R-14 expects at least one breaking schema bump here,
       while the corpus is one tree and migration is trivial.
 
-  - id: T11
-    title: Scoring Engine
+  - id: T11a
+    title: Scoring Engine — tree-local evaluation
+    phase: 0
+    cluster: pure-engines
+    blocked_by: [T02, T26]
+    blocks: [T08]
+    spec: ["§11.1", "§11.2", "§11.3", "§11.4", "§14.4"]
+    prd: [F9, F11, F36, D-18]
+    status: pending
+    doc: T11a-scoring-tree-local.md
+    note: >
+      Created 2026-08-05 by T26's F16 resolution. Requirement groups, attained level,
+      and the five node states — everything computable from one compiled tree plus that
+      tree's progress. Phase 0, because §16.4's skeleton must render a tree that is
+      "completable" and §9.3 has no other producer for complete/available/locked.
+      `T11-scoring-engine.md` currently covers all of §11 and must be split; this row
+      and T11b's stay `pending` until it is.
+
+  - id: T11b
+    title: Scoring Engine — grandfathering and aggregation
     phase: 1
     cluster: pure-engines
     blocked_by: [T10, T26]
     blocks: [T13, T14, T15, T17, T19]
-    spec: ["§11", "§14.4"]
-    prd: [F9, F11, F33, F36, N12, D-18, D-21]
-    status: written
-    doc: T11-scoring-engine.md
-    note: Monotonicity (N12) is a property test over generated inputs, not examples.
+    spec: ["§11.5", "§11.6", "§11.7", "§11.8", "§11.9", "§14.4"]
+    prd: [F33, N12, D-21]
+    status: pending
+    doc: T11b-scoring-aggregation.md
+    note: >
+      The §11.5–§11.8 half — frozen satisfaction, domain score, fill, recency, breadth,
+      self-assessment. Phase 1, and after T10 deliberately: §11.5 is the first point §11
+      writes persisted state (`SKILL.grandfathered`), which is exactly what the schema
+      gate exists to break. Monotonicity (N12) is a property test over generated inputs,
+      not examples.
 
   - id: T12
     title: Map geometry — map.yaml, axial maths, region union
@@ -186,7 +209,7 @@ tasks:
     title: Map Renderer
     phase: 1
     cluster: views
-    blocked_by: [T11, T12]
+    blocked_by: [T11b, T12]
     blocks: [T20]
     spec: ["§10.5", "§10.6", "§10.7"]
     prd: [F21, F33, F34, F35, D-20]
@@ -197,7 +220,7 @@ tasks:
     title: Full routes and cold-start branches
     phase: 1
     cluster: views
-    blocked_by: [T11]
+    blocked_by: [T11b]
     blocks: [T16, T20, T25]
     spec: ["§13.1", "§13.2", "§13.3", "§13.4", "§16.3"]
     prd: [F23]
@@ -208,7 +231,7 @@ tasks:
     title: Placement and level estimator
     phase: 1
     cluster: judgment
-    blocked_by: [T00, T11]
+    blocked_by: [T00, T11b]
     blocks: []
     spec: ["§11.8", "§19.4"]
     prd: [F29, F30, D20, S3]
@@ -234,7 +257,7 @@ tasks:
     title: Lineage migration at load and orphan records
     phase: 1
     cluster: runtime-io
-    blocked_by: [T09, T11, T26]
+    blocked_by: [T09, T11b, T26]
     blocks: []
     spec: ["§12.5", "§5.4"]
     prd: [R-03, R-16]
@@ -262,7 +285,7 @@ tasks:
     title: Dismissed state end to end
     phase: 1
     cluster: views
-    blocked_by: [T08, T11]
+    blocked_by: [T08, T11b]
     blocks: []
     spec: ["§11.10", "§9.3"]
     prd: [F46, D-22]
@@ -307,7 +330,7 @@ tasks:
     title: lst baseline — breaking-change detection
     phase: 1
     cluster: cli-toolchain
-    blocked_by: [T03, T26]
+    blocked_by: [T03, T04, T26]
     blocks: [T25]
     spec: ["§6.4", "§5.4"]
     prd: [D-05]
@@ -345,7 +368,7 @@ tasks:
     phase: 0
     cluster: judgment
     blocked_by: []
-    blocks: [T02, T04, T07, T08, T09, T10, T11, T12, T16, T17, T23]
+    blocks: [T02, T04, T07, T08, T09, T10, T11a, T11b, T12, T16, T17, T23]
     spec: ["§4.4", "§6.2", "§6.4", "§7.2", "§7.4", "§11.5", "§11.6", "§11.9",
            "§12.2", "§12.5", "§12.6", "§12.7", "§14.2", "§14.4", "§14.5", "§16.1"]
     prd: []
@@ -357,5 +380,6 @@ tasks:
       block implementation. F2 (grandfathering has no storage) is the expensive one:
       resolving it after T09 ships means a migration rather than a field.
 
-# Critical path: T01 → T02 → T03 → T04 → T07 → T08 → T10 → T11 → T14 → T20
+# Critical path: T01 → T02 → T03 → T04 → T07 → T08 → T10 → T11b → T14 → T20
+#   T11a (§11.1–§11.4) joins T06/T07 as a T08 prerequisite — see T26 F16.
 # Off the critical path and startable early: T00, T12, T21, T22, T23

@@ -269,6 +269,15 @@ PR / push exercises the workflows end to end with the path filter behaving as sp
 
 ## Notes and hazards
 
+- **T26 resolutions adding gates here (2026-08-05).** **F9:** `lst compile` validates its
+  output against `schema/{compiled-tree,manifest}.schema.json`, and type generation now
+  covers those two schemas as well as the authored ones (§14.7). **F11:** a second
+  `no-restricted-imports` rule confining cross-subsystem orchestration to `lib/actions` —
+  `lib/content ↛ lib/state` and the reverse. **F10:** the build must **not** add a PWA
+  plugin; the service worker is Phase 2 (§16.4, R-26). **F8:** the `contentVersion` bump
+  check rides on the existing `content: baseline` job rather than adding a seventh — the
+  six-gating-job count in §6.5 is unchanged.
+
 - **The `needs:` skip-propagation problem is the single trickiest piece of this task.**
   GitHub Actions treats a job conditioned out by `if:` as `skipped`, and a downstream job
   with a plain `needs: [TC, T]` will not run at all if either is skipped — it must be

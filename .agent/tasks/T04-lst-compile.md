@@ -108,8 +108,7 @@ The manifest shape, copied verbatim from §7.2:
 ```jsonc
 {
   "schemaVersion": 1,
-  "contentVersion": 7,          // increments on every content release
-  "generated": "2026-09-14T00:00:00Z",
+  "generated": "2026-09-14T00:00:00Z",   // build stamp for humans; NOT comparable
   "taxonomy": {
     "domains": [ /* domains.yaml, compiled */ ],
     "facets":  [ /* facets.yaml, compiled */ ],
@@ -118,6 +117,7 @@ The manifest shape, copied verbatim from §7.2:
   "trees": [
     {
       "id": "blacksmithing",
+      "contentVersion": 4,      // this tree's own version — §5.3, the §12.5 trigger
       "title": "Blacksmithing",
       "summary": "Shaping hot metal by hand …",
       "domain": "making",
@@ -201,6 +201,15 @@ milestones, and re-running compile with no content changes produces no diff in
 `app/static/content/`.
 
 ## Notes and hazards
+
+- **T26 resolutions landing here (2026-08-05).** **F8:** the manifest no longer carries a
+  global `contentVersion`; each tree entry carries its own (§7.2), copied from the authored
+  value, and `generated` is a human-facing build stamp that must never be used as a cache
+  key or migration trigger. `contentVersion` is retained verbatim into the bundle (§7.3's
+  table). **F9:** this task owns `schema/compiled-tree.schema.json` and
+  `schema/manifest.schema.json`, and `lst compile` **validates its own output against them
+  and fails the build on mismatch**. They are build-time and codegen artifacts only — the
+  app ships no validator (§7.5).
 
 - **`contentVersion`'s source is not specified.** §16.1 says it "increments on every
   merge touching `content/`," but no mechanism is named for how `lst compile` — which runs

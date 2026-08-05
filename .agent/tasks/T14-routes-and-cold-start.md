@@ -143,7 +143,8 @@ app/src/routes/*.test.ts                       cold-start branch tests per route
 | Manifest fetch fails, cache present | Offline mode; render from cache and say so (§7.4) |
 | Manifest fetch fails, no cache | Cold-start failure screen: what happened, retry, and a link to /data so an export is still possible if hydration worked |
 | Tree bundle fetch fails | That tree only is unavailable; map and other trees unaffected |
-| Bundle fails the §7.5 shape assertion | Treat as unavailable; clear that bundle from Cache Storage so a stale service-worker entry self-heals on retry |
+| Bundle fails the §7.5 shape assertion | Treat as unavailable; clear that bundle from Cache Storage so a stale entry self-heals on retry. The loader owns this cache directly (§7.4), so it holds in v1 with no service worker |
+| Deep link opened with no network | Cold-start failure screen. GitHub Pages' `404.html` fallback needs the network; shell precaching is phase 2 (§4.4, R-26) |
 | IndexedDB hydration fails | Render read-only, surface loudly, refuse all writes for the session (§13.3) |
 | IndexedDB write fails (quota) | Surface immediately, do not update the UI as though it succeeded, prompt export |
 ```

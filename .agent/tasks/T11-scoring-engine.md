@@ -6,6 +6,7 @@
 | **Phase** | 1 |
 | **Cluster** | pure-engines |
 | **Blocked by** | T10 |
+| **SUPERSEDED** | Split into **T11a** (§11.1–§11.4, phase 0, blocks T08) and **T11b** (§11.5–§11.8, phase 1) by T26 F16 on 2026-08-05. This document still covers all of §11 and must be split into `T11a-scoring-tree-local.md` and `T11b-scoring-aggregation.md`; both rows are `pending` in `_BREAKDOWN.yaml` until that is done. Nothing in the content below is wrong — only its phase assignment and its blocking edges are. |
 | **Blocks** | T13, T14, T15, T17, T19 |
 | **Spec** | ARCHITECTURE §11, §14.4 |
 | **PRD** | F9, F11, F33, F36, N12, D-18, D-21 |

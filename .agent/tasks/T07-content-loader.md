@@ -49,7 +49,9 @@ cache and with it §17.3's sub-50 ms milestone toggle.
 - Per-tree failure isolation: a failed or malformed bundle disables that one tree and
   nothing else (§7.4).
 - Pinning on start: `pin(treeId)` writes the bundle into a named Cache Storage bucket that
-  ordinary eviction of browsed-but-unstarted trees does not touch (§7.4, N9).
+  ordinary eviction of browsed-but-unstarted trees does not touch (§7.4, N9). It **rejects
+  cleanly on quota failure rather than throwing fatally** — pinning is best-effort and its
+  caller in `lib/actions` resolves `pinned: false` (T26 F11).
 - The `lib/content/store.svelte.ts` rune store of §13.2 — manifest plus loaded bundles,
   populated by the loader and read by routes.
 - The `/s/<treeId>` route from §13.1, `prerender = false`, resolving through the manifest.
@@ -59,18 +61,23 @@ cache and with it §17.3's sub-50 ms milestone toggle.
 **Out of scope**
 
 - **Service-worker generation and PWA / offline hardening.** §16.4 places these in
-  **Phase 2** (`C2`), and this task must not pull them forward. §7.4's closing paragraph
-  reads as though `@vite-pwa/sveltekit` ships alongside the loader; it does not. **This
-  task ships ordinary `fetch` plus the Cache Storage API called directly.** Consequences
-  to accept rather than fix here: the app shell is not precached, so an offline *deep
-  link* still hits the network and gets GitHub Pages' `404.html` (§4.4) — only content
-  already in Cache Storage survives, and only for a session that has already booted.
+  **Phase 2** (`C2`). Since T26's F10 resolution (2026-08-05) §7.4 agrees, and no longer
+  reads as though `@vite-pwa/sveltekit` ships alongside the loader. **This task ships
+  ordinary `fetch` plus the Cache Storage API called directly**, which is the whole of N9
+  — "once loaded". Consequences accepted rather than fixed here, and now recorded as
+  **R-26** in §19.3: the app shell is not precached, so an offline *deep link* still hits
+  the network and gets GitHub Pages' `404.html` (§4.4), and a cold boot with no network
+  fails to §16.3's cold-start screen. Only content already in Cache Storage survives, and
+  only for a session that has already booted.
+- **The `startSkill` → `pin` sequence.** It lives in `lib/actions` (§14.1, T26 F11), not
+  here and not in T09. This task exposes `pin()` and must not import `lib/state` — §14.7
+  now gates that with `no-restricted-imports`.
 - SVG rendering, node states, milestone interaction — T08 (§9). This task's route renders
   text only.
 - The Layout Engine — T06. The loader hands over a `CompiledTree` and knows nothing about
   positions.
 - Reading or writing user state, including the decision of *which* trees are started. The
-  User State Store owns that (T09); the shell wires `startSkill` to `pin` (see hazards).
+  User State Store owns that (T09); `lib/actions` wires `startSkill` to `pin` (see hazards).
 - The manifest and bundle **producer** — `lst compile`, T04. This task consumes what T04
   writes and must not reshape it.
 - Manifest sharding — **R-05**, triggered at 30 kB compressed, not built now.
@@ -116,8 +123,7 @@ The manifest shape this task consumes, verbatim from §7.2:
 ```jsonc
 {
   "schemaVersion": 1,
-  "contentVersion": 7,          // increments on every content release
-  "generated": "2026-09-14T00:00:00Z",
+  "generated": "2026-09-14T00:00:00Z",   // build stamp for humans; NOT comparable
   "taxonomy": {
     "domains": [ /* domains.yaml, compiled */ ],
     "facets":  [ /* facets.yaml, compiled */ ],
@@ -126,6 +132,7 @@ The manifest shape this task consumes, verbatim from §7.2:
   "trees": [
     {
       "id": "blacksmithing",
+      "contentVersion": 4,      // this tree's own version — §5.3, the §12.5 trigger
       "title": "Blacksmithing",
       "summary": "Shaping hot metal by hand …",
       "domain": "making",
@@ -160,7 +167,8 @@ The §16.3 rows this task implements, verbatim:
 | Manifest fetch fails, cache present | Offline mode; render from cache and say so (§7.4) |
 | Manifest fetch fails, no cache | Cold-start failure screen: what happened, retry, and a link to `/data` so an export is still possible if hydration worked |
 | Tree bundle fetch fails | That tree only is unavailable; map and other trees unaffected |
-| Bundle fails the §7.5 shape assertion | Treat as unavailable; clear that bundle from Cache Storage so a stale service-worker entry self-heals on retry |
+| Bundle fails the §7.5 shape assertion | Treat as unavailable; clear that bundle from Cache Storage so a stale entry self-heals on retry. The loader owns this cache directly (§7.4), so it holds in v1 with no service worker |
+| Deep link opened with no network | Cold-start failure screen. GitHub Pages' `404.html` fallback needs the network; shell precaching is phase 2 (§4.4, R-26) |
 
 The §7.5 assertion is exactly two checks and no more:
 
@@ -225,29 +233,32 @@ headings served from `app/static/content/` with no route-level fetch.
 
 ## Notes and hazards
 
-- **The §7.4 / §16.4 contradiction, stated plainly.** §7.4's last paragraph specifies a
-  `@vite-pwa/sveltekit`-generated service worker as though it were part of this subsystem;
-  §16.4 lists "PWA / offline hardening" under Phase 2. **§16.4 wins for this task.** Write
-  the Cache Storage calls directly so that adding the service worker later is additive —
-  in particular, use stable, documented cache bucket names, because the Phase 2 workbox
-  runtime-caching config will need to adopt them rather than shadow them.
-- **§16.3's wording assumes the service worker exists** ("so a stale service-worker entry
-  self-heals"). Without one, the same failure still occurs — from the loader's own Cache
-  Storage bucket — and the same remedy applies. Implement the delete-on-failed-assertion
-  behaviour regardless.
-- **`pin()` has no caller in this task.** §7.4 says pinning happens "when a user starts a
-  skill", but `startSkill` lives in the User State Store (§14.5, T09) and §14.1 forbids the
-  loader from importing state. The architecture never says who joins them. The intended
-  seam is the shell: the skill route calls `store.startSkill(treeId)` then
-  `loader.pin(treeId)`. Recorded here because an implementer will look for the wiring and
-  not find it in the spec; do not resolve it by importing state into `lib/content`.
-- **`contentVersion` is global, not per-tree.** §16.1 increments it "on every merge
-  touching `content/`", and §7.2 carries it only at manifest level. §8.6 and §12.5 both
-  read `tree.contentVersion`, so the compiled bundle must carry the global value stamped
-  in. The spec does not say this outright; T04 is where it is produced, and this task's
-  fixtures should assume it. The consequence — every content release invalidates every
-  tree's layout memo and triggers a §12.5 migration pass on every started tree, including
-  trees that did not change — is real and unaddressed by the spec.
+- **The §7.4 / §16.4 contradiction is resolved — T26 F10, 2026-08-05.** §7.4 no longer
+  specifies a service worker; the Content Loader owns a named Cache Storage bucket in-page
+  and checks `caches.match()` before `fetch()`. §16.4 won, and N9's actual wording is why:
+  "**once loaded**, the application shall continue to function without network access" —
+  which in-page Cache Storage satisfies in full. Still use stable, documented bucket names,
+  because the Phase 2 workbox runtime-caching config must adopt them rather than shadow
+  them. The two things the service worker would have added — offline cold boot and §4.4's
+  offline deep links — are out of scope here and recorded as **R-26** in §19.3.
+- **§16.3's wording no longer assumes a service worker.** The delete-on-failed-assertion
+  behaviour is this task's, from the loader's own Cache Storage bucket. §16.3 also gained
+  a row for the offline deep link, which belongs to T14, not here.
+- **`pin()`'s caller is `lib/actions` — T26 F11, 2026-08-05.** §14.1 gained an
+  orchestration module, the one place permitted to import both I/O owners; its sole v1
+  export is `startSkill(treeId): Promise<{ pinned: boolean }>`, which calls
+  `store.startSkill` then `loader.pin`. This task exposes `pin()` and does **not** own the
+  wiring. Two rules follow: never import `lib/state` into `lib/content` (now an ESLint
+  gate, §14.7), and **`pin()` must reject cleanly rather than throw fatally** — pinning is
+  best-effort, the action resolves `pinned: false`, and a user near quota still starts the
+  skill.
+- **`contentVersion` is per-tree — T26 F8, 2026-08-05. This note previously said the
+  opposite.** It is now an authored integer on each tree, carried in the bundle and in the
+  manifest's tree entry (§5.3, §7.2). The global counter is gone, and with it the
+  consequence this note used to warn about: a release touching one tree now invalidates one
+  tree's layout memo and fires one tree's §12.5 pass. Fixtures must carry a per-tree value.
+  The manifest keeps `generated` as a human-facing build stamp, which is **not** comparable
+  and must never be used as a cache key or migration trigger.
 - **§4.4's cross-reference is wrong.** It points at "§7.3, which treats manifest freshness
   explicitly"; manifest freshness is §7.1 and §7.4. §7.3 is the compiler's transformation
   table. Follow §7.4.
