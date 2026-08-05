@@ -96,8 +96,8 @@ tasks:
     blocks: [T10]
     spec: ["§5.3", "§16.4"]
     prd: [F2, F8, S1]
-    status: pending
-    doc: null
+    status: written
+    doc: T05-exemplar-tree-1.md
 
   - id: T06
     title: Layout Engine
@@ -126,12 +126,12 @@ tasks:
     title: TreeView renderer
     phase: 0
     cluster: views
-    blocked_by: [T06, T07]
+    blocked_by: [T06, T07, T26]
     blocks: [T10, T19, T20]
     spec: ["§9"]
     prd: [F10, F31, S1]
-    status: pending
-    doc: null
+    status: written
+    doc: T08-tree-view.md
 
   - id: T09
     title: User State Store — IndexedDB write path
@@ -148,7 +148,7 @@ tasks:
     title: PHASE 0 GATE — schema review and breaking bump
     phase: 0
     cluster: judgment
-    blocked_by: [T05, T08, T09]
+    blocked_by: [T05, T08, T09, T26]
     blocks: [T11, T12, T21]
     spec: ["§5.10", "§16.4", "§19.2"]
     prd: [R-14, N8]
@@ -175,12 +175,12 @@ tasks:
     title: Map geometry — map.yaml, axial maths, region union
     phase: 1
     cluster: content-gates
-    blocked_by: [T10]
+    blocked_by: [T10, T26]
     blocks: [T13]
     spec: ["§10.3", "§10.4"]
     prd: [F21, D-08, R-13]
-    status: pending
-    doc: null
+    status: written
+    doc: T12-map-geometry.md
 
   - id: T13
     title: Map Renderer
@@ -190,8 +190,8 @@ tasks:
     blocks: [T20]
     spec: ["§10.5", "§10.6", "§10.7"]
     prd: [F21, F33, F34, F35, D-20]
-    status: pending
-    doc: null
+    status: written
+    doc: T13-map-renderer.md
 
   - id: T14
     title: Full routes and cold-start branches
@@ -201,8 +201,8 @@ tasks:
     blocks: [T16, T20, T25]
     spec: ["§13.1", "§13.2", "§13.3", "§13.4", "§16.3"]
     prd: [F23]
-    status: pending
-    doc: null
+    status: written
+    doc: T14-routes-and-cold-start.md
 
   - id: T15
     title: Placement and level estimator
@@ -266,8 +266,8 @@ tasks:
     blocks: []
     spec: ["§11.10", "§9.3"]
     prd: [F46, D-22]
-    status: pending
-    doc: null
+    status: written
+    doc: T19-dismissed-state.md
 
   - id: T20
     title: Accessibility pass and axe gate
@@ -277,8 +277,8 @@ tasks:
     blocks: []
     spec: ["§15"]
     prd: [N5, D-10, R-07]
-    status: pending
-    doc: null
+    status: written
+    doc: T20-accessibility.md
 
   - id: T21
     title: Exemplar trees 2 and 3 — branching and modular
@@ -288,8 +288,8 @@ tasks:
     blocks: [T24]
     spec: ["§16.4", "§5.3"]
     prd: [S1, F10, R-12]
-    status: pending
-    doc: null
+    status: written
+    doc: T21-exemplar-trees-2-3.md
     note: Runs parallel to the Phase 1 engine work; C4 names authoring as the bottleneck.
 
   - id: T22
@@ -322,8 +322,8 @@ tasks:
     blocks: []
     spec: ["§6.7", "§4.2"]
     prd: [F43, F44, F45, D15, S2]
-    status: pending
-    doc: null
+    status: written
+    doc: T24-contributor-docs.md
     note: CONTRIBUTING.md, STYLE-RUBRIC.md, AUTHORING-WITH-AI.md.
 
   - id: T25
@@ -334,8 +334,8 @@ tasks:
     blocks: []
     spec: ["§6.5", "§14.7", "§16.1", "§16.2", "§17.1", "§4.4"]
     prd: [D-12, S1, S2]
-    status: pending
-    doc: null
+    status: written
+    doc: T25-ci-and-deploy.md
     note: >
       Carries the §14.7 enforcement gates including the archetype grep gate, which is
       the mechanical form of S1.
@@ -345,7 +345,7 @@ tasks:
     phase: 0
     cluster: judgment
     blocked_by: []
-    blocks: [T02, T04, T07, T09, T11, T16, T17, T23]
+    blocks: [T02, T04, T07, T08, T09, T10, T11, T12, T16, T17, T23]
     spec: ["§4.4", "§6.2", "§6.4", "§7.2", "§7.4", "§11.5", "§11.6", "§11.9",
            "§12.2", "§12.5", "§12.6", "§12.7", "§14.2", "§14.4", "§14.5", "§16.1"]
     prd: []

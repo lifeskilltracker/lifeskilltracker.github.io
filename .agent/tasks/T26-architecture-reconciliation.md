@@ -2,18 +2,18 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | in progress — F1, F2 resolved 2026-08-05; F3–F17 open |
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
-| **Blocks** | T02, T04, T07, T09, T11, T16, T17, T23 |
-| **Spec** | ARCHITECTURE §4.4, §6.2, §6.4, §7.2, §7.4, §11.5, §11.6, §11.9, §12.2, §12.5, §12.6, §12.7, §14.2, §14.4, §14.5, §16.1 |
+| **Blocks** | T02, T04, T07, T08, T09, T10, T11, T12, T16, T17, T23 |
+| **Spec** | ARCHITECTURE §4.4, §6.1, §6.2, §6.4, §7.2, §7.4, §9.3, §10.3, §11.5, §11.6, §11.9, §12.2, §12.5, §12.6, §12.7, §14.2, §14.4, §14.5, §16.1, §16.4 |
 | **PRD** | — |
 
 ## Goal
 
 `docs/ARCHITECTURE.md` no longer contradicts itself on any point an implementer must
-act on. Fifteen findings raised during task decomposition are each resolved — amended in
+act on. Seventeen findings raised during task decomposition are each resolved — amended in
 the spec, or recorded as a deliberate tolerance with the consequence stated. After this
 task, no downstream task doc contains the phrase "the spec is silent on".
 
@@ -22,7 +22,8 @@ task, no downstream task doc contains the phrase "the spec is silent on".
 These were not found by review; they were found by trying to write implementable task
 documents against the spec and discovering that several sections could not be
 implemented as written. That is the cheapest moment to catch them and the most expensive
-moment to skip them — three of the nine block tasks near the front of the critical path,
+moment to skip them — several of the seventeen block tasks near the front of the critical
+path (F9 blocks T02 and T04; F16 blocks T08 and T10, which are the Phase 0 gate itself),
 and two of them (F1, F2) would be discovered mid-implementation as a failing property
 test or a missing object store, at which point the fix is a schema migration rather than
 a prose edit. This is the architecture-side sibling of T00, which does the same job for
@@ -30,25 +31,33 @@ the PRD.
 
 ## Scope
 
-**In scope** — nine findings, each needing a verdict:
+**In scope** — seventeen findings, each needing a verdict. F16 and F17 were appended
+2026-08-05 by the wave-2 task-doc pass and verified against the spec by the orchestrator:
 
-**F1 — Invariant 4 is false against the shipped constants.** §11.9 makes
-`Δfill(0→1) ≥ Δfill(L→L+1)` an executable property test. §11.6 states in the same
-section that `p = 1.25` at `k = 8` "sits 5% over the strict boundary", giving
-Δ(0→1) = 11.1% against Δ(1→2) = 11.8%. The test as specified fails against the table as
-specified. §11.6 names the fix — ship `p = 1.19` — but does not take it. *Decide:* adopt
-`p = 1.19`, or weaken invariant 4 to tolerate the stated 5% margin. Do not leave both
-standing. **Blocks T11.**
+**F1 — Invariant 4 is false against the shipped constants. ✅ RESOLVED 2026-08-05 —
+amend.** §11.9 made `Δfill(0→1) ≥ Δfill(L→L+1)` an executable property test while §11.6
+shipped `p = 1.25` at `k = 8`, ~5% over the boundary of 1.193. Resolution investigation
+found the breach was **14%, not 5%** — §11.6's claim that the ×2 table `[2,5,…,36]` at
+`k = 16` is "the identical curve" is false, because `2 × 2^1.25 = 4.757` rounds *up* to 5,
+inflating exactly the step the invariant is tightest on. **Adopted:** `k = 6` with the
+table scaled ×8 — `[8, 19, 32, 45, 60, 75, 91, 108, 125, 142]`, `fill = s/(s+48)` — which
+clears the constraint strictly (1.25 ≤ 1.263) and keeps the R-19 depth premium intact.
+The table is normative and `p` is provenance; **invariant 4 is asserted against the
+shipped integers, never against `L^p`**, which is the clause that would have caught the
+original defect. Verified numerically: Δ = 14.29, 14.07, 11.64, 8.39, 7.17, 5.42, 4.49,
+3.76, 3.02, 2.48 — strictly decreasing, maximum first. See `docs/SPEC-FINDINGS.md` F1.
 
-**F2 — Grandfathering (D-19) is unimplementable as specified.** §11.5 requires user state
-to persist, per satisfied level, the completion set that first satisfied it and the
-`contentVersion` at that moment. Neither exists: `scoreSkill(tree, progress)` receives
-only a `uid → MilestoneState` map (§14.4), and §12.2's object stores have nowhere to put
-it — `SKILL` carries `contentVersionSeen` but no frozen group definitions. Invariant 7
-("tree revision alone never decreases `attained`") is therefore not expressible against
-the normative contract. *Decide:* the storage shape, the signature change, and whether
-grandfathering data survives export — a user restoring a backup without it silently loses
-grandfathering. **Blocks T09, T11, T16.**
+**F2 — Grandfathering (D-19) is unimplementable as specified. ✅ RESOLVED 2026-08-05 —
+amend.** §11.5 required a per-level frozen record that nothing in the spec could hold, so
+invariant 7 was unfalsifiable. **Adopted:** freeze the *satisfying uid set* on the skill
+row as `SKILL.grandfathered: { [level]: { uids, contentVersion } }`, with
+`satisfied(L) = evaluated(L) || frozen[L].uids.every(complete)`. `TreeProgress` widens to
+`{ milestones, grandfathered }`, keeping `scoreSkill`'s arity at two; `LevelProgress`
+gains `grandfathered` and `satisfiedBy`. The engine stays pure — it reports `satisfiedBy`,
+the store freezes and writes, preserving §3.2. Three riders, each of which silently breaks
+D-19 if skipped: the write in §12.4's transaction, §12.5 lineage migration (`retired` uids
+are **removed from** frozen sets, not orphaned), and export in §12.6 (merged earliest-
+`contentVersion`-wins). See `docs/SPEC-FINDINGS.md` F2.
 
 **F3 — Six named types are used and never defined.** `TierName`, `DomainScore` and
 `Taxonomy` appear only at use sites in §14.4; `MigrationReport`, `ImportReport` and
@@ -152,6 +161,35 @@ catching it. *Decide:* add a compiled-bundle JSON Schema under `schema/` — "in
 means unversioned, not unspecified — or enforce parity with shared fixtures.
 **Blocks T02, T04.**
 
+**F16 — §9.3 requires the Scoring Engine in a phase §16.4 says has no scoring.** §9.3
+opens: "Five presentational states. Four come from the Scoring Engine (§11.4);
+`dismissed` comes from user state directly." §16.4 places TreeView (A5) inside Phase 0
+and closes: the skeleton "deliberately has no map, **no scoring**, and no export" — the
+Scoring Engine is B1, the *first* Phase 1 item. §16.4 also requires the Phase 0 tree to
+be "authored, validated, compiled, laid out, rendered, and completable", which cannot be
+shown without `complete`, `available`, and `locked`. So the walking skeleton must render
+four states whose only specified producer the phase diagram defers to the next phase.
+This is the same class as F10 (a section assuming a module §16.4 defers) with a
+different subject, and it cannot be resolved in the task graph: T08 → T10 → T11 is
+already an edge, so making T08 depend on T11 creates a cycle. *Decide:* name the Phase 0
+node-state source — a prerequisite-only derivation living with the Layout Engine, a
+scoring slice pulled forward into Phase 0, or an explicit statement that the Phase 0
+gate renders `complete`/`locked` only. **Blocks T08, T10.**
+
+**F17 — §10.3's five geometry invariants are "Validated by CI" with no owner.** §10.3
+closes: "Validated by CI: every domain in `domains.yaml` has a region; no tile is claimed
+twice; each region is contiguous; subregion tiles partition their parent's tiles exactly;
+subregions appear only under `making`." Nothing owns those checks. §6.1's subcommand
+table scopes `lst validate` to "Schema + semantic rules (F41)"; §6.2's fifteen semantic
+rules are entirely `tree.yaml`-scoped; §6.5's job graph names no map job; and §5.9 hands
+the file off with "`map.yaml` assigns hex tiles to domains and is specified in §10.3",
+closing the loop without assigning it. Three of the five are contiguity and partition
+checks that JSON Schema cannot express, so §6.2 layer 1 does not silently cover them.
+Note this is the *only* occurrence of the phrase "Validated by CI" in the spec — there is
+no established pattern to read it against. *Decide:* extend `lst validate` to taxonomy
+files, or make it part of `lst compile`'s map build step (§10.4), and name it in §6.1.
+**Blocks T12.**
+
 **Out of scope**
 
 - PRD amendments — T00. F1 and F5 are adjacent to R-25 and R-24 respectively, and doing
@@ -164,7 +202,7 @@ means unversioned, not unspecified — or enforce parity with shared fixtures.
 ## Deliverables
 
 ```
-docs/ARCHITECTURE.md    the nine findings resolved in place
+docs/ARCHITECTURE.md    the seventeen findings resolved in place
 docs/SPEC-FINDINGS.md   the decision record: finding, verdict, reason, date
 ```
 
@@ -186,7 +224,7 @@ skills: ReadonlyArray<{ treeId: string; domain: DomainId; attainedLevel: number 
 
 ## Acceptance criteria
 
-- [ ] `docs/SPEC-FINDINGS.md` records all fifteen findings with a verdict of *amend*,
+- [ ] `docs/SPEC-FINDINGS.md` records all seventeen findings with a verdict of *amend*,
       *tolerate*, or *not a defect*, each with a reason and a date.
 - [ ] F1: §11.6's table and §11.9's invariant 4 agree. Verified by computing
       Δfill(0→1) and Δfill(1→2) from the shipped constants and checking the invariant
@@ -214,6 +252,12 @@ skills: ReadonlyArray<{ treeId: string; domain: DomainId; attainedLevel: number 
 - [ ] F14: §12.5 states whether the pass is replay-safe across skipped content versions,
       and the ordering rule for composing dispositions.
 - [ ] F15: every item in the cluster is either fixed in the spec or recorded as tolerated.
+- [ ] F16: §9.3 and §16.4 agree on what produces node state in Phase 0. Verified by
+      reading §16.4's Phase 0 prose and confirming that every state T10's gate requires
+      has a named producer scheduled no later than T08.
+- [ ] F17: §6.1's subcommand table names the command that validates `map.yaml`, and
+      §10.3's "Validated by CI" sentence points at it. Verified by
+      `grep -n "map.yaml" docs/ARCHITECTURE.md` returning a §6 hit.
 - [ ] Every affected task doc under `.agent/tasks/` is updated to match the resolutions,
       and `grep -ril "spec is silent\|unresolved spec gap" .agent/tasks/` returns nothing.
 

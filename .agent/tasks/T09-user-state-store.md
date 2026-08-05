@@ -273,10 +273,26 @@ and the grep showing exactly one module touching IndexedDB.
   normative shape; §12.5 promises orphans keep "their frozen title, timestamp, and note",
   which matches. Follow the diagram — do not add `slug` to `ORPHAN` on the assumption it
   was an omission.
-- **D-19, grandfathering.** Once a level is satisfied it stays satisfied unless the user's
-  own completions change (§11.5). That is Scoring Engine behaviour, but it constrains this
-  store: the recompute in step 2 of §12.4 must be over the *current* bundle and the user's
-  records, never over a cached score.
+- **D-19, grandfathering — this store owns the write.** Resolved by T26/F2 (2026-08-05);
+  `docs/SPEC-FINDINGS.md` F2 is the record. `SKILL` gains one field:
+
+  ```ts
+  grandfathered: { [level: number]: { uids: string[]; contentVersion: number } }
+  ```
+
+  It holds the uid set that **first** satisfied each level. `scoreSkill` reads it and
+  reports `satisfiedBy` per level; **this store decides what to freeze and performs the
+  write**, because §3.2 makes it the only writer. Freeze rule: after the recompute in step
+  2 of §12.4, for every level that is satisfied and has no existing frozen record, write
+  `{ uids: levelProgress.satisfiedBy, contentVersion }` — in the **same transaction** as
+  the milestone and `attainedLevel` writes. Never overwrite an existing record; the first
+  freeze is the protective one.
+
+  Three things fall out and each silently breaks D-19 if skipped: this write, §12.5's
+  migration of frozen uids (T17 — `retired` uids are **removed from** the set, not
+  orphaned), and inclusion in the export (T16 — a restore without it loses grandfathering
+  unrecoverably). The recompute in step 2 must still be over the *current* bundle and the
+  user's records, never a cached score.
 - §17.3 budgets a milestone toggle at **< 100 ms to persisted** and **< 50 ms to visual
   update**. Both are met structurally by one transaction and no re-layout (§8.6); if either
   needs optimizing, something non-architectural has been added.

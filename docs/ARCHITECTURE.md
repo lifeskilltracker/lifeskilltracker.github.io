@@ -1366,12 +1366,12 @@ Like the Layout Engine, this is a **pure function with no dependencies**. Its si
 
 ```mermaid
 flowchart TD
-    IN["CompiledTree + TreeProgress<br/><small>uid → complete | dismissed | absent</small>"]
+    IN["CompiledTree + TreeProgress<br/><small>milestones: uid → complete | dismissed | absent<br/>grandfathered: level → frozen uid set</small>"]
     IN --> G["evaluate each requirement group<br/><small>completed = count of complete;<br/>dismissed counts as incomplete</small>"]
     G --> GP["GroupProgress<br/><small>ratio = min(completed, n) / n — F11</small>"]
     GP --> L["LevelProgress<br/><small>satisfied = every group satisfied<br/>ratio = mean of group ratios</small>"]
-    L --> GF{"grandfathered?<br/><small>§11.6</small>"}
-    GF -->|"was satisfied under a<br/>prior group definition,<br/>and those completions stand"| SAT["satisfied = true"]
+    L --> GF{"grandfathered?<br/><small>§11.5</small>"}
+    GF -->|"a frozen uid set exists<br/>and every uid in it<br/>is still complete"| SAT["satisfied = true"]
     GF -->|no| L2["satisfied as computed"]
     SAT --> A
     L2 --> A["attained = highest L with<br/>levels 1..L all satisfied"]
@@ -1421,7 +1421,7 @@ The case this exists for is not an edge case; F29 makes it the normal case. A fi
 >
 > Current rank: **Level 1 · Novice**
 
-The rank is deliberately not the largest thing on screen. This design converts the gap's *cost* into *pull*: closing one milestone moves attained 1 → 4 and adds 9 to the domain score, where a permissive count would have made it worth 1. That is the goal-gradient mechanism the PRD already banks on in Appendix A.
+The rank is deliberately not the largest thing on screen. This design converts the gap's *cost* into *pull*: closing one milestone moves attained 1 → 4 and adds 37 to the domain score (§11.6's table, 45 − 8), where a permissive count would have made it worth one level. That is the goal-gradient mechanism the PRD already banks on in Appendix A.
 
 Tree rows therefore render **three** states, not two: *attained* (at or below the rank), *cleared* (satisfied but above the rank — complete-looking, visibly distinct, and labelled in text since N5 forbids colour alone), and *open*.
 
@@ -1448,7 +1448,18 @@ Two affordances follow, and both are cheap:
 
 Without this, a contributor adding one milestone to level 2's `all` group drops every user who had satisfied level 2 — and under contiguous ranking that can mean attained 8 → attained 1, from someone else's pull request, with no user action, and with §16.5's no-telemetry rule guaranteeing nobody ever finds out.
 
-User state therefore persists, per satisfied level, the completion set that first satisfied it and the `contentVersion` at that moment. Re-evaluation runs the user's *current* completions against the *frozen* group definition. Un-checking still un-satisfies, so the number stays falsifiable; tree revision alone never does.
+User state therefore persists, per satisfied level, **the set of milestone uids that first satisfied it** and the `contentVersion` at that moment. It is stored as `SKILL.grandfathered` (§12.2) — a field on the skill row, not a separate store, because it is per-skill, small, always read with the skill, and written inside the transaction §12.4 already opens on that row.
+
+The rule is one line:
+
+```
+satisfied(L) = evaluatedSatisfied(L)
+            || (frozen[L] && frozen[L].uids.every(u => progress[u] === 'complete'))
+```
+
+Freezing the *completion set* rather than the *group definition* is deliberate. It is 5–10× smaller, it needs no copy of the compiled requirement structure in user state, and on `n_of` groups it records the specific electives the user actually chose instead of reopening which `n` counted. The two are behaviourally identical on `all` groups.
+
+Un-checking any frozen uid drops the level, so the number stays falsifiable and invariant 7 remains an honest claim rather than a ratchet; tree revision alone never reaches it. Freezing is performed by the store, never the engine — `scoreSkill` is pure and reports which uids satisfied each level, and the store writes a frozen record for any level that is satisfied and has none (§3.2's single-writer rule).
 
 This is not a monotonicity patch bolted on. It is the same principle as §12.2's frozen title snapshots and CDDA's separation of learned recipes from skill level: what the user did is a historical fact, and later edits to the content do not reach back and change it.
 
@@ -1457,20 +1468,24 @@ This is not a monotonicity patch bolted on. It is the same principle as §12.2's
 Two composed functions. They are **not independently tunable**, which is the finding that shaped this section.
 
 ```
-contribution(L) = table[L]      // L^1.25 × 2, rounded — integer arithmetic
-                                // [2, 5, 8, 11, 15, 19, 23, 27, 31, 36]
+contribution(L) = table[L]      // NORMATIVE — L^1.25 × 8, rounded
+                                // [8, 19, 32, 45, 60, 75, 91, 108, 125, 142]
 score(domain)   = Σ contribution(attained_i)   over skills whose PRIMARY domain is d
                                 // an unstarted or level-0 skill contributes 0
-fill(domain)    = s / (s + 16)  // ∈ [0, 1), asymptotic, never saturates
+fill(domain)    = s / (s + 48)  // ∈ [0, 1), asymptotic, never saturates
 ```
 
-The table is doubled purely so the arithmetic is integer; `k` doubles with it, so `s/(s+16)` over the doubled table is the identical curve to `s/(s+8)` over the raw `L^1.25`. The analysis below is stated in unscaled terms (`k = 8`).
+**`fill` is a map-region rendering function, not a progress bar.** It exists for one reason: §10.5 draws each domain as a clip rectangle rising from the region's base, and a region has a bounded height while the score does not. Something has to map unbounded → bounded pixels. It is emphatically *not* claiming a domain is 70% complete — domains have no denominator and F34 forbids ever showing the number. Its job is the cross-domain comparison the PRD is built on: *is Body quiet compared to Mind?* Absolute values are meaningless by design; only the ordering across a user's own eight regions carries information.
 
-**Why super-linear (mildly).** A level-up at 7→8 adds 4 where 1→2 adds 3, so depth now beats equal-level-count breadth: one skill at L10 reads 69% against five at L2's 60%, where linear scored those an exact tie. F12 explicitly permits within-skill ordering, and `contribution` is a within-skill statement.
+There is **no per-skill continuous fill anywhere in the system.** Skill level is displayed discretely (§11.3), milestone nodes have five discrete states (§9.3), and the domain view is a listing (§13.1). `k` is a single domain-level constant.
+
+**Scale.** The table is multiplied by 8 so the arithmetic is integer, and `k` scales with it. **The ×8 scale is load-bearing, not cosmetic.** At ×2 the table is `[2, 5, …]`, and `2 × 2^1.25 = 4.757` rounds *up* to 5 — inflating the one step invariant 4 is tightest on and turning a compliant curve into a violating one. At ×8, rounding error is small enough that the shipped integers satisfy the invariant exactly. The analysis below is stated in unscaled terms (`p = 1.25`, `k = 6`).
+
+**Why super-linear (mildly).** A level-up at 7→8 adds 17 where 1→2 adds 11, so depth beats equal-level-count breadth: one skill at L10 reads 74.7% against five at L2's 66.4%, where a flat table scored those an exact tie. F12 explicitly permits within-skill ordering, and `contribution` is a within-skill statement. Under the neglect-comparison framing above this is the substantive claim: a domain where the user has gone deep on one thing should not read as neglected as one with five dabbles.
 
 **Why only mildly, and the honest limits.** Two things this does not do, both worth stating so they are not rediscovered as bugs:
 
-- **It does not invert 10×L2 vs 1×L9.** That gap narrows from 18.5 points to 8.7 and cannot be closed. Inverting it needs an exponent around 1.5, which per the constraint below forces `k ≤ 3` and makes level 1 the *weakest* visual step — incompatible with F34. Ten started skills in a domain genuinely is a lot of that domain, and F35's breadth count is the channel that says so.
+- **It does not invert 10×L2 vs 1×L9.** At the same `k`, that gap narrows from 16.9 points under a flat table to 7.6, and cannot be closed. Inverting it needs an exponent around 1.5, which per the constraint below forces `k ≤ 3` and makes level 1 the *weakest* visual step — incompatible with F34. Ten started skills in a domain genuinely is a lot of that domain, and F35's breadth count is the channel that says so.
 - **It is a cardinal difficulty claim made by fiat.** NG8 says levels do not encode estimated effort, and the only reason level 8 is worth 36 is that it is harder to reach. This was put to the owner explicitly and adopted with that flag understood. The counterweight is that linear is *also* an exchange rate — "five L2s exactly equal one L10" is itself a strong, non-obvious claim — and the evidence is genuinely split: Gamerscore, RuneScape total level, and golf handicaps are all flat, while PSN weights 20:1 and got farmed for it. Recorded as **R-19**.
 
 **The constraint binding the two functions.** With `f(L) = L^p` and `g(s) = s/(s+k)`, requiring a lone skill's first level to be its largest visual jump reduces exactly to:
@@ -1479,19 +1494,33 @@ The table is doubled purely so the arithmetic is integer; `k` doubles with it, s
 p ≤ log₂( 2k / (k−1) )
 ```
 
-| k | 4 | 5 | 6 | **8** | 10 | 12 | 20 | → ∞ |
+| k | 4 | 5 | **6** | 8 | 10 | 12 | 20 | → ∞ |
 |---|---|---|---|---|---|---|---|---|
-| max p | 1.415 | 1.322 | 1.263 | **1.193** | 1.152 | 1.126 | 1.074 | 1.000 |
+| max p | 1.415 | 1.322 | **1.263** | 1.193 | 1.152 | 1.126 | 1.074 | 1.000 |
 
 Buying top-end headroom with a large `k` costs depth weighting at the bottom; as the display curve flattens toward linear, the permitted exponent collapses to 1. **Neither constant may be retuned without re-checking the other**, which §11.9 makes an executable test rather than a comment.
 
-`p = 1.25` at `k = 8` sits 5% over the strict boundary. In fill terms that is Δ(0→1) = 11.1% against Δ(1→2) = 11.8% — a 0.7-point difference on a map region, below perceptual threshold. Ship `p = 1.19` instead if strict concavity by construction matters more than the depth premium.
+**`k = 6` is chosen so that `p = 1.25` clears the boundary strictly** (1.25 ≤ 1.263), with no tolerance and no margin to argue about. An earlier draft shipped `k = 8`, which caps `p` at 1.193 and put the constants ~5% over the limit while §11.9 asserted the limit as a property test — a spec that failed its own invariant. `k = 6` resolves it in favour of keeping the depth premium adopted in R-19, and sits inside the defensible range `k ∈ [6, 10]` established by the source analysis in `docs/level_weighting.md`. The alternative resolution — hold `k = 8` and drop to `p = 1.19` — is equally sound and costs about 1.5 points of depth premium.
+
+Shipped curve, against which invariant 4 is checked:
+
+| L | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `table[L]` | 8 | 19 | 32 | 45 | 60 | 75 | 91 | 108 | 125 | 142 |
+| fill, lone skill | 14.3% | 28.4% | 40.0% | 48.4% | 55.6% | 61.0% | 65.5% | 69.2% | 72.3% | 74.7% |
+| Δ from previous | **14.29** | 14.07 | 11.64 | 8.39 | 7.17 | 5.42 | 4.49 | 3.76 | 3.02 | 2.48 |
+
+The Δ row is strictly decreasing and its maximum is the first entry, which is invariant 4 satisfied by construction rather than by tolerance.
+
+**What `k = 6` costs.** One mastered skill fills 74.7% of a region rather than 69.0%, so a lone L10 is closer to owning its territory; a domain at 8×L10 reaches 95.9%. The first level is correspondingly louder at 14.3% rather than 11.1%, which is the direction F34 wants.
 
 **Why `s/(s+k)` and not `1−exp(−s/k)`.** The exponential is not meaningfully non-saturating: anchored to make level 1 visible it is perceptually dead by s≈50, well inside a realistic domain, where the rational form is still moving. Its derivative decays exponentially against the rational form's `k/s²`. It also permits *less* depth weighting (max p ≈ 1.10). Log-with-a-cap saturates by definition.
 
 **Presentation.** Continuous fill drives the region height; a **named band** over the same number carries the legibility a continuous bar cannot, and is what §15.3 announces to screen readers. This is FIDE's continuous-rating-with-coarse-titles pattern and PSN's profile icon bands. Never a raw percentage (F34).
 
-The table ships as **data, not a formula** — auditable, testable, tunable without a code change, and revertible to `[2,4,6,…,20]` by config if the owner ever reverses the NG8 call.
+The table ships as **data, not a formula** — auditable, testable, tunable without a code change, and revertible to the flat `[8,16,24,…,80]` by config if the owner ever reverses the NG8 call.
+
+**The table is normative; `p` is provenance.** `p = 1.25` documents where the integers came from and is what a future maintainer re-derives from, but the shipped artefact is the ten integers, and **§11.9 invariant 4 is asserted against those integers, never against `L^p`**. This distinction is not pedantry: the ×2 rounding defect above was invisible precisely because the invariant was written against the continuous form while the app shipped the rounded one.
 
 ### 11.7 Recency and breadth (D7)
 
@@ -1520,13 +1549,15 @@ Property tests over generated inputs, not example-based unit tests. These are th
 | 1 | Completing a milestone never decreases any `DomainScore` field | N12 |
 | 2 | Starting a skill contributes exactly 0 | N12, F33 |
 | 3 | `fill` strictly increases with every level attained | F34 |
-| 4 | `Δfill(0→1) ≥ Δfill(L→L+1)` for all L ≥ 1 on a lone skill | The §11.6 constraint, made executable |
+| 4 | `Δfill(0→1) ≥ Δfill(L→L+1)` for all L ≥ 1 on a lone skill, **computed from the shipped `table` and `k`, never from `L^p`** | The §11.6 constraint, made executable |
 | 5 | `fill < 1` for all finite inputs | F34's never-saturate |
 | 6 | Dismissing or un-dismissing changes no score, ever | F46, §11.10 |
 | 7 | Tree revision alone never decreases `attained` | §11.5 |
 | 8 | `attained` ≤ `|cleared|`, and `attained` is a prefix of `cleared` | §11.3 |
 
-Invariant 4 is the one that will catch a future maintainer retuning `k` or `p` in isolation, which is exactly the mistake the coupling invites.
+Invariant 4 is the one that will catch a future maintainer retuning `k` or `p` in isolation, which is exactly the mistake the coupling invites. It only does so if it reads the same integers the app reads — see §11.6's normativity note. An invariant asserted against the idealised curve while the app ships a rounded table checks nothing.
+
+Invariant 7 is enforceable only because §11.5's frozen satisfaction records exist in storage (§12.2) and reach the engine through `TreeProgress` (§14.4). Without them it is an unfalsifiable claim.
 
 ### 11.10 Why `dismissed` must stay presentation-only
 
@@ -1570,6 +1601,7 @@ erDiagram
         int    attainedLevel
         string lastActivityAt
         int    contentVersionSeen
+        json   grandfathered
     }
     MILESTONE {
         string uid PK
@@ -1599,6 +1631,9 @@ erDiagram
 ```
 
 `state` is `complete` or `dismissed`. **Incomplete is the absence of a record**, not a record with a state — writing a row for every untouched milestone would multiply the store by an order of magnitude to represent nothing.
+
+**`grandfathered`** is D-19's frozen satisfaction record (§11.5), shaped
+`{ [level: number]: { uids: string[]; contentVersion: number } }`. Levels appear only once satisfied; the field is `{}` for a skill that has satisfied none. Roughly 100 bytes per skill at ten satisfied levels. It is written in §12.4's transaction, migrated by §12.5, and exported by §12.6 — all three are required, and omitting any one silently breaks invariant 7.
 
 **`slug` and `title` are frozen snapshots**, written at completion time and never refreshed. They exist so that a human can read an export and understand what was accomplished, so an orphaned record remains meaningful, and so there is a debugging surface in a system with no telemetry. The cost is about 60 bytes per completion. A snapshot that followed upstream edits would not be a record of what the user did, which is why it is deliberately never updated.
 
@@ -1637,6 +1672,8 @@ When a tree bundle's `contentVersion` exceeds the `contentVersionSeen` on that s
 | `moved` to another tree | record follows the uid; `treeId` updated | same |
 | uid in neither bundle nor lineage | record moves to `ORPHAN`, reason `unknown` | same |
 
+**Frozen satisfaction sets migrate too.** Every uid inside `SKILL.grandfathered` runs through the same table, with one deviation: on `retired`, the uid is **removed from the frozen set** rather than orphaned. A frozen set records a condition that *was* met, not an achievement the user holds — leaving a retired uid in it would make the set permanently unverifiable and silently revoke the grandfathering it exists to protect, which is invariant 7 defeated by the mechanism meant to preserve it. `split` copies the set entry to every successor; `merged` replaces the predecessors with the successor only if all predecessors were in the set; `moved` carries the uid unchanged. A frozen set emptied by retirement is deleted, since it then imposes no condition and the level stands on current evaluation alone.
+
 Then `contentVersionSeen` is updated and attained level is recomputed.
 
 **Nothing is ever silently deleted from user state.** Orphans keep their frozen title, timestamp, and note, are always exported, and surface in a "retired achievements" section rather than vanishing. They never score.
@@ -1660,7 +1697,12 @@ Plain JSON, one file, no archive, no photos in phase 1.
   "contentVersion": 7,
   "skills": [
     { "treeId": "blacksmithing", "startedAt": "2026-05-01T…",
-      "attainedLevel": 3, "lastActivityAt": "2026-08-04T…" }
+      "attainedLevel": 3, "lastActivityAt": "2026-08-04T…",
+      "grandfathered": {
+        "1": { "uids": ["k7m2qp9x", "b3nx8w1t"], "contentVersion": 5 },
+        "2": { "uids": ["r9j4vz6c"],             "contentVersion": 5 },
+        "3": { "uids": ["p2ht7m0f", "d8sq3k5y"], "contentVersion": 7 }
+      } }
   ],
   "milestones": [
     { "uid": "k7m2qp9x", "treeId": "blacksmithing", "slug": "light-the-forge",
@@ -1674,7 +1716,11 @@ Plain JSON, one file, no archive, no photos in phase 1.
 
 It carries both identifiers on purpose, because the file has two readers with different needs: the application matches on `uid`, and a human reading it in ten years reads `title` and `note`. N7's "survives the project itself" is only satisfied if the second reader gets what they need without the codebase — which is why the redundant `title` snapshot earns its bytes. Governed by `schema/export.schema.json` and documented in `docs/CONTRIBUTING.md`'s data appendix.
 
-**Import** defaults to **merge**: union by `uid`, newest `at` wins on conflict. That is what makes the two-device flow F38 implies actually work. An explicit **replace all** option exists behind a confirmation for restoring a known-good backup. Import validates against the export schema and migrates older `schemaVersion` values through the chain (§5.10) before merging; an unreadable file is rejected whole, never partially applied.
+**`grandfathered` must be exported.** It is the one piece of user state that cannot be reconstructed from anything else: the content version it was frozen against may no longer exist, so a user restoring a backup without it would silently lose their D-19 protection and could be dropped several levels by the next content release — the exact failure §11.5 exists to prevent, arriving through the recovery path. It is unreadable to the human reader N7 cares about, which is the cost, and it is small enough not to matter.
+
+**Import** defaults to **merge**: union by `uid`, newest `at` wins on conflict. That is what makes the two-device flow F38 implies actually work.
+
+`grandfathered` merges per level with the **earliest `contentVersion` winning**, not the newest. Grandfathering is a historical fact and the older freeze is the more protective one; "newest wins" is the right rule for a milestone's current state and the wrong rule for a record of what was already true. A level present on one side only is taken as-is. An explicit **replace all** option exists behind a confirmation for restoring a known-good backup. Import validates against the export schema and migrates older `schemaVersion` values through the chain (§5.10) before merging; an unreadable file is rejected whole, never partially applied.
 
 ### 12.7 Durability, quota, and prompting (F39)
 
@@ -1838,8 +1884,17 @@ Contract: `loadTree` is idempotent and memoized; a second call for the same id r
 export type MilestoneState = 'complete' | 'dismissed' | null;
 export type NodeState = 'complete' | 'bonus' | 'available' | 'locked' | 'dismissed';
 
-/** All milestone states for one tree, keyed by uid. */
-export type TreeProgress = ReadonlyMap<string, MilestoneState>;
+/** A level's frozen satisfaction record — §11.5, D-19. */
+export interface FrozenSatisfaction {
+  readonly uids: readonly string[];   // the set that first satisfied the level
+  readonly contentVersion: number;    // the version it was frozen against
+}
+
+/** Everything the engine needs about one tree's user state. */
+export interface TreeProgress {
+  readonly milestones: ReadonlyMap<string, MilestoneState>;
+  readonly grandfathered: ReadonlyMap<number, FrozenSatisfaction>;   // §11.5
+}
 
 export interface GroupProgress {
   rule: 'all' | 'n_of';
@@ -1853,7 +1908,9 @@ export interface LevelProgress {
   level: number;
   groups: GroupProgress[];
   ratio: number;                 // mean of group ratios    — F11
-  satisfied: boolean;            // every group satisfied
+  satisfied: boolean;            // satisfied by evaluation OR grandfathered — §11.5
+  grandfathered: boolean;        // true when only the frozen record holds it up
+  satisfiedBy: readonly string[];// uids that satisfy it now; the store freezes this — §11.5
 }
 
 export interface SkillProgress {
@@ -1876,6 +1933,7 @@ export function domainScores(
 
 Two properties are contractual and are what the test suite asserts:
 
+- **`scoreSkill` stays pure and never writes.** It *reads* `grandfathered` and *reports* `satisfiedBy`; the User State Store decides what to freeze and performs the write, preserving §3.2's single-writer rule. An engine that froze its own records would be a second writer with no transaction.
 - **`domainScores` never reads tree content.** It takes attained levels only, which is what lets the map render before any bundle is fetched (§3.3, §12.3).
 - **Monotonicity (N12).** Adding a skill or completing a milestone never decreases any `DomainScore` field except the explicitly decaying recency channel. This is a property test over generated inputs, not a unit test over examples — it is the one invariant the PRD states most emphatically, and it deserves to be checked exhaustively rather than anecdotally.
 
@@ -2321,9 +2379,9 @@ Note the collision hazard restated from §1.5: `D-NN` (hyphenated) are architect
 
 ### D-19: Level satisfaction is grandfathered against content revision
 - **Context.** A direct consequence of D-18. Without it, a contributor adding one milestone to level 2's `all` group drops every affected user from attained 8 to attained 1 — no user action, and §16.5's no-telemetry rule (D-17) guarantees it is never detected.
-- **Decision.** Persist per satisfied level the completion set that first satisfied it and the `contentVersion` at that moment. Re-evaluate current completions against the frozen group definition. A level un-satisfies only when the user's own completions change.
-- **Alternatives.** *Always recompute from current content* — one source of truth and defensible on honesty grounds, but makes every content revision a potential mass regression, catastrophic under contiguous ranking. *Grandfather only across schema bumps* — the dangerous case is the ordinary content edit, which this fails to cover.
-- **Consequences.** One extra field per satisfied level in user state. Un-checking still works, so the number stays falsifiable. Same principle as §12.2's frozen title snapshots and CDDA's separation of learned recipes from skill level. Content revision becomes non-breaking, which materially lowers the cost of improving a published tree.
+- **Decision.** Persist per satisfied level the **set of uids that first satisfied it** plus the `contentVersion` at that moment, as `SKILL.grandfathered` (§12.2). A level counts as satisfied if current evaluation satisfies it *or* every uid in its frozen set is still complete. It un-satisfies only when the user's own completions change.
+- **Alternatives.** *Always recompute from current content* — one source of truth and defensible on honesty grounds, but makes every content revision a potential mass regression, catastrophic under contiguous ranking. *Grandfather only across schema bumps* — the dangerous case is the ordinary content edit, which this fails to cover. *Freeze the requirement groups rather than the completion set* — matches §11.5's original wording and is behaviourally identical on `all` groups, but stores 5–10× more and reopens which-`n`-counted on `n_of` groups. *A separate `SATISFACTION` object store* — cleaner indexing, but a fifth store and a second write in a transaction that already has the `SKILL` row open, for a record nothing queries independently.
+- **Consequences.** One JSON field on `SKILL`, ~100 bytes per skill. Un-checking still works, so the number stays falsifiable and invariant 7 is a real assertion rather than a ratchet. Three things become mandatory and each silently breaks D-19 if skipped: the write in §12.4's transaction, the lineage migration in §12.5 (where `retired` uids are **removed from** frozen sets rather than orphaned), and inclusion in §12.6's export — a restore without it loses grandfathering unrecoverably, since the content version it was frozen against may be gone. Same principle as §12.2's frozen title snapshots and CDDA's separation of learned recipes from skill level. Content revision becomes non-breaking, which materially lowers the cost of improving a published tree.
 - **Revisit if.** Never expected to; the alternative's failure mode is silent and unbounded.
 
 ### D-20: Recency ships as a date, not a decaying channel
@@ -2335,10 +2393,11 @@ Note the collision hazard restated from §1.5: `D-NN` (hyphenated) are architect
 
 ### D-21: Domain score is mildly super-linear in level
 - **Context.** PRD **D6**, **F33**, **F34**. Under a flat sum, every level-up is worth +1, so ten skills at level 2 exactly ties one at level 10 — which `docs/RESEARCH.md` §4 already flags as inverting the original defect rather than dissolving it.
-- **Decision.** `contribution(L)` is the ten-entry table `[2, 5, 8, 11, 15, 19, 23, 27, 31, 36]` (L^1.25, doubled and rounded for integer arithmetic); `fill = s/(s+16)`. Shipped as data, revertible to a flat table by config.
-- **Alternatives.** *Linear* — what most long-lived additive aggregates actually do (Gamerscore is flat and normalizes instead; RuneScape's headline total level is flat, with exponential XP kept as a separate number; golf handicaps left a century of data on the table). Its real virtue is being the unique choice expressing no preference. *Triangular or L^1.5* — rejected numerically, not aesthetically: they breach the concavity constraint below. *Tier-weighted steps* — steeper at the top and cliff-edged at tier boundaries. *`1−exp(−s/k)` for fill* — perceptually dead by s≈50 and permits even less depth weighting (max p ≈ 1.10).
-- **Consequences.** Depth beats equal-level-count breadth (1×L10 = 69% vs 5×L2 = 60%, previously an exact tie). It does **not** invert 10×L2 vs 1×L9, which narrows from 18.5 to 8.7 points and cannot be closed inside F34's constraints. **The two constants are coupled by `p ≤ log₂(2k/(k−1))`** and may not be retuned independently — §11.9 invariant 4 enforces this. Accepts a cardinal difficulty claim that arguably sits against NG8 (**R-19**), and creates a farm surface PSN demonstrates: a shallow tree with cheap levels 9–10 pays out 36 for little, mitigated by F8's bounds and F42's review rather than by the scoring function.
-- **Revisit if.** The NG8 tension is judged decisive on reflection — reversal is a one-line config change, by design.
+- **Decision.** `contribution(L)` is the ten-entry table `[8, 19, 32, 45, 60, 75, 91, 108, 125, 142]` (L^1.25, ×8 and rounded for integer arithmetic); `fill = s/(s+48)`, i.e. `k = 6` unscaled. The **table is normative** and `p` is provenance only. Shipped as data, revertible to a flat `[8,16,…,80]` by config.
+- **Alternatives.** *Linear* — what most long-lived additive aggregates actually do (Gamerscore is flat and normalizes instead; RuneScape's headline total level is flat, with exponential XP kept as a separate number; golf handicaps left a century of data on the table). Its real virtue is being the unique choice expressing no preference, and it satisfies invariant 4 at every `k`. *`p = 1.19` at `k = 8`* — equally sound, preserves the original display anchors, costs ~1.5 points of depth premium; declined in favour of keeping the R-19 premium intact. *Triangular or L^1.5* — rejected numerically, not aesthetically: they breach the concavity constraint below. *Tier-weighted steps* — steeper at the top and cliff-edged at tier boundaries. *`1−exp(−s/k)` for fill* — perceptually dead by s≈50 and permits even less depth weighting (max p ≈ 1.10).
+- **Consequences.** Depth beats equal-level-count breadth (1×L10 = 74.7% vs 5×L2 = 66.4%, previously an exact tie). It does **not** invert 10×L2 vs 1×L9, which narrows from 16.9 to 7.6 points and cannot be closed inside F34's constraints. A lone mastered skill now fills three-quarters of its region, and the first level moves it 14.3%. **The two constants are coupled by `p ≤ log₂(2k/(k−1))`** and may not be retuned independently — §11.9 invariant 4 enforces this, *against the shipped integers rather than the continuous curve*, which is the only form of the test that catches rounding. Accepts a cardinal difficulty claim that arguably sits against NG8 (**R-19**), and creates a farm surface PSN demonstrates: a shallow tree with cheap levels 9–10 pays out 142 for little, mitigated by F8's bounds and F42's review rather than by the scoring function.
+- **Revisit if.** The NG8 tension is judged decisive on reflection — reversal is a one-line config change, by design. Note also that the weighting is only ever observable as relative region height across a user's own domains; if that comparison proves too subtle to matter, the flat table costs nothing to adopt.
+- **Superseded.** An earlier draft shipped `[2,5,…,36]` with `k = 8`, which placed `p = 1.25` ~5% over the coupling boundary while §11.9 asserted that boundary as a property test, and whose ×2 rounding (`4.757 → 5`) widened the breach from 6% to 14%. Recorded because the failure mode — an invariant written against the idealised curve while the app ships a rounded table — is reachable again by anyone who retunes.
 
 ### D-22: `dismissed` is presentation-only, permanently
 - **Context.** F46 specifies that a dismissed milestone scores identically to an incomplete one. Analysis showed that clause is load-bearing rather than incidental.
@@ -2387,8 +2446,8 @@ Known trade-offs the architecture accepts, recorded so they are not re-derived l
 - **R-16 — Merge with partial predecessors loses score.** When two milestones merge and the user completed only one, the merged milestone is not granted (§12.5). *Accepted as honest;* the predecessors survive as orphans with their notes and timestamps, so nothing the user wrote is destroyed — only the score contribution.
 - **R-17 — Stale denormalized attained level.** `SKILL.attainedLevel` (§12.3) can be up to one session stale for a tree the user has not opened since a content release changed its requirement groups. *Accepted;* the map is an ambient display, and reconciliation happens on tree open.
 - **R-19 — Super-linear weighting is a cardinal difficulty claim.** D-21 makes level 8 worth 36 and level 2 worth 5, and the only reason is that level 8 is harder to reach. NG8 says levels do not encode estimated effort, and it is arguable that this is exactly that — an effort model differing from hour-weighting only in that the effort is estimated by fiat rather than measured. It also asserts that every skill escalates at the same rate, which the project's own evidence refutes (ABRSM Grade 7→8 is ~374 hours; an entire knife-skills tree might be 30). *Accepted with the flag understood.* The counterweight is that linear is also an exchange rate and "exactly equal" is itself a strong claim, and that `contribution` is a within-skill statement, which F12 explicitly permits. *Reversal cost: one config line*, which is why the table ships as data.
-- **R-21 — Shallow-tree farming.** Under D-21 a tree whose levels 9–10 are cheap pays out 36 for little. PSN demonstrates this at scale: Ratalaika ports exist to farm 300-point platinums, and the community objection is precise — the top weight is set by the content author's grading choice rather than by anything intrinsic. *Accepted;* the mitigation is F8's milestone bounds and F42's two-round review, not the scoring function. Linear does not have this surface, so it is a genuine new cost of D-21.
-- **R-22 — Un-check blast radius.** Under D-18, un-checking one milestone that was the last satisfying level 2 can drop attained from 8 to 1 and remove 31 from a domain score. *Accepted;* the engine recomputes honestly rather than ratcheting, because ratcheting would make an accidental check permanently inflating and destroy the number's meaning. Mitigated by stating the consequence before the action (§11.10) and by `cleared` surviving, so the user loses a rank rather than their history.
+- **R-21 — Shallow-tree farming.** Under D-21 a tree whose levels 9–10 are cheap pays out 142 for little. PSN demonstrates this at scale: Ratalaika ports exist to farm 300-point platinums, and the community objection is precise — the top weight is set by the content author's grading choice rather than by anything intrinsic. *Accepted;* the mitigation is F8's milestone bounds and F42's two-round review, not the scoring function. Linear does not have this surface, so it is a genuine new cost of D-21.
+- **R-22 — Un-check blast radius.** Under D-18, un-checking one milestone that was the last satisfying level 2 can drop attained from 8 to 1 and remove 100 from a domain score (§11.6's table, 108 − 8). *Accepted;* the engine recomputes honestly rather than ratcheting, because ratcheting would make an accidental check permanently inflating and destroy the number's meaning. Mitigated by stating the consequence before the action (§11.10) and by `cleared` surviving, so the user loses a rank rather than their history.
 - **R-18 — Browser storage is not durable.** Safari's ITP evicts script-writable storage after seven days of non-use for non-installed sites, and `navigator.storage.persist()` is effectively unavailable there. This affects IndexedDB and `localStorage` equally, so no storage choice avoids it. *Accepted;* F39's export prompting (§12.7) is the entire mitigation, which is why it is specified as mandatory rather than optional.
 
 ### 19.4 Speculative and PRD-blocked
@@ -2400,6 +2459,7 @@ Out of scope here, tracked because each has architectural consequences the desig
 - **PRD D24 — tree families.** Thirty near-identical language trees would motivate a template or inheritance mechanism. This would be a **compiler** feature — expansion at build time into ordinary standalone trees — so that the schema, validator, and runtime never learn about inheritance. Worth stating now because it constrains nothing today and would be expensive to retrofit if inheritance leaked into the runtime.
 - **PRD D26 — content licence.** Must be chosen before the first external contribution. Architecturally relevant only to D-11: a licence awkward to scope within one repository is one of the two triggers for splitting `content/` out.
 - **PRD D27 — user-authored milestone slots.** Would require user state to hold *content*, which nothing in §12 currently permits, and would collide with F2's enforceability. Not proposed for v1.
+- **PRD D28 — the domain view as a map rather than a list.** §13.1 routes `/d/<domainId>` to a skill *listing*, and §10.7 rules out pan and zoom, so drill-down is route-based: map → list → tree. The alternative raised by the owner (2026-08-05) is that selecting a domain opens **that domain's skills laid out as nodes with their own per-skill fill**, making the map two-level rather than one, with a *hide skills with no progress* filter and a search field. It is an appealing shape and this spec does not accommodate it. *Architectural cost, stated so the decision is priced:* a second layout engine — §8 lays out milestones within a tree, and nothing lays out trees within a domain; a new route and view; and authored or derived geometry for tree placement. Note that per-skill fill would be `attainedLevel / 10`, linear and bounded, and needs no `k` — §11.6's `k` is a domain-level constant and does not transfer. Region *size* remains unavailable as an encoding channel under §10.3 regardless. Not v1; recorded because retrofitting it after content geometry is authored would be materially more expensive than designing for it.
 
 ### 19.5 Upstream changes this spec requires
 

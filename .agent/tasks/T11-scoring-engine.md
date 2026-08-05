@@ -56,7 +56,7 @@ obvious one.
 - §11.3 attained / cleared / blocker, with `blocker` carrying per-group shortfall.
 - §11.4 the five node states and the derived `available` set (F36).
 - §11.5 grandfathered satisfaction (D-19) — see the contract gap flagged in the hazards.
-- §11.6 the contribution table as data, `score(domain)`, and `fill(domain) = s/(s+16)`.
+- §11.6 the contribution table as data, `score(domain)`, and `fill(domain) = s/(s+48)`.
 - §11.7 breadth (count of skills started) as a `DomainScore` field.
 - The eight §11.9 invariants as **property tests over generated inputs**, not example
   unit tests. See the dedicated acceptance criteria below.
@@ -155,12 +155,17 @@ satisfied = completed >= n
 Domain arithmetic, verbatim from §11.6:
 
 ```
-contribution(L) = table[L]      // L^1.25 × 2, rounded — integer arithmetic
-                                // [2, 5, 8, 11, 15, 19, 23, 27, 31, 36]
+contribution(L) = table[L]      // NORMATIVE — L^1.25 × 8, rounded
+                                // [8, 19, 32, 45, 60, 75, 91, 108, 125, 142]
 score(domain)   = Σ contribution(attained_i)   over skills whose PRIMARY domain is d
                                 // an unstarted or level-0 skill contributes 0
-fill(domain)    = s / (s + 16)  // ∈ [0, 1), asymptotic, never saturates
+fill(domain)    = s / (s + 48)  // ∈ [0, 1), asymptotic, never saturates
 ```
+
+**The table is normative; `p = 1.25` is provenance only.** Invariant 4 is asserted
+against these ten integers and this `k`, **never** against `L^p` — see the T26/F1
+resolution. The ×8 scale is load-bearing: at ×2 or ×4 the rounding at L=2 breaks the
+invariant even for a compliant exponent.
 
 Node states, verbatim from §11.4:
 
@@ -221,17 +226,21 @@ Two properties are **contractual** and are what the test suite asserts (§14.4):
 
 **Domain score and fill (§11.6, D-21)**
 
-- [ ] `table.ts` exports the literal `[2, 5, 8, 11, 15, 19, 23, 27, 31, 36]` as data with a
-      documented index convention, and a test asserts each entry equals
-      `Math.round(L ** 1.25 * 2)` for L = 1..10.
+- [ ] `table.ts` exports the literal `[8, 19, 32, 45, 60, 75, 91, 108, 125, 142]` and
+      `K = 48` as data with a documented index convention, and a test asserts each entry
+      equals `Math.round(L ** 1.25 * 8)` for L = 1..10. The literal is the source of
+      truth; the `Math.round` test guards provenance, not behaviour.
 - [ ] `score` sums `contribution(attainedLevel)` over skills whose **primary** domain is
       *d*; a test asserts a skill's `secondaryDomains` contribute to no domain's score.
 - [ ] A skill at `attainedLevel: 0` contributes exactly 0.
 - [ ] `domainScores` is called with a `skills` array and a taxonomy and **no tree
       argument**; a test asserts `domain.ts` imports nothing from `lib/content` and that
       `CompiledTree` does not appear in `domainScores`' type signature (§14.4, §3.3).
-- [ ] One skill at L10 yields `fill ≈ 0.692` and five skills at L2 yield `fill ≈ 0.610`,
-      reproducing the §11.6 depth-beats-breadth claim on the **shipped doubled table**.
+- [ ] One skill at L10 yields `fill ≈ 0.747` and five skills at L2 yield `fill ≈ 0.664`,
+      reproducing the §11.6 depth-beats-breadth claim on the **shipped ×8 table**.
+- [ ] The limits §11.6 states are also tested so they are not later mistaken for bugs:
+      ten skills at L2 (`fill ≈ 0.798`) still outscores one at L9 (`fill ≈ 0.723`), and a
+      domain at 8×L10 reaches `fill ≈ 0.959` without saturating.
 - [ ] Breadth for a domain equals the number of entries in `skills` carrying that primary
       domain, independent of their attained levels (§11.7, F35).
 
@@ -244,8 +253,12 @@ Two properties are **contractual** and are what the test suite asserts (§14.4):
       runs over at least 1,000 generated cases and is the suite's headline test. N12.
 - [ ] Invariant 2 — starting a skill contributes exactly 0. N12, F33.
 - [ ] Invariant 3 — `fill` strictly increases with every level attained. F34.
-- [ ] Invariant 4 — `Δfill(0→1) ≥ Δfill(L→L+1)` for all L ≥ 1 on a lone skill. **This test
-      fails against the shipped `p = 1.25` table; see the hazard below before writing it.**
+- [ ] Invariant 4 — `Δfill(0→1) ≥ Δfill(L→L+1)` for all L ≥ 1 on a lone skill, computed
+      **from the exported `table` and `K`, never from `L ** 1.25`.** Holds strictly against
+      the shipped constants: Δ = 14.29, 14.07, 11.64, 8.39, 7.17, 5.42, 4.49, 3.76, 3.02,
+      2.48 (percentage points). Resolved by T26/F1 — the earlier `k = 8` × 2 table failed
+      this, and failed it invisibly because the test was written against the continuous
+      curve rather than the rounded integers the app ships.
 - [ ] Invariant 5 — `fill < 1` for all finite inputs, including a generated domain of 500
       skills all at L10. F34's never-saturate.
 - [ ] Invariant 6 — dismissing or un-dismissing changes no score, ever; generated as a
@@ -311,21 +324,19 @@ the test names in `invariants.test.ts`.
   check permanently inflating and destroys the number's meaning. Mitigated by §11.10's
   warn-before-acting and by `cleared` surviving. Do not implement a high-water mark.
 - **§11.6's two constants are coupled and neither may be retuned alone.** `p = 1.25` and
-  `k = 8` (`k = 16` over the doubled table) sit on the constraint `p ≤ log₂(2k/(k−1))`.
-  Invariant 4 exists specifically to catch a future maintainer changing one of them.
+  `k = 6` (`k = 48` over the ×8 table) sit on the constraint `p ≤ log₂(2k/(k−1))`, whose
+  ceiling at `k = 6` is 1.263. Invariant 4 exists specifically to catch a future maintainer
+  changing one of them, and it can only do so if it reads the shipped integers.
 
 **Contradictions and gaps in the spec — flag, do not paper over:**
 
-- **Invariant 4 does not hold for the shipped table.** §11.9 makes
-  `Δfill(0→1) ≥ Δfill(L→L+1)` an executable test, but §11.6 states in the same section that
-  `p = 1.25` at `k = 8` "sits 5% over the strict boundary" — Δ(0→1) = 11.1% against
-  Δ(1→2) = 11.8%. The invariant as written **fails on the table as shipped**. §11.6 offers
-  the resolution ("ship `p = 1.19` instead if strict concavity by construction matters more
-  than the depth premium") but does not take it. This is a genuine self-contradiction and
-  it is not this task's to settle — it is adjacent to **R-25**, which is **T00**. Implement
-  invariant 4 as a test with an explicit, documented tolerance matching the shipped table,
-  and record the discrepancy in the test body so the next maintainer sees it. Do not
-  quietly weaken the invariant to `≥ 0`.
+- **~~Invariant 4 does not hold for the shipped table.~~ RESOLVED by T26/F1, 2026-08-05.**
+  The spec previously shipped `p = 1.25` at `k = 8` while asserting a boundary of 1.193 as
+  a property test, and the ×2 rounding (`2 × 2^1.25 = 4.757 → 5`) widened the breach from
+  6% to 14%. Now `k = 6` with the table scaled ×8, which clears the constraint strictly
+  with no tolerance. **Two consequences for this task:** assert invariant 4 against the
+  exported `table` and `K` rather than against `L ** 1.25`, and do **not** implement a
+  tolerance — the invariant is `≥`, exact. See `docs/SPEC-FINDINGS.md` F1.
 - **`TierName`, `DomainScore`, `Taxonomy`, and `DomainId` are used in §14.4 and defined
   nowhere in the architecture.** `TierName` is recoverable from §2's glossary — Novice
   (1–2), Apprentice (3–4), Journeyman (5–6), Expert (7–8), Master (9–10) — but the spec
@@ -338,14 +349,20 @@ the test names in `invariants.test.ts`.
   `{ treeId, domain, attainedLevel }`. Either `DomainScore` omits recency (and T13 gets it
   from the store) or the signature is incomplete. The §14.4 block is normative, so do not
   silently widen it — surface the mismatch to whoever owns T13.
-- **Grandfathering (§11.5, D-19) has no channel in the `scoreSkill` signature.** §11.5
-  requires re-evaluation against the *frozen* group definition and the `contentVersion` at
-  the moment a level was first satisfied, and says user state persists that record. But
-  `scoreSkill(tree, progress)` receives only the tree and a `uid → MilestoneState` map —
-  there is nowhere for the frozen record to enter. Invariant 7 is therefore not expressible
-  against the contract as typed. **This is the most consequential gap in §11** and must be
-  resolved with T09/T17 before implementation: either the signature gains an optional third
-  argument, or grandfathering moves out of this engine entirely.
+- **~~Grandfathering (§11.5, D-19) has no channel in the `scoreSkill` signature.~~
+  RESOLVED by T26/F2, 2026-08-05.** `TreeProgress` widens from a bare map to
+  `{ milestones: ReadonlyMap<string, MilestoneState>; grandfathered: ReadonlyMap<number,
+  FrozenSatisfaction> }`, so `scoreSkill`'s arity stays at two. What the engine owes:
+
+  ```
+  satisfied(L) = evaluatedSatisfied(L)
+              || (frozen[L] && frozen[L].uids.every(u => milestones.get(u) === 'complete'))
+  ```
+
+  `LevelProgress` gains `grandfathered: boolean` and `satisfiedBy: readonly string[]`.
+  **The engine never writes.** It reports `satisfiedBy`; T09's store decides what to freeze
+  and writes it, preserving §3.2's single-writer rule. Invariant 7 is now expressible and
+  must be a real test, not a documented gap. See `docs/SPEC-FINDINGS.md` F2.
 - **`blocker.shortfall: GroupProgress[]` carries no group identity.** `GroupProgress` has
   no index, id, or milestone list, so §9.6's per-group readout cannot attribute a shortfall
   to a specific group. Note it for T08/T14 rather than adding a field unilaterally.
@@ -358,14 +375,13 @@ the test names in `invariants.test.ts`.
   the Scoring Engine and "`dismissed` comes from user state directly", but `NodeState`
   includes `dismissed` and §11.4 defines it. Follow §14.4 — the engine emits all five —
   and note the discrepancy for T19.
-- **Minor arithmetic drift, worth knowing before a test disagrees with the prose.**
-  R-22 says dropping attained 8 → 1 removes 31 from a domain score; `table[8] − table[1]`
-  is `27 − 2 = 25` under 1-based indexing, and 31 is `table[8]` under **0-based** indexing.
-  Fix the index convention in `table.ts` first and state it. Separately, §11.6 claims the
-  doubled table over `s/(s+16)` is "the identical curve" to the raw `L^1.25` over
-  `s/(s+8)`; rounding breaks that identity, and the quoted 10×L2 vs 1×L9 gap of 8.7 points
-  is 9.8 points on the shipped rounded table. Assert against the **shipped table**, not
-  against the prose's unscaled figures.
+- **Index convention still needs stating, and the prose figures were re-derived.**
+  T26/F1 recomputed every quoted figure against the ×8 table and corrected the spec:
+  R-22 now reads 100 (`table[8] − table[1]` = 108 − 8, **1-based**), §11.3 reads 37
+  (45 − 8), R-21 reads 142, and the 10×L2 vs 1×L9 gap is 7.6 points. Declare the index
+  convention in `table.ts` before writing anything that indexes it, and assert against the
+  **shipped table** rather than any prose figure — the whole class of defect F1 caught was
+  prose and artefact drifting apart.
 - **No property-testing library is named anywhere in the architecture.** `fast-check` is
   the obvious fit for a Vitest workspace; whichever is chosen, it is a devDependency of
   `app/` only — `tools/` declares no application dependencies (§4.2).
