@@ -1,0 +1,252 @@
+# T06 — Layout Engine
+
+| Field | Value |
+|---|---|
+| **Status** | pending |
+| **Phase** | 0 |
+| **Cluster** | pure-engines |
+| **Blocked by** | T02 |
+| **Blocks** | T08 |
+| **Spec** | ARCHITECTURE §8, §14.3 |
+| **PRD** | F13, F14, F15, F16, N11 |
+
+## Goal
+
+`app/src/lib/layout/` exports `layoutTree(tree, viewport)`, a pure function that turns a
+`CompiledTree` into a `TreeLayout` — positioned nodes, routed edges, column and row bands,
+and an overall extent, all in abstract units. It imports nothing from Svelte, the DOM,
+`$app`, or `lib/state`. Given the same tree and the same viewport it returns the same
+numbers, on every machine and in every session. After this task a tree has coordinates;
+nothing yet draws them, which is T08.
+
+## Why this shape
+
+**No layout algorithm runs.** Positions are computed arithmetically from declared
+semantics — level, track, order, slug — and that is the whole mechanism behind F13 and
+N11 (§8). `docs/RESEARCH.md` §3 records why: roadmap.sh retreated from authored
+coordinates, and crossing-minimizing auto-layout is unstable under small edits, so a
+contributor rewording one milestone would relocate half the tree. Coordinates are
+**abstract units** rather than pixels so the engine never learns the screen size and stays
+testable without a browser (§8.1). F16's narrow layout is a *parameter*, not a second code
+path over different data (§8.5) — and it falls out that the narrow layout **is** the linear
+list §15 reuses as the screen-reader presentation at every viewport.
+
+The layout signature deliberately excludes user state (§8.6, §14.1). Completing a
+milestone must never trigger a re-layout — only a class change on already-positioned nodes
+(§9.3) — which is what makes the §17.3 target of < 50 ms per toggle structural rather than
+optimized.
+
+## Scope
+
+**In scope**
+
+- The §8.1 type surface and `layoutTree` entry point in `app/src/lib/layout/index.ts`.
+- The §8.2 wide algorithm, implemented step for step, including the centring in step 6.
+- The §8.3 stability guarantee, encoded as a test per row of that section's table.
+- §8.4 orthogonal three-segment edge routing, with same-level prerequisites routed through
+  a side gutter rather than the row gutter.
+- §8.5 narrow layout: one column, ordering `(level, track index, order, slug)`, `edges`
+  returned empty.
+- §8.6 memoization keyed on `(tree.id, tree.contentVersion, viewport)` and on nothing else.
+- The layout constants (row height, slot width, gutters) as named exports in one module,
+  so a value change is one diff and the stability tests still pass.
+- A purity test asserting `lib/layout` imports nothing from `svelte`, `$app`, or
+  `lib/state`, and an ESLint `no-restricted-imports` entry expressing the §14.1 forbidden
+  edge `lib/layout ⇢ lib/state`.
+
+**Out of scope**
+
+- Any SVG, `viewBox`, pixel scaling, CSS, container query, or DOM — that is the TreeView
+  renderer, **T08** (§9).
+- Node state (complete / available / locked / bonus / dismissed). It is computed by the
+  Scoring Engine in **T11** and §8.7 states it never touches layout.
+- Mastery achievements. §5.7 gives them no level, track, or order, and §9.6 renders them
+  in a separate panel below the tree, so they are not positioned here and `TreeLayout` has
+  no field for them — **T08** owns that panel.
+- Hex map geometry. §10 is an unrelated coordinate system; the axial maths is **T12**.
+- Reading or writing content. `layoutTree` receives an already-loaded `CompiledTree`; the
+  fetch is the Content Loader, **T07**.
+- Wiring the purity and import checks into the CI job graph — the gate lives in **T25**
+  (§14.7, §6.5). This task ships the rule and the test; T25 makes them blocking.
+
+## Deliverables
+
+```
+app/src/lib/layout/index.ts            public surface: §8.1 types + layoutTree
+app/src/lib/layout/constants.ts        row height, slot width, gutters — abstract units
+app/src/lib/layout/wide.ts             the §8.2 normative algorithm
+app/src/lib/layout/narrow.ts           §8.5 — one column, no edges
+app/src/lib/layout/edges.ts            §8.4 orthogonal routing
+app/src/lib/layout/memo.ts             §8.6 cache keyed on (id, contentVersion, viewport)
+app/src/lib/layout/wide.test.ts        grid mapping, centring, column widths
+app/src/lib/layout/stability.test.ts   one case per row of the §8.3 table
+app/src/lib/layout/narrow.test.ts      ordering, single column, empty edges
+app/src/lib/layout/purity.test.ts      §14.7 purity check over this directory's sources
+app/eslint.config.js                   MODIFIED — no-restricted-imports for §14.1
+```
+
+## Interface contract
+
+Copied from ARCHITECTURE §8.1. This block is what T08 is written against.
+
+```ts
+// app/src/lib/layout/index.ts — imports nothing from svelte, the DOM, or the store
+
+export type Viewport = 'wide' | 'narrow';
+
+export interface PositionedNode {
+  uid: string;
+  slug: string;
+  level: number;      // 1..10
+  col: number;        // track index
+  lane: number;       // index within the (level, track) cell
+  x: number; y: number; w: number; h: number;   // abstract units, not pixels
+}
+
+export interface RoutedEdge {
+  fromUid: string; toUid: string;
+  path: string;     // SVG path `d`, in the same abstract units
+}
+
+export interface TreeLayout {
+  nodes: PositionedNode[];
+  edges: RoutedEdge[];
+  columns: { trackId: string; title: string; x: number; w: number }[];
+  rows:    { level: number; y: number; h: number }[];
+  width: number; height: number;
+  viewport: Viewport;
+}
+
+export function layoutTree(tree: CompiledTree, viewport: Viewport): TreeLayout;
+```
+
+The wide algorithm is **normative**. From ARCHITECTURE §8.2, verbatim:
+
+```
+1. rows    ← levels 1..10, level 1 at the BOTTOM, ascending upward.
+             Row height is a constant. All rows are equal height, always.
+2. columns ← tracks in declared order, left to right.
+             A tree with no `tracks` has exactly one column.
+3. cells   ← group milestones by (level, track).
+4. lanes   ← within each cell, sort by (order, slug).
+             `order` is always explicit in a compiled bundle (§7.3) and
+             `slug` breaks any remaining tie, so the sort is total and
+             stable with no reference to file position.
+5. colWidth[c] ← max(lanes in any cell of column c) × slotWidth
+6. x     ← column origin + (column centred offset for this cell's lane count)
+   y     ← row origin
+7. edges ← for each `requires`, route an orthogonal path (§8.4)
+```
+
+Step 6 is the one that matters: nodes in a cell are **centred within their column** rather
+than left-packed, so a cell holding two nodes and a cell holding three both sit on the
+column's centre line (§8.3).
+
+Behavioural contract, from §14.3: `layoutTree` is **pure, total, and deterministic**.
+Same inputs, same outputs, forever, including across app versions unless §8.2's algorithm
+itself changes. **No exceptions are thrown** — a compiled bundle is valid by construction
+because §6.2 and §7.3 have already made it so, so there is no defensive branch, no
+`try`, and no fallback path to write.
+
+## Acceptance criteria
+
+- [ ] `layoutTree(tree, 'wide')` on a fixture with three tracks produces `rows` of length
+      10, all with the same `h`, and with level 1's `y` strictly greater than level 10's —
+      level 1 at the bottom (§8.2 step 1).
+- [ ] A tree with no `tracks` produces `columns.length === 1` (§8.2 step 2).
+- [ ] Two nodes in a cell and three nodes in a sibling cell of the same column have the
+      same mean `x`, equal to that column's centre line (§8.2 step 6, §8.3).
+- [ ] `colWidth` for a column equals its maximum cell lane count × `slotWidth`, asserted
+      against the §8.3 worked example (`forge` = 3, `finishing` = 2).
+- [ ] Shuffling the milestone array within a cell of the input fixture produces a
+      byte-identical `TreeLayout` (JSON-stringified) — the §8.2 step 4 sort is total and
+      reads no file position.
+- [ ] `stability.test.ts` contains one named case per row of the §8.3 table and each
+      asserts exactly what that row says moves and, by diffing the full node set, that
+      nothing else does. In particular: adding a milestone beyond a column's lane maximum
+      shifts columns to its **right** only, leaves every `rows[].y` unchanged, and leaves
+      every node in columns to its left at an identical `x`.
+- [ ] A test asserts that **every** node's `y` is unchanged across all seven §8.3 edits —
+      the "vertical position is invariant under every content edit" property.
+- [ ] Calling `layoutTree` twice with the same arguments returns the same object identity
+      (§8.6), and a fixture differing only in `contentVersion` returns a different object.
+- [ ] A test constructs two `TreeProgress`-shaped inputs and demonstrates they cannot be
+      passed: `layoutTree` has arity 2 and `tsc --noEmit` rejects a third argument. User
+      state is absent from the signature (§8.6, §14.1).
+- [ ] `layoutTree(tree, 'narrow')` returns `columns.length === 1`, `edges.length === 0`,
+      and `nodes` ordered by `(level, track index, order, slug)` (§8.5).
+- [ ] Every `RoutedEdge.path` is a valid SVG path `d` string parseable into three
+      orthogonal segments, and for every edge the source level is ≤ the target level —
+      no edge points downward (§8.4, §6.2 rule 5).
+- [ ] Same-level edges produce a path whose x-extent leaves the row band, i.e. they route
+      through the side gutter and not the row gutter (§8.4).
+- [ ] `purity.test.ts` reads every `.ts` file under `app/src/lib/layout/` and fails if any
+      contains an import of `svelte`, `$app`, `$lib/state`, or a relative path escaping to
+      `../state` (§14.7 purity check).
+- [ ] `purity.test.ts` also fails if the literal string `archetype` appears anywhere under
+      `app/src/lib/layout/` — the §14.7 grep gate, which is the mechanical form of **S1**.
+- [ ] `npx eslint app/src/lib/layout` passes, and temporarily adding
+      `import { x } from '$lib/state'` to `wide.ts` makes it fail on `no-restricted-imports`.
+- [ ] A benchmark test lays out an 80-node fixture in under 2 ms (§17.3), asserted as a
+      hard threshold rather than logged.
+- [ ] `npx tsc --noEmit` passes with `strict: true`.
+
+## Verification
+
+```bash
+npm run --workspace app test -- lib/layout
+npx eslint app/src/lib/layout
+npx tsc --noEmit
+```
+
+Passing looks like: the whole layout suite green, including every §8.3 stability row and
+the 2 ms benchmark; ESLint clean; a clean typecheck. A reviewer should be able to open
+`stability.test.ts` and read the §8.3 table off the test names.
+
+## Notes and hazards
+
+- **R-11 — edge spaghetti in dense trees.** §8.4 accepts crossings and never minimizes
+  them (F15); a piano tree with many cross-track prerequisites may render illegibly. Do
+  not add a crossing-reduction pass — it would destroy the stability guarantee that is the
+  entire point of the subsystem. The mitigations are elsewhere: edge highlighting on focus
+  (§9.4, T08), and the `track-overuse` / `lonely-track` lints (§6.3, T22). **The fallback
+  §8.4 already permits** is to stop drawing edges by default and surface prerequisites as
+  text; the engine's contract is to *supply* routes, not to insist they are drawn, so that
+  fallback needs no change here.
+- **Column widening is an honest exception to F13, not a bug (§8.3).** It is bounded,
+  rightward-only, and rare. The alternative — a globally fixed column width — makes every
+  column widen whenever any cell grows, which is strictly worse. Do not "fix" it.
+- **R-14 — the schema is being fixed before content exists.** This engine consumes
+  `CompiledTree` from T02, and T10 is the scheduled window for a breaking bump. Keep the
+  read surface narrow (`id`, `contentVersion`, `tracks`, `levels[].milestones[]` with
+  `uid`, `id`, `track`, `order`, `requires`) so a bump touches few lines.
+- **Memoization depends on `CompiledTree` exposing `id` and `contentVersion`.** §8.6 names
+  that key. Confirm both fields exist on T02's `compiled.ts` before implementing `memo.ts`;
+  if they do not, that is a T02 defect, not a reason to key on something else. §8.6 also
+  says nothing about cache eviction — an unbounded `Map` is acceptable for v1 given §17.5's
+  scale thresholds, but say so in a comment rather than silently.
+
+**Where the spec is silent — do not invent an answer without flagging it:**
+
+- **Narrow-layout vertical direction is unspecified.** §8.2 fixes level 1 at the *bottom*
+  for wide; §8.5 says only "stacked" and orders by `(level, track index, order, slug)`.
+  §15 reuses the narrow layout as the linear list, and a linear list read top-to-bottom
+  should almost certainly start at level 1 — i.e. the opposite y-direction from wide.
+  Pick level 1 at the **top** for narrow, and record the choice in a comment citing this
+  gap so T08 and T20 can overrule it cheaply.
+- **`col` and `lane` in narrow mode are undefined.** The §8.1 types require both. The
+  natural reading is `col = 0` for every node and `lane` = position in the single stack,
+  but §8.5 does not say. Same for `columns` — whether it holds one synthetic entry or the
+  first declared track.
+- **No numeric constants are given anywhere.** `slotWidth`, row height, the row gutter and
+  the side gutter have no values in §8. They are abstract units scaled by the renderer's
+  `viewBox` (§8.1), so any self-consistent set works; put them all in `constants.ts` so the
+  choice is visible and revisable when T08 first draws them.
+- **Side-gutter geometry for same-level edges is undefined.** §8.4 says such edges "route
+  through a side gutter" but does not say which side, how wide it is, or how two same-level
+  edges in one row avoid drawing on top of each other.
+- **Mastery `requires` targets have no layout node.** §5.7 lets a mastery achievement
+  declare `requires` against milestones, and §8.2 step 7 says "for each `requires`, route
+  an orthogonal path" without qualifying it to milestones. Since mastery is not positioned
+  (§9.6), those edges have no endpoint. Emit edges only between positioned milestone
+  nodes and note the exclusion in `edges.ts`.

@@ -1,0 +1,20 @@
+{
+  "version": "6.18.1",
+  "project_name": "life-skill-tracker",
+  "tech_stack": "Documentation, Markdown",
+  "project_management": "none",
+  "task_prefix": "TASK",
+  "team_chat": "none",
+  "auto_load_navigator": true,
+  "compact_strategy": "conservative",
+  "auto_update": {
+    "enabled": true,
+    "check_interval_hours": 1
+  },
+  "session_start_hook": { "enabled": true },
+  "compact_hook": { "enabled": true },
+  "workflow_state_hook": { "enabled": true },
+  "task_graph_sync_hook": { "enabled": true },
+  "profile_sync_hook": { "enabled": true },
+  "workflow_enforcer_hook": { "enabled": true }
+}

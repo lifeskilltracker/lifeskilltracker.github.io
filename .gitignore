@@ -1,0 +1,24 @@
+# Navigator context markers
+.context-markers/
+
+# Navigator temporary files
+.agent/.nav-temp/
+
+# Grafana data (if using Docker)
+.agent/grafana/grafana_data/
+.agent/grafana/prometheus_data/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Navigator runtime state
+.agent/.nav-read-counter.json
+.agent/.nav-workflow-state.json

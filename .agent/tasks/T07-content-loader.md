@@ -1,0 +1,259 @@
+# T07 — Content Loader and minimal tree route
+
+| Field | Value |
+|---|---|
+| **Status** | pending |
+| **Phase** | 0 |
+| **Cluster** | runtime-io |
+| **Blocked by** | T04 |
+| **Blocks** | T08 |
+| **Spec** | ARCHITECTURE §7.4, §7.5, §14.2, §13.1 |
+| **PRD** | N4, N9 |
+
+## Goal
+
+`app/src/lib/content/` holds the single module in the application that performs a network
+fetch for content, exposing the §14.2 `ContentLoader` interface over the artifacts `lst
+compile` writes into `app/static/content/`. After this task the app can start cold, fetch
+`manifest.json`, resolve a tree id to its hashed bundle URL, fetch and shape-check that
+bundle, memoize it, pin it in Cache Storage when the user has started the skill, and
+report honestly when it is serving stale content. A `/s/<treeId>` route exists that
+resolves a tree from the manifest at runtime and proves the loader end to end; it renders
+the tree's title and level spine as plain markup, because the SVG renderer is T08.
+
+## Why this shape
+
+§3.2's second rule makes the Content Loader **the only reader of content** — no component,
+route, or engine fetches on its own — so every caching, offline, and failure decision has
+exactly one place to live and one place to test. The split between a small mutable index
+and large immutable hash-named chunks (§7.1) is what lets N4 hold as the library grows:
+the manifest is the only file that can go stale, so there is no cache-header negotiation
+to get right on GitHub Pages (§4.4). `loadTree` is memoized on **object identity**, not
+merely on value, because §8.6 keys the Layout Engine's memoization on the tree it was
+handed; a loader that returned a fresh parse per call would silently defeat the layout
+cache and with it §17.3's sub-50 ms milestone toggle.
+
+## Scope
+
+**In scope**
+
+- `loadManifest()`, `loadTree()`, `pin()`, `isOffline()` exactly as typed in §14.2.
+- Manifest fetch with stale-while-revalidate: serve the Cache Storage copy immediately if
+  present, revalidate in the background, and flip `isOffline()` true when revalidation
+  fails (§7.4).
+- Bundle fetch **CacheFirst** against Cache Storage — the hashed URL is immutable, so a
+  cache hit is always correct and never needs revalidating (§7.4).
+- The §7.5 shape assertion on every parse: the bundle's `schemaVersion` is one the app
+  understands, and the tree has ten levels. A bundle that fails it is treated as
+  unavailable **and cleared from Cache Storage** so a stale entry self-heals (§16.3).
+- Per-tree failure isolation: a failed or malformed bundle disables that one tree and
+  nothing else (§7.4).
+- Pinning on start: `pin(treeId)` writes the bundle into a named Cache Storage bucket that
+  ordinary eviction of browsed-but-unstarted trees does not touch (§7.4, N9).
+- The `lib/content/store.svelte.ts` rune store of §13.2 — manifest plus loaded bundles,
+  populated by the loader and read by routes.
+- The `/s/<treeId>` route from §13.1, `prerender = false`, resolving through the manifest.
+- The §16.3 branches this subsystem owns: manifest-fails-with-cache, manifest-fails-
+  without-cache, tree-bundle-fetch-fails, bundle-fails-shape-assertion.
+
+**Out of scope**
+
+- **Service-worker generation and PWA / offline hardening.** §16.4 places these in
+  **Phase 2** (`C2`), and this task must not pull them forward. §7.4's closing paragraph
+  reads as though `@vite-pwa/sveltekit` ships alongside the loader; it does not. **This
+  task ships ordinary `fetch` plus the Cache Storage API called directly.** Consequences
+  to accept rather than fix here: the app shell is not precached, so an offline *deep
+  link* still hits the network and gets GitHub Pages' `404.html` (§4.4) — only content
+  already in Cache Storage survives, and only for a session that has already booted.
+- SVG rendering, node states, milestone interaction — T08 (§9). This task's route renders
+  text only.
+- The Layout Engine — T06. The loader hands over a `CompiledTree` and knows nothing about
+  positions.
+- Reading or writing user state, including the decision of *which* trees are started. The
+  User State Store owns that (T09); the shell wires `startSkill` to `pin` (see hazards).
+- The manifest and bundle **producer** — `lst compile`, T04. This task consumes what T04
+  writes and must not reshape it.
+- Manifest sharding — **R-05**, triggered at 30 kB compressed, not built now.
+- `/`, `/d/<domainId>`, `/library`, `/data`, `/about`, `/contribute` and the cold-start
+  failure screen as a designed view — T14 (§13.1–§13.4, §16.3). This task supplies the
+  loader branches those routes consume and a minimal skill route only.
+
+## Deliverables
+
+```
+app/src/lib/content/index.ts            the ContentLoader implementation — §14.2
+app/src/lib/content/manifest.ts         manifest fetch, SWR, offline flag — §7.4
+app/src/lib/content/bundle.ts           bundle fetch, CacheFirst, pinning — §7.4
+app/src/lib/content/assert-shape.ts     the §7.5 shape assertion
+app/src/lib/content/store.svelte.ts     §13.2 rune store: manifest + loaded bundles
+app/src/routes/s/[tree]/+page.ts        prerender = false; resolves via the manifest
+app/src/routes/s/[tree]/+page.svelte    minimal text rendering — replaced by T08
+app/src/lib/content/loader.test.ts      memoization, isolation, shape assertion, offline
+app/src/lib/content/fixtures/           a valid bundle, a nine-level bundle, a
+                                        future-schemaVersion bundle, a truncated bundle
+```
+
+## Interface contract
+
+Copied from ARCHITECTURE §14.2. Downstream tasks (T08, T14, T17) are written against it.
+
+```ts
+export interface ContentLoader {
+  loadManifest(): Promise<Manifest>;
+  loadTree(treeId: string): Promise<CompiledTree>;      // memoized
+  pin(treeId: string): Promise<void>;                   // §7.4 offline pinning
+  isOffline(): boolean;
+}
+```
+
+> Contract: `loadTree` is idempotent and memoized; a second call for the same id returns
+> the same object identity, which is what makes §8.6's layout memoization key work. It
+> resolves only for a bundle that passed the §7.5 shape assertion, so no consumer handles
+> a malformed tree.
+
+The manifest shape this task consumes, verbatim from §7.2:
+
+```jsonc
+{
+  "schemaVersion": 1,
+  "contentVersion": 7,          // increments on every content release
+  "generated": "2026-09-14T00:00:00Z",
+  "taxonomy": {
+    "domains": [ /* domains.yaml, compiled */ ],
+    "facets":  [ /* facets.yaml, compiled */ ],
+    "map":     { /* unioned region paths — §10.3 */ }
+  },
+  "trees": [
+    {
+      "id": "blacksmithing",
+      "title": "Blacksmithing",
+      "summary": "Shaping hot metal by hand …",
+      "domain": "making",
+      "secondaryDomains": ["home"],
+      "subregion": "objects",
+      "facets": ["physical", "workshop", "heat", "tool-making"],
+      "archetype": "dual-track",
+      "milestoneCount": 62,
+      "authors": ["A. Contributor"],
+      "bundle": "trees/blacksmithing.a7f3c091.json"
+    }
+  ]
+}
+```
+
+The three load-bearing behaviours of §7.4, verbatim:
+
+> - **Pinning on start.** When a user starts a skill, its bundle is pinned in Cache Storage
+>   rather than left to ordinary cache eviction. N9 says the app keeps working offline; a
+>   user whose active skills silently stopped opening on a train would reasonably call that
+>   broken. Trees merely browsed are not pinned.
+> - **Per-tree failure isolation.** A failed bundle fetch disables one tree, never the app.
+>   The map and every other tree keep working.
+> - **Honest offline state.** When serving a cached manifest without revalidation, the UI
+>   says so. Content that has never been fetched is not available offline, and pretending
+>   otherwise is worse than a clear message.
+
+The §16.3 rows this task implements, verbatim:
+
+| Failure | Behaviour |
+|---|---|
+| Manifest fetch fails, cache present | Offline mode; render from cache and say so (§7.4) |
+| Manifest fetch fails, no cache | Cold-start failure screen: what happened, retry, and a link to `/data` so an export is still possible if hydration worked |
+| Tree bundle fetch fails | That tree only is unavailable; map and other trees unaffected |
+| Bundle fails the §7.5 shape assertion | Treat as unavailable; clear that bundle from Cache Storage so a stale service-worker entry self-heals on retry |
+
+The §7.5 assertion is exactly two checks and no more:
+
+- the bundle's `schemaVersion` is one the app understands (§5.10: current and one prior);
+- the tree has ten levels.
+
+It is **not** a security control and must not be extended into one — §7.5 states plainly
+that there is no threat model in which a hash the origin also serves stops an attacker who
+controls the origin.
+
+## Acceptance criteria
+
+- [ ] `app/src/lib/content/index.ts` exports an object satisfying the §14.2 interface, and
+      `npx tsc --noEmit` passes with `strict: true`.
+- [ ] A test asserts `(await loadTree('x')) === (await loadTree('x'))` — reference
+      equality, not deep equality. This is the §8.6 contract and must be an identity check.
+- [ ] A test asserts two concurrent in-flight `loadTree('x')` calls issue exactly **one**
+      `fetch` and resolve to the same object.
+- [ ] A test asserts `loadTree` is called with a URL taken from the manifest's `bundle`
+      field, never constructed from the tree id — the hash is not derivable.
+- [ ] A test asserts a second `loadTree('x')` after a page-lifetime cache hit performs no
+      network request (Cache Storage hit, CacheFirst).
+- [ ] `assert-shape.ts` rejects the nine-level fixture and the future-`schemaVersion`
+      fixture, and accepts the valid fixture and a bundle at `schemaVersion` current − 1.
+- [ ] A test asserts that after a shape-assertion failure the bundle key is **deleted from
+      Cache Storage**, and that a subsequent `loadTree` for the same id re-fetches.
+- [ ] A test asserts a rejected `loadTree('broken')` leaves `loadTree('other')` resolving
+      normally and `loadManifest()` unaffected — per-tree isolation.
+- [ ] A test asserts `isOffline()` is `false` after a successful manifest revalidation and
+      `true` after a failed one with a cached manifest present.
+- [ ] A test asserts that with no cached manifest and a failing fetch, `loadManifest()`
+      **rejects** rather than resolving with an empty manifest — the cold-start failure of
+      §16.3 is a rejection the shell renders, not a silent empty state.
+- [ ] A test asserts `pin('x')` places the bundle in a Cache Storage bucket distinct from
+      the ordinary runtime bucket, and that clearing the runtime bucket leaves the pinned
+      entry retrievable.
+- [ ] A test asserts merely calling `loadTree('x')` does **not** pin — only `pin()` pins
+      (§7.4: "Trees merely browsed are not pinned").
+- [ ] `app/src/routes/s/[tree]/+page.ts` exports `export const prerender = false;`
+      (§13.1) and the file contains no hard-coded tree id.
+- [ ] Visiting `/s/<id>` for an id absent from the manifest renders a "tree unavailable"
+      message and HTTP-level success, not an unhandled rejection.
+- [ ] `grep -rn "fetch(" app/src/routes app/src/lib/components` returns no matches — §3.2's
+      rule that the loader is the only content reader, checkable by inspection.
+- [ ] `grep -rn "lib/state" app/src/lib/content` returns no matches — the loader never
+      reads user state; the shell decides when to `pin`.
+- [ ] `grep -rn "vite-pwa\|serviceWorker\|service-worker" app/ --include=*.ts --include=*.js
+      --include=*.svelte` returns no matches — the Phase 2 boundary, mechanically checked.
+
+## Verification
+
+```bash
+npm run --workspace app test -- content
+npx tsc --noEmit
+npm run --workspace app check          # svelte-check
+npm run build && npx serve app/build   # then open /s/<exemplar-tree-id>
+```
+
+Passing looks like: every fixture landing on its expected verdict, the identity assertion
+green, the three greps silent, and `/s/<exemplar>` showing the tree's title and ten level
+headings served from `app/static/content/` with no route-level fetch.
+
+## Notes and hazards
+
+- **The §7.4 / §16.4 contradiction, stated plainly.** §7.4's last paragraph specifies a
+  `@vite-pwa/sveltekit`-generated service worker as though it were part of this subsystem;
+  §16.4 lists "PWA / offline hardening" under Phase 2. **§16.4 wins for this task.** Write
+  the Cache Storage calls directly so that adding the service worker later is additive —
+  in particular, use stable, documented cache bucket names, because the Phase 2 workbox
+  runtime-caching config will need to adopt them rather than shadow them.
+- **§16.3's wording assumes the service worker exists** ("so a stale service-worker entry
+  self-heals"). Without one, the same failure still occurs — from the loader's own Cache
+  Storage bucket — and the same remedy applies. Implement the delete-on-failed-assertion
+  behaviour regardless.
+- **`pin()` has no caller in this task.** §7.4 says pinning happens "when a user starts a
+  skill", but `startSkill` lives in the User State Store (§14.5, T09) and §14.1 forbids the
+  loader from importing state. The architecture never says who joins them. The intended
+  seam is the shell: the skill route calls `store.startSkill(treeId)` then
+  `loader.pin(treeId)`. Recorded here because an implementer will look for the wiring and
+  not find it in the spec; do not resolve it by importing state into `lib/content`.
+- **`contentVersion` is global, not per-tree.** §16.1 increments it "on every merge
+  touching `content/`", and §7.2 carries it only at manifest level. §8.6 and §12.5 both
+  read `tree.contentVersion`, so the compiled bundle must carry the global value stamped
+  in. The spec does not say this outright; T04 is where it is produced, and this task's
+  fixtures should assume it. The consequence — every content release invalidates every
+  tree's layout memo and triggers a §12.5 migration pass on every started tree, including
+  trees that did not change — is real and unaddressed by the spec.
+- **§4.4's cross-reference is wrong.** It points at "§7.3, which treats manifest freshness
+  explicitly"; manifest freshness is §7.1 and §7.4. §7.3 is the compiler's transformation
+  table. Follow §7.4.
+- **N4's budget is the reason for the split, not a target to optimize toward.** §17.2 puts
+  the manifest at ~10 kB compressed at 164 trees and one bundle at ~7 kB. Nothing in this
+  task needs performance work; if profiling seems necessary, something has been introduced
+  that the architecture does not have (§17.3).
+- Do not add Subresource Integrity, signature checks, or a hash recomputation on the client.
+  §7.5 rejects all three by name as "ceremony for the same non-guarantee".

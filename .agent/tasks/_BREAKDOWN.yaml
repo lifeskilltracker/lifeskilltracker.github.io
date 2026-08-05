@@ -1,0 +1,361 @@
+# Life XP Skill Tracker — v1 task breakdown
+#
+# The authoritative index of the v1 work, derived from docs/ARCHITECTURE.md §16.4.
+# v1 = Phase 0 (walking skeleton) + Phase 1 (the v1 gate).
+#
+# This file is the CROSS-SESSION STAGER. A session that picks this project up should
+# read it first, find rows whose `status` is not `written`, and continue from there.
+# `status` tracks whether the TASK DOCUMENT exists — not whether the work is done.
+# Implementation status lives in each task doc's own Status field.
+#
+# Authored 2026-08-05. See .agent/tasks/_TEMPLATE.md for document shape.
+
+meta:
+  version: 1
+  source: docs/ARCHITECTURE.md
+  phases:
+    "0": Walking skeleton — falsify the schema before content authoring starts
+    "1": The v1 gate — defined by the PRD's success metrics S1–S4
+  doc_status_values: [pending, written]
+  clusters:
+    substrate-schema: { model: opus, wave: 0, note: written directly by the orchestrator }
+    judgment:         { model: opus, wave: 0, note: reasoning-limited; orchestrator only }
+    cli-toolchain:    { model: sonnet, wave: 1 }
+    pure-engines:     { model: opus,   wave: 1 }
+    runtime-io:       { model: opus,   wave: 1 }
+    views:            { model: sonnet, wave: 2 }
+    content-gates:    { model: sonnet, wave: 2 }
+
+tasks:
+  - id: T00
+    title: PRD amendments and v1 unblocking
+    phase: 1
+    cluster: judgment
+    blocked_by: []
+    blocks: [T15]
+    spec: ["§19.4", "§19.5"]
+    prd: [D20, D26, R-24, R-25]
+    status: written
+    doc: T00-prd-amendments.md
+    note: >
+      Resolves D20 (the estimator derivation rule F30 needs), R-24 (F35 recency
+      amendment — the spec is knowingly non-compliant until this lands), R-25 (F33's
+      arithmetic under D-21, plus the concavity/convexity fix in RESEARCH §4), and
+      D26 (content licence, required before the first external contribution).
+
+  - id: T01
+    title: Repository scaffold and toolchain substrate
+    phase: 0
+    cluster: substrate-schema
+    blocked_by: []
+    blocks: [T02]
+    spec: ["§4.1", "§4.2", "§4.5"]
+    prd: [D17, N10]
+    status: written
+    doc: T01-repository-scaffold.md
+
+  - id: T02
+    title: Schema v1 and generated types
+    phase: 0
+    cluster: substrate-schema
+    blocked_by: [T01, T26]
+    blocks: [T03, T04, T06, T09]
+    spec: ["§5", "§14.6", "§4.2"]
+    prd: [F5, F7, F8, F14, F18, F19, F26, D8, D10, D11, D13]
+    status: written
+    doc: T02-schema-v1-and-generated-types.md
+    note: Worked exemplar — the reference for document shape and depth.
+
+  - id: T03
+    title: lst validate and lst ids
+    phase: 0
+    cluster: cli-toolchain
+    blocked_by: [T02]
+    blocks: [T04, T05, T22, T23]
+    spec: ["§6.1", "§6.2", "§5.4"]
+    prd: [F40, F41, F45]
+    status: written
+    doc: T03-lst-validate-and-ids.md
+
+  - id: T04
+    title: lst compile — manifest and hashed bundles
+    phase: 0
+    cluster: cli-toolchain
+    blocked_by: [T02, T03, T26]
+    blocks: [T07]
+    spec: ["§7.1", "§7.2", "§7.3", "§4.3"]
+    prd: [N4]
+    status: written
+    doc: T04-lst-compile.md
+
+  - id: T05
+    title: Exemplar tree 1 — linear, single-track
+    phase: 0
+    cluster: content-gates
+    blocked_by: [T03]
+    blocks: [T10]
+    spec: ["§5.3", "§16.4"]
+    prd: [F2, F8, S1]
+    status: pending
+    doc: null
+
+  - id: T06
+    title: Layout Engine
+    phase: 0
+    cluster: pure-engines
+    blocked_by: [T02]
+    blocks: [T08]
+    spec: ["§8", "§14.3"]
+    prd: [F13, F14, F15, F16, N11]
+    status: written
+    doc: T06-layout-engine.md
+
+  - id: T07
+    title: Content Loader and minimal tree route
+    phase: 0
+    cluster: runtime-io
+    blocked_by: [T04, T26]
+    blocks: [T08]
+    spec: ["§7.4", "§7.5", "§14.2", "§13.1"]
+    prd: [N4, N9]
+    status: written
+    doc: T07-content-loader.md
+    note: Service-worker and PWA hardening are Phase 2, not this task.
+
+  - id: T08
+    title: TreeView renderer
+    phase: 0
+    cluster: views
+    blocked_by: [T06, T07]
+    blocks: [T10, T19, T20]
+    spec: ["§9"]
+    prd: [F10, F31, S1]
+    status: pending
+    doc: null
+
+  - id: T09
+    title: User State Store — IndexedDB write path
+    phase: 0
+    cluster: runtime-io
+    blocked_by: [T02, T26]
+    blocks: [T10, T16, T17]
+    spec: ["§12.1", "§12.2", "§12.3", "§12.4", "§14.5"]
+    prd: [D4, N2]
+    status: written
+    doc: T09-user-state-store.md
+
+  - id: T10
+    title: PHASE 0 GATE — schema review and breaking bump
+    phase: 0
+    cluster: judgment
+    blocked_by: [T05, T08, T09]
+    blocks: [T11, T12, T21]
+    spec: ["§5.10", "§16.4", "§19.2"]
+    prd: [R-14, N8]
+    status: written
+    doc: T10-phase-0-gate-schema-bump.md
+    note: >
+      A real stop, not a checkpoint. One tree authored, validated, compiled, laid out,
+      rendered and completable. R-14 expects at least one breaking schema bump here,
+      while the corpus is one tree and migration is trivial.
+
+  - id: T11
+    title: Scoring Engine
+    phase: 1
+    cluster: pure-engines
+    blocked_by: [T10, T26]
+    blocks: [T13, T14, T15, T17, T19]
+    spec: ["§11", "§14.4"]
+    prd: [F9, F11, F33, F36, N12, D-18, D-21]
+    status: written
+    doc: T11-scoring-engine.md
+    note: Monotonicity (N12) is a property test over generated inputs, not examples.
+
+  - id: T12
+    title: Map geometry — map.yaml, axial maths, region union
+    phase: 1
+    cluster: content-gates
+    blocked_by: [T10]
+    blocks: [T13]
+    spec: ["§10.3", "§10.4"]
+    prd: [F21, D-08, R-13]
+    status: pending
+    doc: null
+
+  - id: T13
+    title: Map Renderer
+    phase: 1
+    cluster: views
+    blocked_by: [T11, T12]
+    blocks: [T20]
+    spec: ["§10.5", "§10.6", "§10.7"]
+    prd: [F21, F33, F34, F35, D-20]
+    status: pending
+    doc: null
+
+  - id: T14
+    title: Full routes and cold-start branches
+    phase: 1
+    cluster: views
+    blocked_by: [T11]
+    blocks: [T16, T20, T25]
+    spec: ["§13.1", "§13.2", "§13.3", "§13.4", "§16.3"]
+    prd: [F23]
+    status: pending
+    doc: null
+
+  - id: T15
+    title: Placement and level estimator
+    phase: 1
+    cluster: judgment
+    blocked_by: [T00, T11]
+    blocks: []
+    spec: ["§11.8", "§19.4"]
+    prd: [F29, F30, D20, S3]
+    status: written
+    doc: T15-placement-and-estimator.md
+    note: >
+      Doc written rule-agnostic; acceptance criteria naming "the chosen rule" must be
+      replaced with the concrete rule once T00 resolves PRD D20.
+
+  - id: T16
+    title: Export and import
+    phase: 1
+    cluster: runtime-io
+    blocked_by: [T09, T14, T26]
+    blocks: [T18]
+    spec: ["§12.6", "§14.6"]
+    prd: [F38, N7]
+    status: written
+    doc: T16-export-import.md
+    note: The only contract whose consumer the project can never update.
+
+  - id: T17
+    title: Lineage migration at load and orphan records
+    phase: 1
+    cluster: runtime-io
+    blocked_by: [T09, T11, T26]
+    blocks: []
+    spec: ["§12.5", "§5.4"]
+    prd: [R-03, R-16]
+    status: written
+    doc: T17-lineage-migration.md
+    note: >
+      Not named in §16.4's phase diagram but required for v1 — uids freeze at first
+      merge, so user state can diverge from content from that moment on.
+
+  - id: T18
+    title: Durability, quota, and export prompting
+    phase: 1
+    cluster: runtime-io
+    blocked_by: [T16]
+    blocks: []
+    spec: ["§12.7", "§17.4"]
+    prd: [F39, R-18]
+    status: written
+    doc: T18-durability-and-quota.md
+    note: >
+      Not in §16.4's diagram either; §12.7 specifies it as mandatory rather than
+      optional, because no browser storage mechanism is durable.
+
+  - id: T19
+    title: Dismissed state end to end
+    phase: 1
+    cluster: views
+    blocked_by: [T08, T11]
+    blocks: []
+    spec: ["§11.10", "§9.3"]
+    prd: [F46, D-22]
+    status: pending
+    doc: null
+
+  - id: T20
+    title: Accessibility pass and axe gate
+    phase: 1
+    cluster: views
+    blocked_by: [T08, T13, T14]
+    blocks: []
+    spec: ["§15"]
+    prd: [N5, D-10, R-07]
+    status: pending
+    doc: null
+
+  - id: T21
+    title: Exemplar trees 2 and 3 — branching and modular
+    phase: 1
+    cluster: content-gates
+    blocked_by: [T10]
+    blocks: [T24]
+    spec: ["§16.4", "§5.3"]
+    prd: [S1, F10, R-12]
+    status: pending
+    doc: null
+    note: Runs parallel to the Phase 1 engine work; C4 names authoring as the bottleneck.
+
+  - id: T22
+    title: lst lint, lst status, lst new
+    phase: 1
+    cluster: cli-toolchain
+    blocked_by: [T03]
+    blocks: [T24, T25]
+    spec: ["§6.3", "§6.6"]
+    prd: [F42, F43, D14, D16, D-15, D-16, R-04]
+    status: written
+    doc: T22-lst-lint-status-new.md
+
+  - id: T23
+    title: lst baseline — breaking-change detection
+    phase: 1
+    cluster: cli-toolchain
+    blocked_by: [T03, T26]
+    blocks: [T25]
+    spec: ["§6.4", "§5.4"]
+    prd: [D-05]
+    status: written
+    doc: T23-lst-baseline.md
+
+  - id: T24
+    title: Contributor documentation
+    phase: 1
+    cluster: content-gates
+    blocked_by: [T21, T22]
+    blocks: []
+    spec: ["§6.7", "§4.2"]
+    prd: [F43, F44, F45, D15, S2]
+    status: pending
+    doc: null
+    note: CONTRIBUTING.md, STYLE-RUBRIC.md, AUTHORING-WITH-AI.md.
+
+  - id: T25
+    title: Full CI and GitHub Pages deploy
+    phase: 1
+    cluster: content-gates
+    blocked_by: [T14, T22, T23]
+    blocks: []
+    spec: ["§6.5", "§14.7", "§16.1", "§16.2", "§17.1", "§4.4"]
+    prd: [D-12, S1, S2]
+    status: pending
+    doc: null
+    note: >
+      Carries the §14.7 enforcement gates including the archetype grep gate, which is
+      the mechanical form of S1.
+
+  - id: T26
+    title: Architecture spec reconciliation
+    phase: 0
+    cluster: judgment
+    blocked_by: []
+    blocks: [T02, T04, T07, T09, T11, T16, T17, T23]
+    spec: ["§4.4", "§6.2", "§6.4", "§7.2", "§7.4", "§11.5", "§11.6", "§11.9",
+           "§12.2", "§12.5", "§12.6", "§12.7", "§14.2", "§14.4", "§14.5", "§16.1"]
+    prd: []
+    status: written
+    doc: T26-architecture-reconciliation.md
+    note: >
+      Added 2026-08-05, not from §16.4. Fifteen spec defects surfaced by writing task
+      docs against the architecture — self-contradictions and undefined types that
+      block implementation. F2 (grandfathering has no storage) is the expensive one:
+      resolving it after T09 ships means a migration rather than a field.
+
+# Critical path: T01 → T02 → T03 → T04 → T07 → T08 → T10 → T11 → T14 → T20
+# Off the critical path and startable early: T00, T12, T21, T22, T23

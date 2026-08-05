@@ -1,0 +1,66 @@
+{
+  "dashboard": {
+    "title": "Navigator Metrics",
+    "uid": "navigator-metrics",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Session Duration",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "increase(navigator_session_duration_seconds_total[1h])"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Tasks Completed",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "increase(navigator_tasks_completed_total[1h])"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Context Compressions",
+        "type": "graph",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "increase(navigator_compressions_total[1h])"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Tool Usage",
+        "type": "table",
+        "datasource": "Prometheus",
+        "targets": [
+          {
+            "expr": "topk(10, increase(navigator_tool_calls_total[1h]))"
+          }
+        ]
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 16,
+    "style": "dark",
+    "tags": ["navigator"],
+    "templating": {
+      "list": []
+    },
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "version": 0
+  }
+}
