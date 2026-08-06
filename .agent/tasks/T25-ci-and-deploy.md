@@ -13,11 +13,13 @@
 ## Goal
 
 `.github/workflows/ci.yml` and `.github/workflows/deploy.yml` exist, implementing §6.5's
-full job graph: the six gating jobs (`content: validate`, `content: baseline`,
-`content: status`, `app: typecheck`, `app: test`, `build`) running in parallel from a
-shared `setup`, `content: lint` running as a non-blocking annotation-only job, a path
-filter that skips the two `app:` jobs on a content-only PR, and `deploy.yml` triggered on
-push to `main` building and publishing to GitHub Pages. `build` additionally enforces
+full job graph: the **seven** gating jobs (`content: validate`, `content: baseline`,
+`content: status`, `content: compile`, `app: typecheck`, `app: test`, `app: build`), six
+of them in parallel from a shared `setup` with `content: compile` following
+`content: validate`, `content: lint` running as a non-blocking annotation-only job, a
+path filter that skips the **three** `app:` jobs on a content-only PR, and `deploy.yml`
+triggered on push to `main` building and publishing to GitHub Pages. `app: build`
+additionally enforces
 §14.7's five checks (import rules, the `archetype` grep gate, the layout/scoring purity
 check, type-generation drift, and the monotonicity property test) and §17.1's bundle
 budget, failing the PR on any regression. After this task, a PR that violates any gating
@@ -49,19 +51,27 @@ passes CI and human review and is merged" is measuring against.
 **In scope**
 
 - `.github/workflows/ci.yml`: `setup` (Node 20 LTS, `npm ci`, cache) fanning out to the
-  six gating jobs plus the advisory `content: lint` job, per §6.5's graph; a final `gate`
-  step (or GitHub's built-in required-checks mechanism) that is green only when all six
-  gating jobs are green, with `content: lint`'s annotations never counted against it.
-- The path filter: `app: typecheck` and `app: test` conditioned on changes under `app/`
-  (or `schema/`, since generated types depend on it); a content-only PR (changes only
-  under `content/`) skips both, and `build` — which needs `content: validate` plus both
-  app jobs per §6.5's graph — is wired so it still runs and still succeeds when the two
-  app jobs report **skipped** rather than requiring them to have run.
-- `build`'s own gating content, beyond running `lst compile` and `vite build`: the five
+  six parallel gating jobs plus the advisory `content: lint` job, with `content: compile`
+  hanging off `content: validate`, per §6.5's graph; a final `gate` step (or GitHub's
+  built-in required-checks mechanism) that is green only when all seven gating jobs are
+  green **or legitimately skipped**, with `content: lint`'s annotations never counted
+  against it.
+- The path filter, as a **job-level `if:`, never `on.pull_request.paths`** (§6.5 — the
+  workflow-level form leaves required checks unreported and blocks the PR in Pending
+  forever): `app: typecheck`, `app: test` and `app: build` conditioned on changes under
+  `app/` (or `schema/`, since generated types depend on it). A content-only PR skips all
+  three, and that is now correct: every job uses a plain `needs:` and no conditional
+  expression, because the content gate no longer rides on the app build.
+- `content: compile` — `needs: [content: validate]`, runs `lst compile` and F9's
+  output-schema validation of every emitted bundle and the manifest. This is the job §6.1
+  means by "`lst compile` gates". It never skips.
+- `app: build`'s own gating content, beyond running `lst compile && vite build`: the five
   §14.7 enforcement checks (see Interface contract) and the §17.1 bundle-budget check,
-  each failing the job on violation.
-- `.github/workflows/deploy.yml`: triggered on push to `main`; runs the same build (or
-  reuses `ci.yml`'s `build` job's artifact) and publishes to GitHub Pages via
+  each failing the job on violation. It recompiles rather than consuming an artifact from
+  `content: compile` — that is §4.3's pipeline and T01's root script unchanged, and it
+  keeps inter-job artifact passing (which appears nowhere else in this graph) out of it.
+- `.github/workflows/deploy.yml`: triggered on push to `main`; runs the build itself and
+  publishes to GitHub Pages via
   `actions/deploy-pages` (or equivalent), setting `kit.paths.base` from the environment
   the way T01's `svelte.config.js` expects, so the deployed site serves correctly from
   `/<repo-name>/`.
@@ -127,18 +137,20 @@ The job graph this task implements, copied verbatim from §6.5:
 flowchart TD
     PR([Pull request]) --> SETUP["setup<br/><small>Node 20 LTS, npm ci, cache</small>"]
 
-    SETUP --> V["content: validate<br/><small>schema + 15 semantic rules</small>"]
+    SETUP --> V["content: validate<br/><small>schema + 16 semantic rules<br/>+ 5 taxonomy rules</small>"]
     SETUP --> B["content: baseline<br/><small>uid immutability vs last tag</small>"]
     SETUP --> L["content: lint<br/><small>advisory annotations</small>"]
     SETUP --> ST["content: status<br/><small>REVIEW-STATUS.md is current</small>"]
     SETUP --> TC["app: typecheck<br/><small>tsc + svelte-check</small>"]
     SETUP --> T["app: test<br/><small>vitest — engines + components</small>"]
 
-    V --> BUILD["build<br/><small>lst compile + vite build</small>"]
+    V --> CMP["content: compile<br/><small>lst compile + §14.7 output schema check</small>"]
+    CMP --> BUILD["app: build<br/><small>lst compile + vite build<br/>+ §14.7 gates + §17.1 budget</small>"]
     TC --> BUILD
     T --> BUILD
 
-    BUILD --> GATE{"all required<br/>checks green?"}
+    CMP --> GATE{"all required<br/>checks green?"}
+    BUILD --> GATE
     B --> GATE
     ST --> GATE
     L -. "annotations only,<br/>never blocks" .-> GATE
@@ -149,9 +161,13 @@ flowchart TD
     MERGE --> DEPLOY["deploy.yml<br/><small>build → GitHub Pages</small>"]
 ```
 
-> The six gating jobs run in parallel from `setup`; on a content-only PR the app jobs are
-> skipped by path filter, so a Tree Author's feedback loop is the validate/baseline/lint
-> trio and completes in seconds. (§6.5)
+> **Seven gating jobs.** Six run in parallel from `setup`; `content: compile` follows
+> `content: validate`, and `app: build` follows the two app jobs and `content: compile`.
+> On a content-only PR the three **app** jobs — typecheck, test, and build — are skipped
+> by path filter, so a Tree Author's feedback loop is validate, baseline, status, compile
+> and the advisory lint, and it completes in seconds. `content: status` belongs in that
+> list and is easy to omit: it is gating (§6.1), and a PR adding a tree necessarily
+> changes `content/REVIEW-STATUS.md`. (§6.5)
 
 > **Note on the "content: baseline" job's label above:** §6.5's diagram text reads "uid
 > immutability vs last tag." T23 implements the comparison against `main`, per its own
@@ -216,22 +232,24 @@ verbatim from §16.2:
 
 ## Acceptance criteria
 
-- [ ] `.github/workflows/ci.yml` defines exactly six gating jobs (`content: validate`,
-      `content: baseline`, `content: status`, `app: typecheck`, `app: test`, `build`) and
-      one advisory job (`content: lint`) matching §6.5's graph.
+- [ ] `.github/workflows/ci.yml` defines exactly seven gating jobs (`content: validate`,
+      `content: baseline`, `content: status`, `content: compile`, `app: typecheck`,
+      `app: test`, `app: build`) and one advisory job (`content: lint`) matching §6.5's
+      graph.
 - [ ] A PR touching only `content/trees/*.yaml` triggers `content: validate`,
-      `content: baseline`, `content: status`, `content: lint`, and `build`, but **not**
-      `app: typecheck` or `app: test` — verified by inspecting the workflow run for such
-      a PR.
-- [ ] `build` still runs and can still succeed on a content-only PR where `app: typecheck`
-      and `app: test` report `skipped` — verified by the same content-only PR reaching a
-      green `build` job. **T26/F24 is open on exactly this**, and this criterion is the
-      reason it matters: §6.5's graph has `build` needing both app jobs, and a skipped
-      dependency skips the dependent under GitHub Actions' default `needs` semantics, so
-      the spec as drawn makes this criterion unsatisfiable. The two candidate mechanisms
-      are `if: always() && !failure()` on `build`, or a path filter that makes the app jobs
-      no-op-pass rather than skip. Do not pick one before F24 lands — it decides whether
-      `lst compile` gates content PRs at all.
+      `content: baseline`, `content: status`, `content: compile`, and `content: lint`,
+      but **not** `app: typecheck`, `app: test` or `app: build` — verified by inspecting
+      the workflow run for such a PR.
+- [ ] `content: compile` runs and gates on that same content-only PR, with every job
+      wired by a plain `needs:` and no `always()` or `result == 'skipped'` expression
+      anywhere in the file. *Resolved by T26/F24: `build` split into `content: compile`
+      (needs validate only) and `app: build` (needs the app jobs). The old criterion here
+      asked `build` to survive its dependencies being skipped, which is what forced the
+      conditional-expression workaround.*
+- [ ] A content-only PR where `app: build` reports `skipped` is **not** merely green by
+      default: `content: compile` must be a separately required check. A skipped required
+      check counts as **passing** under branch protection, which is why the compile gate
+      was moved off the job that skips (T26/F24).
 - [ ] The `content: baseline` job checks out with `fetch-depth: 0`, and a fixture run
       against a depth-1 checkout **fails loudly** rather than passing vacuously (T26/F6).
 - [ ] A PR that fails any one of the six gating jobs shows the overall check as failing
@@ -289,19 +307,33 @@ PR / push exercises the workflows end to end with the path filter behaving as sp
   `no-restricted-imports` rule confining cross-subsystem orchestration to `lib/actions` —
   `lib/content ↛ lib/state` and the reverse. **F10:** the build must **not** add a PWA
   plugin; the service worker is Phase 2 (§16.4, R-26). **F8:** the `contentVersion` bump
-  check rides on the existing `content: baseline` job rather than adding a seventh — the
-  six-gating-job count in §6.5 is unchanged.
+  check rides on the existing `content: baseline` job rather than adding a job of its own.
+  (Its note that "the six-gating-job count in §6.5 is unchanged" is stale — **F24** split
+  `build` and the count is now seven. F8's own point stands: the version check did not
+  cause it.)
 
-- **The `needs:` skip-propagation problem is the single trickiest piece of this task.**
-  GitHub Actions treats a job conditioned out by `if:` as `skipped`, and a downstream job
-  with a plain `needs: [TC, T]` will not run at all if either is skipped — it must be
-  written as something like `if: always() && (needs.TC.result == 'success' ||
-  needs.TC.result == 'skipped') && (needs.T.result == 'success' || needs.T.result ==
-  'skipped')`. Getting this wrong either silently skips `build` on every content PR (so
-  bundle-budget and enforcement checks never run against content changes, which is fine
-  since content changes cannot affect them) or blocks `build` from ever going green on a
-  content-only PR (which would defeat the entire point of the path filter). Test both
-  directions explicitly.
+- **The `needs:` skip-propagation problem is gone, and the note that used to be here was
+  actively wrong.** It said skipping `build` on a content PR "is fine since content changes
+  cannot affect" the bundle-budget and enforcement checks — forgetting that `lst compile`
+  was in that job. An implementer following it would have shipped exactly the bug
+  **T26/F24** exists to prevent. Struck.
+
+  After F24 there is no conditional expression to get right: `content: compile` needs only
+  `content: validate` and never skips; `app: build` needs the app jobs and skips with them,
+  which is correct. What must be tested instead is that a content-only PR shows
+  `content: compile` as a **run, required, green** check rather than a skipped one — a
+  skipped required check counts as passing, so "green" alone proves nothing.
+
+- **"Path filter" must be a job-level `if:`, not `on.pull_request.paths`.** The two Actions
+  features share the name and fail in opposite directions: the workflow-level form stops
+  the workflow entirely, its required checks never report, and every content PR sits
+  blocked in Pending forever. The job-level form reports `skipped`, which is what §6.5's
+  graph is drawn against. The workflow-level form is the one the documentation calls a path
+  filter and is the first thing to reach for.
+
+- **Tree removal is now a CI concern too.** §6.4 gains **check 8** — the baseline's set of
+  tree ids is a subset of the head's — per T26/F22. It belongs to T23's baseline job, not
+  to this task, but the required-checks configuration here must include it.
 - **Do not resolve F6 here.** It is tempting, wiring the `content: baseline` job, to "fix"
   the label to say what the diagram says, or to add a tagging step to make the diagram
   literally true. Either is redesigning §16's release process, which is T26's call to

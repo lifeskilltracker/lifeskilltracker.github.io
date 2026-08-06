@@ -6,6 +6,17 @@ F18 and F19 found while resolving F3 and F4, F20–F23 found while resolving F12
 F24–F25 found while resolving F17 and F7, and F26 found while resolving F23. Each gets a
 verdict of **amend**, **tolerate**, or **not a defect**, with a reason and a date.
 
+**Twenty-four are resolved. F15 and F18 remain open.** The 2026-08-06 session resolved
+F19, F22, F24, F25 and F26, and folded eight further defects into those resolutions rather
+than appending them as new findings — three into F24 and five into F22, at the owner's
+direction, on the ground that each was a cause or a consequence of the finding it landed
+in. Two more were surfaced and deliberately left unfiled: nothing gates manifest-level
+compiled output (§6.4 check 5 is scoped to trees, so a PR touching only `map.yaml` is
+compared by nothing, and §17.2's manifest budget has no named enforcer), and §12.4's
+"the only writer in the system" overclaimed against §14.5's several mutators — narrowed in
+passing to "the only writer of a `MILESTONE` record", but §3.2's single-writer story
+deserves a proper pass.
+
 This file is the audit trail. The resolutions themselves live in the spec.
 
 | # | Verdict | Date | Summary |
@@ -28,14 +39,14 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F16 | amend | 2026-08-05 | §11 splits at §11.5; §11.1–§11.4 ship in phase 0 |
 | F17 | amend | 2026-08-05 | `lst validate` owns the five geometry invariants as §6.2 layer 2b (M1–M5) |
 | F18 | — | — | pending — raised 2026-08-05 while resolving F3 |
-| F19 | — | — | pending — raised 2026-08-05 while resolving F4 |
+| F19 | amend | 2026-08-06 | `lastActivityAt` is a total, forward-only watermark; `startSkill` seeds it; three writers named |
 | F20 | amend | 2026-08-05 | `split` consumes its predecessor and moves the frozen entry; `merged`'s success branch stated to match |
 | F21 | amend | 2026-08-05 | `into`'s shape and cardinality fixed per `op`; rule 15 branches on `op` |
-| F22 | — | — | pending — raised 2026-08-05 while resolving F12 |
+| F22 | amend | 2026-08-06 | §6.4 check 8 forbids tree removal and rename; a `SKILL` row with no manifest entry is retained and unscored; `retired` deferred to R-27 |
 | F23 | amend | 2026-08-05 | `store.progressFor(treeId)` — synchronous and total; every writer refreshes the mirror; `by-tree` is the write path |
-| F24 | — | — | pending — raised 2026-08-05 while resolving F17 |
-| F25 | — | — | pending — raised 2026-08-05 while resolving F7 |
-| F26 | — | — | pending — raised 2026-08-05 while resolving F23 |
+| F24 | amend | 2026-08-06 | `build` splits into `content: compile` and `app: build`; seven gating jobs; skipped ≠ blocked |
+| F25 | amend | 2026-08-06 | §6.2 rule 16 is the missing-uid gate; `lst ids` stops gating; it cannot be a layer-1 `required` |
+| F26 | amend | 2026-08-06 | `store.reconcileAttainedLevel(treeId, level)`, called by the tree route after `applyLineage` |
 
 ---
 
@@ -1548,6 +1559,435 @@ consumers; its open note on this finding is resolved. **T11a** may assume a tota
 `TreeProgress` and needs no null branch. **T14** branches on `hydrated` in the cold-start and
 read-only paths. **T17** refreshes the mirror on commit for both passes — the same requirement
 that makes §13.3's first-frame guarantee hold.
+
+---
+
+## F25 — nothing owned §5.4's missing-uid gate
+
+### The finding as raised
+
+§5.4 says "CI fails a merge if any `uid` is missing, printing the values to paste", and
+§6.1 marked `lst ids` gating with "(missing uid fails)". But §6.5's job graph has no `ids`
+job, and `lst ids` **fills uids in place** — a subcommand that rewrites its input cannot be
+the gate that rejects it. `T03-lst-validate-and-ids.md` had already inferred the answer
+(check in `validate`, write in `ids`), but as an inference from two sentences rather than a
+reading of either. Same class as F17: a stated CI guarantee with no named owner.
+
+### Resolution
+
+**Amend.** §6.2 gains **rule 16** — every milestone and mastery entry carries a `uid` —
+and `lst ids`' "Gates?" column becomes **no**. The gate is `lst validate`, which already
+runs in the content trio on every PR including content-only ones, already reports every
+error in one pass with file and line (§6.1), and already owns the fourteen other rules a
+JSON Schema cannot express. `lst ids` is the fix, precisely as §6.4's rule 4 is a gate CI
+can auto-fix by pushing a commit.
+
+§6.5's validate node moves from "15 semantic rules" to 16, and §5.4's flow sentence now
+names rule 16 rather than gesturing at "CI".
+
+### Why it cannot be a layer-1 `required`
+
+This is the half the finding did not ask about, and it is the one an implementer gets
+wrong. Making `uid` `required` in `schema/tree.schema.json` is the obvious cheaper fix and
+it **destroys §5.4's authoring flow**: the author writes a complete tree with *no `uid`
+lines at all* — that is the stated design, and it is what lets a draft be fully writable,
+prerequisites and requirement groups included, before any tool runs — and then `lst ids`
+fills the blanks. A schema that required the field would reject that draft at layer 1
+before `lst ids` could parse it. Layer 1 still constrains the *shape* of a uid that is
+present; layer 2 is what makes presence itself checkable without making absence
+unparseable.
+
+Rule 2 does not already cover it. Repository-wide uid uniqueness ranges over the uids that
+exist and is silent about the ones that do not, so a tree with every uid missing passes
+rule 2 trivially.
+
+### Cost
+
+One rule, one table cell, one diagram label. `lst ids` loses its gating status, which
+removes a job the job graph never had.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §5.4 (flow sentence), §6.1 (`lst ids` row), §6.2 (rule 16 and its
+two paragraphs), §6.5 (node label), §6.7 (step 4 now leads with `lst ids`).
+
+### Downstream
+
+**T03** owns rule 16 and may state the check/fix split as spec rather than inference; its
+"15 semantic rules" references become 16, including the fixture that must violate every
+rule. **T25** no longer needs an `ids` job. **T02** and **T04**'s "15 semantic rules"
+cross-references, and **T22**'s, are stale by one. **T22** should note that `lst lint`
+does not duplicate rule 16 either.
+
+---
+
+## F19 — `SKILL.lastActivityAt` was typed three ways and had an unwritten case
+
+### The finding as raised
+
+§12.2 types `lastActivityAt` non-optional, but only `setMilestoneState` was ever named as
+writing it — and un-checking a milestone counted as activity with no statement either way.
+
+### Two things found during resolution
+
+**The field was typed three different ways.** §12.2 required it; §14.4's `DomainSkillRow`
+made it optional with the comment "absent if never written"; §14.5's `ExportFile` made it
+optional silently. Three declarations of one field, disagreeing — the same class as F15's
+`MILESTONE.contentVersion` entry.
+
+**`startSkill` was the unwritten case.** §12.4's three steps fire only on
+`setMilestoneState`, so a skill started and not yet touched has a `SKILL` row with no
+`lastActivityAt` at all, violating §12.2's own type. That is what `DomainSkillRow`'s
+optional was quietly accommodating.
+
+### Resolution
+
+**Amend.** `startSkill` writes `lastActivityAt = startedAt`, making the field **total**,
+and the `?` comes off both other declarations. Starting a skill is activity in the domain:
+a skill begun yesterday rendering as *"No activity yet"* (§10.5) would be false, and
+§11.7's null branch narrows accordingly — a domain reports `lastActivityAt: null` when it
+has **no started skills**, and there is no second null case. `DomainScore.lastActivityAt`
+stays `string | null` for exactly that one case.
+
+§12.2 now carries the writer table: `startSkill` (`startedAt`), `setMilestoneState` (now,
+on every mutation), `import` (the later of the two sides, never now).
+
+On the finding's own question — **yes, un-checking counts**, and the spec already depended
+on it. §11.9's invariant 1 and §14.4's monotonicity contract both argue from "§12.4 writes
+`lastActivityAt` on **every** mutation". A correction is still the user engaging with the
+skill, and the alternative would have made two live clauses false.
+
+### The two riders that matter
+
+**No migration writes it.** §12.5's fold, `applyMoves`, and §12.3's reconciliation all
+mutate records without touching the watermark, because a content release is not user
+activity. A fold that bumped it would refresh every user's entire map to the day of the
+release — a fabricated date, which is the one thing §11.7 says the recency channel must
+never render. Nothing in the spec said this, and every one of those three passes writes
+`SKILL` rows.
+
+**It is a watermark, not a derivation.** The natural implementation is a `max` over the
+tree's `MILESTONE.at` values, and it is wrong in a way no unit test over completions would
+catch: un-completing the most recent milestone *lowers* that maximum, which decreases
+`DomainScore.lastActivityAt` and breaks §11.9's invariant 1 — the invariant the PRD states
+most emphatically. Stored and forward-only, it cannot decrease. This is why the field is
+denormalized onto `SKILL` at all, and the reason was written down nowhere.
+
+### Cost
+
+One write in `startSkill`, two `?` removed. §12.6's "present beats absent" survives as a
+tolerance for files written before the field became required, labelled as such.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §11.7 (null branch), §12.2 (writer table, watermark paragraph),
+§12.4 (the "only writer" claim scoped to `MILESTONE` records — see F27), §12.6 (merge-rule
+note), §14.4 (`DomainSkillRow`), §14.5 (`ExportFile`).
+
+### Downstream
+
+**T09** writes it in `startSkill` and must not write it in `applyLineage`/`applyMoves`; the
+forward-only property is a property test, not an example test. **T11b** may treat
+`DomainSkillRow.lastActivityAt` as total and needs no absent branch. **T16** merges it as
+latest-wins and never as now. **T02** makes it required in the export schema. **T17** must
+leave it alone in both passes.
+
+---
+
+## F26 — §12.3's write-back had no owner reachable on an ordinary tree open
+
+### The finding as raised
+
+§12.3 requires the Scoring Engine to recompute attained level on tree open and write it
+back if it differs. §14.5 had no method for that write. `applyLineage` is the only
+candidate and it is version-gated (§12.5), so it does nothing on an open where the content
+version has not advanced — which is every ordinary open. `T09-user-state-store.md` already
+carried an acceptance criterion for the reconciliation, making it untestable as drawn.
+Raised while resolving F23.
+
+### Resolution
+
+**Amend.** §14.5 gains
+`reconcileAttainedLevel(treeId: string, attainedLevel: number): Promise<boolean>`, called
+by the **tree route** (§13.4) once the bundle has loaded and the engine has scored it. It
+writes `SKILL.attainedLevel` only if the value differs, resolves `true` when it wrote,
+touches no other field, and refreshes §13.2's mirror on commit like every other writer
+(Group G's rider).
+
+It takes a number, not a `CompiledTree`, and that is the whole design. §14.1 marks
+`STATE ⇢ LOADER` forbidden and draws no edge from `lib/state` to `lib/scoring`, so nothing
+inside the store can either fetch a bundle or recompute a level from it. The route is the
+only place holding both halves. `lib/actions` was declined: it imports the two I/O owners
+and not the engine, so routing this through it would mean a new §14.1 edge to buy nothing —
+the route already has the engine's output in hand.
+
+### Ordering, which the finding did not raise
+
+**`applyLineage` first, then the reconcile.** When the content version advanced, the
+migration ran and its `MigrationReport.attainedLevel.after` has already been rendered as
+§12.5's dismissible summary. A reconcile that then computed and stored a different number
+would contradict a statement the user is currently reading. Running second it finds the
+migration's value and writes nothing, so the two never disagree.
+
+This also completes F13's deferred half. `applyMoves` deliberately does not recompute the
+*source* tree's level — it has no bundle — and F13 left that to "§12.3's existing staleness
+tolerance". That tolerance now has a mechanism: the source tree reconciles when the user
+next opens it.
+
+### The case it must not handle
+
+A tree with no `SKILL` row is unstarted: the call is a no-op resolving `false`, and it
+**never creates a row**. Creating one would put an unstarted skill on the map carrying a
+rank, and §11.7 counts unstarted trees as breadth 0 precisely to keep them off it.
+
+### Cost
+
+One method, one call site. No new module, no §14.1 edge.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §12.3 (owner and ordering), §14.5 (signature and contract).
+
+### Downstream
+
+**T09** implements it and its existing reconciliation acceptance criterion becomes
+testable. **T14** calls it from the tree route, after `applyLineage`. **T07**'s tree route
+is where the load-score-reconcile sequence lands. **T17** must not reconcile inside either
+migration pass.
+
+---
+
+## F24 — §6.5's `build` job was unreachable on a content-only PR
+
+### The finding as raised
+
+§6.5's job graph has `V --> BUILD`, `TC --> BUILD`, `T --> BUILD`, and its closing sentence
+says "on a content-only PR the app jobs are skipped by path filter". A skipped dependency
+skips the dependent, so `build` — the only job running `lst compile`, marked gating in
+§6.1 — did not execute on the PRs that change content. The finding concluded that
+everything compile enforces is ungated on exactly its own input.
+
+### Two corrections found during resolution
+
+**The severity claim was wrong, and in a way that changes the shape of the fix.** The
+`content: baseline` job is not path-filtered, and §6.4 check 5 compiles *both sides* of
+the diff. So `lst compile` did run on every content-only PR, and three of the finding's
+four "ungated" items — §7.3's transformations, F9's output-schema validation (which lives
+inside `lst compile`, not in a build step), and the `moved` map — were in fact covered.
+The real defect is narrower and different in kind: **the compile gate was unnamed,
+incidental, and contradicted by §6.1's "(build step)" label.** It was a side effect of a
+check F8 added the day before, and narrowing check 5 to only the trees whose YAML changed
+— a legitimate optimisation nothing forbids — would have silently removed it.
+
+**A skipped job reports success to branch protection.** GitHub counts a `skipped` required
+check as passing. So `build` was not merely unenforced; it was *green* while unenforced,
+and no reviewer could have seen it. This is the fact that makes the finding worth a
+topology change rather than a footnote. (The opposite failure — a required check that never
+reports, leaving the PR blocked in Pending forever — belongs to workflow-level
+`on.pull_request.paths` filters, and is recorded in §6.5 because it is the trap an
+implementer falls into while fixing this one.)
+
+### Resolution
+
+**Amend — split the job.** `content: compile` `needs: [validate]` and runs `lst compile`
+plus F9's output-schema check. `app: build` `needs: [typecheck, test, compile]` and runs
+`lst compile && vite build` plus §14.7's other six gates and §17.1's budget. Both reach
+the merge gate independently, following the pattern `content: baseline` and
+`content: status` already set.
+
+`build` as drawn conflated two steps with two different inputs — `content/` for compile,
+`app/` for vite. The `needs:` bug was a symptom of that conflation, and both options the
+finding named (`if: always() && !failure()`, or making the app jobs no-op-pass) are YAML
+patches over the modelling error that pay for the fix in the currency §6.5 and T25 both
+say is precious: a content PR would start paying for `vite build`, and "completes in
+seconds" would stop being true. Split, every job works with a plain `needs:` and no
+conditional expression at all, and `app: build` skipping on a content PR becomes correct
+rather than dangerous.
+
+The no-op-pass option was declined on a second ground: a green `app: test` on a PR where
+no test ran is a check that lies, and §6's governing principle is that CI's honesty is
+what buys human review its budget.
+
+### Why `app: build` recompiles instead of taking an artifact
+
+It runs `lst compile && vite build`, which is §4.3's pipeline and T01's root script
+unchanged. The alternative — `upload-artifact` from `content: compile` — compiles once
+instead of twice and would make T25's "deploy reuses the build artifact" idea coherent,
+but it introduces inter-job artifact passing, a concept this job graph has no other
+instance of and the one thing in it that can go stale or transfer partially.
+
+The price is honest and worth recording: one redundant compile on a full PR, and
+`lst compile`'s byte-determinism stops being hygiene and becomes load-bearing — the
+content-hashed filenames in the deployed manifest must name the bundles that actually
+ship (§7.5). T04 already carries that as an acceptance criterion; it is now a CI
+correctness property, not a nicety.
+
+### The cost, stated plainly
+
+**Seven gating jobs, not six.** F8 went out of its way one session earlier to keep the
+count at six by riding the `contentVersion` check on `content: baseline`; that note in T25
+is now a stale boast and is struck. Every job-count reference in §6.5 and T25 moves. And a
+content PR no longer exercises a `vite build` at all, so the first one over new content
+happens post-merge in `deploy.yml` — acceptable because compiled JSON is a static asset
+rather than a module in the chunk graph (§4.3), but it is a real reduction in coverage
+that the two declined options did not have.
+
+### Three defects folded in rather than appended
+
+Each lands on text this resolution rewrites anyway.
+
+- **T25 stated the opposite of F24 as settled fact** — that skipping `build` on a content
+PR is "fine since content changes cannot affect them", forgetting `lst compile` is in that
+job. An implementer following that hazard note would ship the bug, in the same document
+whose acceptance criterion says F24 blocks it.
+- **"Path filter" was never disambiguated**, and the two Actions features by that name fail
+in opposite directions. §6.5 now says job-level `if:`, and says why.
+- **§6.5's "validate/baseline/lint trio" undercounted by two.** `content: status` is gating
+and a PR adding a tree necessarily changes `REVIEW-STATUS.md`, so it is squarely in a Tree
+Author's loop. The sentence was wrong before this finding touched it.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §6.1 (compile's gate label), §6.4 (check 5 is a comparison, not the
+gate), §6.5 (the graph, the classDef, and five paragraphs of replacement prose), §6.7
+(step 4 gains `lst compile`), §14.7 (the output-validation bullet names its job).
+
+### Downstream
+
+**T25** owns the split and the largest share of the churn: the six-job list, the verbatim
+graph copy, the verbatim quote of the old closing sentence, the F24 acceptance criterion,
+F8's six-job note, and the hazard note that must be struck. Its "deploy reuses `ci.yml`'s
+build artifact" option is void — that job may have skipped. **T04**'s "the build step §6.1
+marks as a gate" names a job that no longer exists, and its byte-determinism criterion is
+promoted from hygiene to CI correctness. **T23** notes the check 5 clarification. **T12**'s
+open F24 note resolves with no behavioural change.
+
+---
+
+## F22 — a started skill whose tree left the manifest lost everything, silently
+
+### The finding as raised
+
+A user has a `SKILL` row and `MILESTONE` records for tree X; a content release removes X
+from `content/trees/`. The skill then contributes to no domain score (§11.6's sum is a
+manifest × `SKILL` join and there is no entry to supply `domain`), never migrates (§12.5
+fires on tree open and there is no bundle to open), and is not an orphan (the final sweep
+is `treeId`-scoped and runs inside that same pass). It is invisible everywhere but a raw
+export.
+
+### What resolution found, and it cut against the hypothesis
+
+**Tree deletion was not forbidden, and §6.4 would not have caught it.** The obvious hope
+was that check 1 already prevented this — every baseline uid must still exist or appear in
+`lineage` with a disposition. It does not, and cannot: **the ledger is a field of the tree
+file being deleted.** A ledger cannot dispose of its own file. Checks 1–7 are each a diff
+of one tree against its own baseline version, so a tree absent from the head is never
+visited; they do not fail, they pass on nothing — the same shape §6.4 already records for
+`fetch-depth: 1`.
+
+Nor is there a workaround an author could have used instead. "Move every milestone out and
+leave a stub carrying the ledger" is **inexpressible**: §5.3 requires exactly ten levels
+and §6.2 bounds each at 4–8 milestones, so a tree that has disposed of all its content has
+no legal shape. The only available operation was the one that destroys the dispositions.
+
+Two accidental protections existed and neither was the guarantee: §6.2 rule 15 blocks
+deleting a tree that has *received* a move, and only that; and the 4–8 bound above.
+
+**One correction to the finding's framing.** T26 recorded this as brushing invariant 1. It
+does not, quite — invariant 1 quantifies over completing a milestone and invariant 7 is
+about `attained`, so a content release zeroing a domain contribution slips between both
+assertions. That is an argument for fixing it, not for tolerating it, but the record should
+be accurate about which invariant is at stake: none, and that is itself the problem.
+
+### Resolution
+
+**Amend, in two halves that fix different failures.**
+
+**§6.4 gains check 8** — every tree `id` in the baseline is present in the head. Trees are
+never removed and never renamed. One set difference over two checkouts the job already
+has. The scope of checks 1–7 is stated at the same time: they range over trees present on
+both sides, check 8 ranges over the set. That statement is load-bearing rather than
+tidying, because the alternative reading — check 1 quantifying over every baseline uid
+repository-wide — would let a `moved` uid satisfy check 1 by existing in its destination,
+and the `moved` disposition F13 is built around would never be needed at all.
+
+**A runtime retention rule**, because no CI rule can make it unnecessary. A `SKILL` row
+with no manifest entry is **retained, never deleted**, excluded from §11.6's sum and
+§11.7's breadth count, and listed on `/data`. §12.6's import can always manufacture this
+state from an export written against a fork or a newer library, and §16.3 defines
+behaviour for every other join failure, so it needs a row here too — plus a second row for
+`/s/<treeId>` missing from the manifest, which is a lookup miss *before* any fetch and so
+a different branch from §16.3's existing bundle-failure row.
+
+### Why not a `retired` flag, and why not an `F13`-style map
+
+**A `retired: true` flag on the tree file, copied to the manifest with the bundle still
+shipped, was priced and declined for v1.** It is the better long-run answer — domain,
+score, migration and verifiable frozen sets all survive — but it needs a conditional
+carve-out from §5.3's ten-levels × 4–8 bound and it makes the manifest grow monotonically
+forever, on the one artifact fetched at every cold load. v1 has three exemplar trees and no
+retirement need. Recorded as **R-27** with its shape written down, along with the case that
+will eventually force it: F45's copyleft answer can turn out to be wrong after merge, and
+rule 13 is explicit that CI cannot adjudicate it. The escape hatch until then is a
+documented maintainer procedure whose consequence is exactly the state the retention rule
+handles.
+
+**A library-wide `retiredTrees` map, by analogy with F13's `moved`, was rejected outright.**
+The analogy fails at the joint: `moved` exists because a disposition *exists but is
+unreachable*, whereas here no disposition exists at all, so the map could only orphan every
+record wholesale with `reason: 'unknown'` — total score loss, mass orphaning, and every
+frozen set permanently unverifiable, which is §12.5's stated worst outcome. It would also
+cost a new store writer, a line in §13.3, and an entry in Group G's "every writer refreshes
+the mirror" list, to do something worse than doing nothing. And it is derived from live tree
+files exactly as `moved` is, so it inherits the durability hole it was meant to patch.
+
+The chosen resolution has **no new store method, no new cold-start pass, and no schema
+change.** Those three zeros are most of the argument.
+
+### Five defects folded in rather than appended
+
+At the owner's direction, and because each is either a cause or a consequence of this one.
+
+- **Tree `id` had no immutability guarantee** — arguably F22's root cause. §5.3 said only
+"unique across the repository, appears in URLs", yet it is the PK of `SKILL`, the FK on
+`MILESTONE` and `ORPHAN`, the value type of the `moved` map, the `treeId` on every export
+row, and the `/s/<treeId>` URL space. D-05 gave milestones a uid/slug split so the display
+name could move; a tree id has no such split, so it cannot. A rename is this finding with a
+friendlier trigger and passed every check. Now stated in §5.3 with protobuf's `reserved`
+rule and enforced by check 8.
+- **§6.4 never diffed the tree set**, and the scope was unstated — covered above.
+- **The manifest's `moved` map had no durability guarantee.** It is rebuilt from live tree
+files on every build (§7.3), so deleting a source file silently drops its entries, and any
+user who had not cold-started between the move release and the deletion release never
+re-homes at all. F13's mechanism was only as durable as the file it derives from and
+nothing asserted the map was monotone. Check 8 is what makes it so; §7.3 now says it
+depends on that.
+- **Import can create a `SKILL` row for an unknown `treeId`**, and §16.3 had no row for it.
+Unavoidable by CI, which is why the retention rule is a runtime invariant.
+`ImportReport` gains `skillsWithNoManifestEntry` on §14.5's stated principle — a
+consequence the user could not otherwise observe.
+- **A tree cannot be legally emptied** — recorded in §5.4 as the reason the stub workaround
+does not exist, and in R-27 as a cost any future retirement mechanism must pay.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §5.3 (`id` immutability), §5.4 (tree granularity and the empty-tree
+bound), §5.9 (why domains are removable and trees are not), §6.4 (check 8, the scope
+statement, the two durability consequences, `fetch-depth` now 1–8), §7.3 (the `moved` map's
+dependency on check 8), §11.6 (the sum skips unjoined rows), §13.1 (`/s/<treeId>` miss),
+§14.4 (dropped from the join, never from storage), §14.5 (`ImportReport`), §16.3 (two rows),
+§16.5 (`/data`), §19.3 (**R-27**).
+
+### Downstream
+
+**T23** owns check 8 and the scope statement — the load-bearing edit, and the only one
+outside the tasks F22 was filed against. **T02** states tree-id immutability in the schema
+notes; no schema change. **T14** drops unjoined rows without deleting them, branches
+`/s/<treeId>` on a manifest miss, and owns both §16.3 rows. **T16** reports
+`skillsWithNoManifestEntry`, lists the skills on `/data`, and needs a round-trip fixture for
+an export naming a tree this library lacks. **T09** gains the retention rule as a store
+invariant, no new method. **T04** notes the `moved` map's dependency on check 8.
+**T17 is explicitly unchanged**, which is worth recording: the migration passes do not move.
 
 ---
 

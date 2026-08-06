@@ -311,3 +311,21 @@ ceremonial — keep it, and add one per bump.
   `additionalProperties: false` load-bearing. The two schemas have different jobs.)
 - The export file is a `/data`-page download. There is no cloud sync, no share target, and
   no upload endpoint — N2, and §16.5's "no telemetry of any kind".
+
+
+## T26 amendments — 2026-08-06
+
+**F19.** `ExportFile.skills[].lastActivityAt` is **required**, not optional — §12.2's
+watermark is total now that `startSkill` seeds it. §12.6's merge rule stays "latest wins;
+present beats absent", but *never now*: an import is not activity in the skill. "Present
+beats absent" survives only as a tolerance for files written before the field became
+required, which §5.10's migration path fills in.
+
+**F22.** `ImportReport` gains `skillsWithNoManifestEntry: number`. Once §6.4's check 8 is in
+place, an import is the **only** way a `SKILL` row can exist for a tree this library does
+not have — an export from a fork or a newer library — so the import is where it must be
+reported, on §14.5's stated principle that a consequence the user could not otherwise
+observe gets a counter. Such rows are **retained, never deleted**; they are excluded from
+scoring (T14's join) and listed on `/data` beside the orphan list (§16.5). Needs a
+round-trip fixture: an export naming a tree absent from the manifest imports cleanly,
+reports the count, and loses nothing.

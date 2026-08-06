@@ -254,3 +254,41 @@ producing a verifiable patch without being required to actually land it.
 - The check-4 auto-fix commit requires CI push credentials to actually land — that
   workflow wiring belongs to T25. This task's job ends at producing a correct, applicable
   patch.
+
+
+## T26 amendments — 2026-08-06
+
+**F24.** §6.4 check 5 compiles both sides to compare them. That compile is a **comparison,
+not the compile gate** — §6.5's new `content: compile` job is the gate. The redundancy is
+deliberate and is recorded in §6.4 because check 5 was briefly the only thing compiling on
+a content-only PR: narrowing it to only the trees whose YAML changed is a legitimate
+optimisation that must not be able to remove compile coverage as a side effect. If you
+narrow it, say so in the PR.
+
+**F22 — new check 8, and it is this task's.** Every tree `id` present in the baseline is
+present in the head. Trees are never removed and never renamed (§5.3, §5.4). One set
+difference over the two checkouts the job already has.
+
+Three things make this its own check rather than an extension of check 1:
+
+- **The ledger cannot dispose of its own file.** Check 1's escape hatch is "appears in
+  `lineage`", and `lineage` is a field of the tree file. Delete the file and there is
+  nothing left to read.
+- **Checks 1–7 never see a deleted tree.** They are each a diff of one tree against its own
+  baseline version, so a tree absent from the head is simply never visited — they do not
+  fail, they pass on nothing. Same shape as the `fetch-depth: 1` trap the task already
+  guards against, and worth a fixture for the same reason.
+- **A rename is the same event with a friendlier trigger** and slips through identically.
+
+State checks 1–7's scope explicitly in the implementation notes: they range over trees
+present on both sides; check 8 ranges over the set. The alternative reading — check 1
+quantifying over every baseline uid repository-wide — is not merely a different scope but
+a wrong one, because a `moved` uid would then satisfy check 1 by existing in its
+destination and the `moved` disposition would never be needed at all.
+
+Check 8 is also what makes §6.2 rule 15's "a tree that exists" and the manifest's `moved`
+map durable rather than incidental — the map is rebuilt from live tree files every build,
+so a deleted source file would silently drop its entries.
+
+Acceptance: a fixture PR deleting a merged tree file fails check 8; a fixture PR renaming
+one fails it too; the failure message names the missing id.

@@ -277,3 +277,30 @@ split, the cold-start and error-branch test suite green, and a clean typecheck.
   service-worker precache) belong to T07 (§7.4); this task treats `ContentLoader` as a
   black box and is responsible only for reacting correctly to its resolved and rejected
   states.
+
+
+## T26 amendments — 2026-08-06
+
+**F26 — the tree route owns §12.3's write-back.** Once the bundle has loaded and the engine
+has scored it, call `store.reconcileAttainedLevel(treeId, level)` (§14.5). This route is
+the only place that can: the store may not fetch a bundle and may not import the engine.
+
+**Ordering is fixed: `applyLineage` first, then the reconcile.** When the content version
+advanced, the migration ran and its `MigrationReport.attainedLevel.after` is already on
+screen as §12.5's summary — a reconcile that then wrote a different number would contradict
+a statement the user is reading. Running second it finds the migration's value and writes
+nothing. This also clears the source-tree staleness F13 deliberately left: `applyMoves` does
+not recompute the source's level, and this reconciliation is what eventually does.
+
+**F22 — three things.**
+
+- The manifest × `SKILL` join **drops a row with no manifest entry and never deletes it**.
+  No `domain` means no `DomainSkillRow`, so it contributes to no score and no breadth count,
+  but it stays in IndexedDB and `/data` lists it (T16).
+- `/s/<treeId>` naming a tree absent from the manifest is a **tree-unavailable state, never
+  a 404**. This is a lookup miss *before* any fetch, so it is a different branch from
+  §16.3's existing bundle-fetch-failure row. If a `SKILL` row exists for that id, say so and
+  link to `/data`: the user's progress is intact and they must be able to see that.
+- §6.4's new check 8 makes this unreachable from a content release, but §12.6's import can
+  still produce it from an export written against a fork or a newer library. Both §16.3 rows
+  are yours; needs a test each.

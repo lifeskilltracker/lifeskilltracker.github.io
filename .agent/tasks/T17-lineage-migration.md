@@ -415,3 +415,20 @@ the general case.
 - Nothing in this task may write outside §12.4's transaction discipline. One pass, one
   transaction, reactive state updating from its completion — the same rule, for the same
   reason, as an ordinary milestone toggle.
+
+
+## T26 amendments — 2026-08-06
+
+**F19 — neither pass writes `SKILL.lastActivityAt`.** `applyLineage` and `applyMoves` mutate
+records and frozen sets without touching the watermark. A content release is not user
+activity; a fold that bumped it would refresh every user's whole map to the day of the
+release, which is the fabricated date §11.7 refuses to render.
+
+**F26 — neither pass reconciles `attainedLevel` either.** §12.3's write-back is
+`store.reconcileAttainedLevel`, called by T14's tree route **after** `applyLineage`. Do not
+call it from inside a migration: `MigrationReport.attainedLevel.after` is what the summary
+shows the user, and a second computation writing a different number would contradict it.
+
+**F22 — this task is explicitly unchanged**, which is worth stating because F22 touches its
+neighbours. The migration passes do not move; the `moved` map's durability is a CI concern
+(§6.4 check 8, T23) rather than a runtime one.

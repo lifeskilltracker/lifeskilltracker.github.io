@@ -46,7 +46,7 @@ so a contributor cannot introduce effort-weighting by experiment.
 
 **Out of scope**
 
-- Any validation logic, Ajv wiring, or the 15 semantic rules — T03. This task ships the
+- Any validation logic, Ajv wiring, or the 16 semantic rules — T03. This task ships the
   contract, not the enforcement.
 - `content/taxonomy/map.yaml` and its hex geometry — T12.
 - The full facet vocabulary. §5.9 defers it to PRD **D12**; the schema only requires that
@@ -193,3 +193,23 @@ expected verdict, and a clean typecheck.
   not three. Getting this backwards puts a fallback branch in the Scoring Engine.
 - §5.10's bump policy: a new optional field does not bump; a new required field, a removal,
   a retype, or a semantics change does, and ships a content migration in the same PR.
+
+
+## T26 amendments — 2026-08-06
+
+**F22 — tree `id` is immutable after merge and never reused.** §5.3 now says so, with
+protobuf's `reserved` rule, exactly as §5.4 applies it to milestone slugs. The reason is
+stronger for trees: `id` is the primary key of `SKILL`, the foreign key on `MILESTONE` and
+`ORPHAN`, the value type of the manifest's `moved` map, the `treeId` on every export row,
+and the `/s/<treeId>` URL space. D-05 gave milestones a uid/slug split so the display name
+could move; a tree id has no such split, so it cannot. **No schema change** — enforcement is
+§6.4 check 8 (T23) — but the field's notes must carry it, and `id` must not be documented as
+a mere slug.
+
+**F19.** `lastActivityAt` is **required** in the export schema, not optional. §12.2's
+watermark is total.
+
+**F25.** `uid` stays **optional** in `tree.schema.json`. This is deliberate and easy to
+"fix" wrongly: §5.4's authoring flow has the author write a tree with no `uid` lines at all,
+and a required field would make that draft unparseable by `lst ids`. Presence is §6.2's
+rule 16, a semantic rule in T03. Layer 1 constrains the *shape* of a uid that is present.

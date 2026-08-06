@@ -363,3 +363,37 @@ and the grep showing exactly one module touching IndexedDB.
 - §17.3 budgets a milestone toggle at **< 100 ms to persisted** and **< 50 ms to visual
   update**. Both are met structurally by one transaction and no re-layout (§8.6); if either
   needs optimizing, something non-architectural has been added.
+
+
+## T26 amendments — 2026-08-06
+
+**F19 — `SKILL.lastActivityAt` is total and forward-only.**
+
+- `startSkill` writes it, set to `startedAt`. Without that the field is absent on every
+  started-but-untouched skill and §12.2's non-optional type is a lie. The `?` came off
+  §14.4's `DomainSkillRow` and §14.5's `ExportFile` on the strength of this write.
+- `setMilestoneState` writes it on **every** mutation, un-completing included. §11.9's
+  invariant 1 and §14.4's monotonicity contract both argue from "every mutation".
+- **No migration writes it.** `applyLineage`, `applyMoves` and `reconcileAttainedLevel`
+  all mutate rows without touching the watermark. A fold that bumped it would refresh every
+  user's whole map to the day of the content release — a fabricated date, which §11.7
+  forbids.
+- **Never derive it as a `max` over `MILESTONE.at`.** That is the natural implementation
+  and it breaks §11.9's invariant 1: un-completing the most recent milestone lowers the
+  maximum. Make this a property test, not an example test — the stored watermark only ever
+  moves forward.
+
+**F26 — `reconcileAttainedLevel(treeId, attainedLevel): Promise<boolean>`.** §12.3's
+write-back finally has a method, and the existing acceptance criterion for the
+reconciliation becomes testable. It takes a **number**, not a `CompiledTree`: §14.1 gives
+`lib/state` no edge to the loader and none to `lib/scoring`, so the store cannot compute a
+level and must not be handed content it may not read. Writes only if the value differs,
+resolves `true` when it wrote, touches no other field, refreshes §13.2's mirror on commit.
+A tree with no `SKILL` row is a no-op resolving `false` — it **never creates a row**, since
+that would put an unstarted skill on the map with a rank. The caller is T14's tree route,
+after `applyLineage`.
+
+**F22 — the retention rule is a store invariant.** A `SKILL` row whose `treeId` has no
+manifest entry is **retained, never deleted**. The store never prunes rows against the
+manifest; it cannot even see the manifest (§14.1). Dropping such a row from scoring is
+T14's join; deleting it is nobody's.

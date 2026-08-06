@@ -15,7 +15,7 @@
 `tools/src/validate/` and `tools/src/ids/` exist and are wired into the `lst` CLI
 (`tools/src/cli.ts`, stubbed by T01) as `lst validate [files…]` and `lst ids [files…]`.
 After this task, a tree YAML file can be checked in one pass against both the JSON Schema
-layer (T02's `schema/*.json`, via Ajv) and §6.2's layer 2 — the 15 semantic rules, plus the
+layer (T02's `schema/*.json`, via Ajv) and §6.2's layer 2 — the 16 semantic rules, plus the
 five taxonomy rules M1–M5 over `map.yaml` — none of which JSON Schema can express, with
 every violation reported with file, line, and column rather than stopping at the first. `lst ids` fills in every missing `uid:` in a drafted tree in place,
 generating repository-unique 8-character Crockford base32 values, and fails when a `uid`
@@ -42,7 +42,7 @@ identifier user state will key on.
 **In scope**
 
 - `lst validate [files…]`: Layer 1 (Ajv against `schema/*.json`) followed by Layer 2, all
-  15 semantic rules in §6.2's table, **and layer 2b's five taxonomy rules M1–M5 over
+  16 semantic rules in §6.2's table, **and layer 2b's five taxonomy rules M1–M5 over
   `content/taxonomy/map.yaml`** (T26/F17), run in one pass per invocation.
 - Error reporting that accumulates every violation found — schema and semantic — into one
   report with file, line, and column, rather than exiting on the first (§6.1).
@@ -116,7 +116,7 @@ gating rows:
 > rather than stopping at the first. A contributor iterating against a validator that
 > surfaces one error per run will abandon the PR. (§6.1)
 
-The 15 semantic rules, copied verbatim from §6.2:
+The 16 semantic rules, copied verbatim from §6.2:
 
 | # | Rule | PRD |
 |---|---|---|
@@ -174,7 +174,7 @@ The identifier table, copied verbatim from §5.4:
 
 ## Acceptance criteria
 
-- [ ] `lst validate` run against a fixture that violates every one of the 15 semantic
+- [ ] `lst validate` run against a fixture that violates every one of the 16 semantic
       rules in a single file reports all 15 violations in one invocation, each with file,
       line, and column.
 - [ ] `lst validate` performs no git operation at all — verifiable by
@@ -283,3 +283,21 @@ semantic rules and all five taxonomy rules independently exercised, and a re-run
   normalization to a single rule kind is T04's compiler's job (§7.3), not this task's.
   Validating an `any` group should treat it exactly like `n_of: n: 1` for rule 7's bound
   check, without rewriting it.
+
+
+## T26 amendments — 2026-08-06
+
+**F25 — rule 16 is yours, and it settles the check/fix split this doc had inferred.**
+§6.2 gains rule 16: every milestone and mastery entry carries a `uid`. `lst validate` is
+the gate; `lst ids` **stops gating** (§6.1) and is the fix — a subcommand that rewrites its
+input cannot be the gate that rejects it. This is now spec, not an inference from two
+sentences.
+
+**It must not be a layer-1 `required` field, and that is the part to get right.** §5.4's
+authoring flow has the author write a complete tree with *no `uid` lines at all*, then run
+`lst ids`. A schema requiring `uid` would reject that draft before `lst ids` could parse
+it. Layer 1 still constrains the shape of a uid that is present. Rule 2 does not cover
+this either: repository-wide uniqueness ranges over the uids that exist and is silent
+about the ones that do not, so a tree with every uid missing passes rule 2 trivially.
+
+§6.7's authoring flow now leads with `lst ids` for the same reason.

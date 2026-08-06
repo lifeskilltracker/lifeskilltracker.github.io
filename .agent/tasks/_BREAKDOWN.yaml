@@ -387,13 +387,23 @@ tasks:
       task docs against the architecture — self-contradictions and undefined types that
       block implementation. F2 (grandfathering has no storage) is the expensive one:
       resolving it after T09 ships means a migration rather than a field.
-      Resolved so far: F1–F14, F16, F17, F20, F21, F23.
-      Open: F15, F18, F19, F22, F24, F25, F26 — blocking T13/T20, T09, T14/T16, T25,
-      T03/T25, and T09/T14 respectively.
+      Resolved so far: F1–F14, F16, F17, F19–F26. Twenty-four of twenty-six.
+      Open: F15 (the small-omissions cluster — seven mechanical citation and wording
+      fixes, cheap, no owner call needed) and F18 (the fill band vocabulary — needs the
+      owner, and may belong in the PRD; blocks T13, T20).
       Group C added a manifest field (`moved`) and an export field (`contentVersionSeen`),
       so T02 and T04 both gained schema work — no new graph edges.
       Group D moved §10.3's five geometry invariants from `lst compile` to `lst validate`,
       which is the one edge change: T03 now blocks T12.
+      Group I (F19, F22, F24, F25, F26 — 2026-08-06) changed no edges either, but it is
+      the largest surface change since Group C. §6.2 gains rule 16 (T03) so the semantic
+      rule count is 16 everywhere. §6.4 gains check 8 — trees are never removed or renamed
+      (T23) — and §6.5 splits `build` into `content: compile` and `app: build`, making
+      seven gating jobs (T25). §14.5 gains `reconcileAttainedLevel` (T09, called by T14)
+      and `ImportReport.skillsWithNoManifestEntry` (T16). `SKILL.lastActivityAt` becomes
+      total, which removes an optional from `DomainSkillRow` (T11b) and `ExportFile` (T02,
+      T16). Tree `id` is documented immutable (T02, enforced by T23). New risk R-27.
+      Eight further defects were folded into F22 and F24 rather than filed.
       Group G (F20, F21, F23) changed no edges. It added one method and one flag to
       §14.5 (`progressFor`, `hydrated`, both T09's), made every §14.5 writer a writer of
       §13.2's mirror (T09, T16, T17), and raised F26 — §12.3's write-back has no owner,

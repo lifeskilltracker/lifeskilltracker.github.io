@@ -61,7 +61,7 @@ already passed `lst validate` (T03) — it is a transformer, not a second valida
 
 **Out of scope**
 
-- Validation of any kind — T03. `lst compile` does not re-check the 15 semantic rules or
+- Validation of any kind — T03. `lst compile` does not re-check the 16 semantic rules or
   the JSON Schema; it assumes clean input and its behaviour on invalid input is undefined
   by this task (a reasonable implementation errors loudly, but that is not what this task
   is graded on).
@@ -255,3 +255,21 @@ milestones, and re-running compile with no content changes produces no diff in
   threat model in which an attacker who controls the origin is stopped by a hash the
   origin also serves." Any collision-resistant hash used for cache-busting is sufficient;
   do not over-engineer this into an integrity mechanism.
+
+
+## T26 amendments — 2026-08-06
+
+**F24.** `lst compile` is gated by §6.5's **`content: compile`** job, not by a build step —
+this doc's "the build step §6.1 marks as a gate" named a job that no longer exists. The job
+runs `lst compile` plus F9's output-schema validation and needs only `content: validate`, so
+it never skips on a content-only PR.
+
+**The byte-determinism criterion is promoted from hygiene to CI correctness.**
+`app: build` recompiles rather than consuming an artifact from `content: compile`, so the
+content-hashed filenames in the deployed manifest must name the bundles that actually ship
+(§7.5). "Compiling the same unchanged tree twice produces byte-identical bundles" is now
+load-bearing, not tidiness.
+
+**F22.** The manifest's `moved` map is rebuilt from live tree files on every build, so its
+completeness rests on §6.4's new check 8 — a deleted source file would silently drop its
+entries and re-home nothing. Note the dependency; nothing changes in the compiler.

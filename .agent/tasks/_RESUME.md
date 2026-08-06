@@ -1,8 +1,91 @@
 # RESUME — T26 spec reconciliation, wave 2
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-05 after Group G. Read this, then `_BREAKDOWN.yaml`, then
+Updated 2026-08-06 after Group I. Read this, then `_BREAKDOWN.yaml`, then
 `T26-architecture-reconciliation.md`.
+
+# SESSION 7 — Group I (F19, F22, F24, F25, F26). T26 is now 24 of 26.
+
+**Only F15 and F18 remain open, and neither blocks the critical path the way the rest did.**
+F15 is seven mechanical citation and wording fixes — cheap, delegable, no owner call needed.
+**F18 still needs the owner**: the fill band vocabulary is a content call that may belong in
+the PRD, and it must also rename "tier" at the domain level. Do not derive it.
+
+- **F25** — §6.2 gains **rule 16** (every milestone and mastery entry carries a `uid`) and
+`lst ids` **stops gating**; it is the fix, not the gate. The half the finding never asked
+about is the one that matters: **it cannot be a layer-1 `required` field**, because §5.4's
+authoring flow has the author write a tree with *no `uid` lines at all* and a required field
+would make that draft unparseable by `lst ids`. Rule 2 does not cover it either — uniqueness
+ranges over the uids that exist. The rule count is now **16** everywhere, including §6.5's
+node label and five task docs.
+- **F19** — `SKILL.lastActivityAt` was typed three contradictory ways (§12.2 required,
+`DomainSkillRow` optional, `ExportFile` optional) and `startSkill` never wrote it at all.
+**`startSkill` now seeds it from `startedAt`**, the field is total, both `?` are gone, and
+§11.7's null branch narrows to "a domain with no started skills". Un-checking counts as
+activity — the spec already depended on it, since §11.9 and §14.4 both argue monotonicity
+from "every mutation". **Two riders it did not ask about:** no migration may write it (a fold
+that bumped it would refresh every user's map to the day of the content release — the
+fabricated date §11.7 forbids), and it is a **forward-only watermark, never a `max` over
+records**, because un-completing the most recent milestone lowers that maximum and breaks
+invariant 1.
+- **F26** — `store.reconcileAttainedLevel(treeId, attainedLevel): Promise<boolean>`, called
+by the **tree route** after `applyLineage`. It takes a number, not a bundle: §14.1 gives
+`lib/state` no edge to the loader *or* to `lib/scoring`. **Ordering was the rider** —
+`MigrationReport.attainedLevel.after` is already on screen when the migration ran, so a
+reconcile writing a different number would contradict a statement the user is reading.
+- **F24** — **the finding's severity was wrong and research caught it.** `content: baseline`
+is not path-filtered and §6.4 check 5 compiles both sides, so `lst compile` *was* running on
+content-only PRs; three of the four "ungated" claims were false. The real defect was that the
+gate was unnamed, incidental (a side effect of F8's check, one day old) and contradicted by
+§6.1 — plus the fact that **a skipped required check reports as passing**, so `build` was
+*green* while unenforced. **Adopted:** split into `content: compile` (needs validate only,
+never skips) and `app: build` (needs the app jobs, legitimately skips). **Seven gating jobs**
+— F8's "the six-job count is unchanged" note in T25 is now stale. `app: build` recompiles
+rather than taking an artifact, which promotes T04's byte-determinism criterion from hygiene
+to CI correctness. Both spec-named options were declined because they make content PRs pay
+for `vite build`, destroying the "completes in seconds" property the path filter exists for.
+- **F22** — **the pivotal question inverted the hypothesis.** Tree deletion is *not* forbidden
+and §6.4 would not catch it: check 1's escape hatch is "appears in `lineage`", and the ledger
+is a field of the file being deleted. **A ledger cannot dispose of its own file.** Checks 1–7
+diff each tree against its own baseline version, so a deleted tree is never visited — they
+pass on nothing. Nor is there a workaround: §5.3's ten levels × §6.2's 4–8 bound make an
+emptied stub *inexpressible*. **Adopted:** §6.4 **check 8** (the baseline's tree-id set is a
+subset of the head's — forbids removal *and* rename) plus a **runtime retention rule** (a
+`SKILL` row with no manifest entry is retained, excluded from the join, never scored, listed
+on `/data`). A `retired` flag was priced and **deferred to R-27** — it needs a conditional
+carve-out from the 4–8 bound and makes the manifest grow forever. An F13-style
+`retiredTrees` map was rejected outright: the analogy fails because no disposition exists to
+be made reachable, so it could only orphan everything wholesale. **Zero new store methods,
+zero cold-start cost, no schema change.**
+
+### Eight defects folded in, two left unfiled
+
+Per the owner's direction, F27–F31 were folded into F22 rather than appended: **tree `id`
+had no immutability guarantee** (arguably F22's root cause — it is a PK in three stores, the
+`moved` map, every export row and the URL space, and D-05 gave it no uid/slug split);
+§6.4 **never diffed the tree set**; the **`moved` map had no durability guarantee** (rebuilt
+from live tree files each build, so a deletion silently undoes F13); **import can create a
+`SKILL` row for an unknown `treeId`** and §16.3 had no row for it; and **a tree cannot be
+legally emptied**. Three more folded into F24: T25's hazard note **stated the opposite of
+F24 as settled fact**, "path filter" was never disambiguated (workflow-level blocks the PR in
+Pending forever; job-level reports skipped), and §6.5's "trio" undercounted by two.
+
+**Two were deliberately left unfiled** and are the obvious candidates if a future session
+wants them: **nothing gates manifest-level compiled output** (check 5 is scoped to *trees*,
+so a PR touching only `map.yaml` changes the deployed manifest and is compared by nothing;
+§17.2's manifest budget also has no named enforcer), and **§12.4's "the only writer in the
+system"** overclaimed against §14.5's several mutators — narrowed in passing to "the only
+writer of a `MILESTONE` record", but §3.2's single-writer story deserves a proper pass.
+
+### No edge changes
+
+Group I touched no `blocked_by`/`blocks` edge, but the surface change is the largest since
+Group C and lands on eight task docs. All eight are updated. The riders most likely to be
+dropped on the floor: **check 8 is T23's** and is the only F22 edit outside the tasks F22 was
+filed against; **the reconcile's ordering after `applyLineage`** spans T09, T14 and T17 with
+nothing in the graph expressing it; and **`app: build` recompiling** makes a T04 acceptance
+criterion load-bearing for T25's correctness.
+
 
 ## Where things stand
 

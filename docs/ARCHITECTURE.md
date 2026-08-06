@@ -604,7 +604,7 @@ lineage: []                     # grows only; see §5.4
 |---|---|---|
 | `schemaVersion` | ✔ | Integer. §5.8. |
 | `contentVersion` | ✔ | Integer, **scoped to this tree**, starting at 1. Increments whenever the tree's compiled output changes. Written by `lst version`, never by hand; CI fails the merge if the compiled output moved and this did not (§6.5). It is the sole trigger for §12.5's migration pass and the sole cache key for §8.6's layout memo, which is why §16.1 no longer carries a library-wide counter. |
-| `id` | ✔ | Tree slug, unique across the repository. Appears in URLs. |
+| `id` | ✔ | Tree slug, unique across the repository. Appears in URLs. **Immutable after merge and never reused** — protobuf's `reserved` rule, exactly as §5.4 applies it to milestone slugs, and for a stronger reason: this is the primary key of `SKILL`, the foreign key on `MILESTONE` and `ORPHAN`, the value type of the manifest's `moved` map, the `treeId` on every export row, and the `/s/<treeId>` URL space. D-05 gave milestones a uid/slug split so their display name could move; a tree id has no such split, so it cannot. Enforced by §6.4 check 8. |
 | `title`, `summary` | ✔ | Display. `summary` is prose for the library listing and the Curious Browser (§4.4 of the PRD). |
 | `domain` | ✔ | Exactly one primary domain id (F18). |
 | `secondaryDomains` | — | Discoverability only; contributes no score (F18). Must not contain `domain`. |
@@ -631,7 +631,7 @@ Every milestone and mastery achievement carries **two** identifiers with differe
 
 **Why repository-wide uniqueness for `uid`.** It makes an export line self-identifying without its tree id, and it lets a milestone move between trees — Photography migrating from one tree to another, say — without any progress loss. The cost is one global uniqueness check in CI, which is trivial.
 
-**Authoring flow.** The author writes a complete tree with no `uid` lines at all. `npx lst ids content/trees/mytree.yaml` fills every blank in place. CI fails a merge if any `uid` is missing, printing the values to paste. Because in-file references use slugs, the draft is fully writable — including all prerequisites and requirement groups — before the tool is ever run.
+**Authoring flow.** The author writes a complete tree with no `uid` lines at all. `npx lst ids content/trees/mytree.yaml` fills every blank in place. CI fails a merge if any `uid` is missing — that is `lst validate`'s **rule 16** (§6.2), not `lst ids`, which is the fix rather than the gate — printing the values to paste. Because in-file references use slugs, the draft is fully writable — including all prerequisites and requirement groups — before the tool is ever run.
 
 **What may change freely under a stable `uid`:** title, detail, level, track, order, module, prerequisites, and the slug itself. A slug change is auto-recorded into that milestone's `aliases:` list so existing deep links keep resolving; a retired slug may never be reused by a different `uid`. This is protobuf's `reserved` rule, and it exists because reuse causes an old export to bind silently to the wrong milestone.
 
@@ -670,6 +670,8 @@ The three constraints that are not obvious:
 - **Cardinality is part of the grammar.** `split` into one target is a rename under a new uid, which is `merged`'s case, and `split` with an empty list currently passes validation while disposing of nothing.
 
 CI enforces completeness by diffing against `main`: **every `uid` present in the published tree must either still exist, or appear in `lineage` with a disposition.** This is Buf's `breaking --against` pattern applied to content; §6.4 specifies the job and its baseline. It is what turns "ids are stable" from a convention into an invariant.
+
+**The same guarantee at tree granularity is a separate check, because the ledger cannot dispose of its own file.** `lineage` is a field of the tree file, so deleting the file deletes every disposition that could have accounted for its uids — and the milestone-level rule above has nothing left to read. A tree file cannot even be *emptied* into a stub that keeps the ledger: §5.3 requires exactly ten levels and §6.2 bounds each at 4–8 milestones, so there is no legal shape for a tree that has disposed of all its content. Removal and renaming are therefore forbidden outright rather than dispositioned, and §6.4 check 8 enforces it.
 
 How each `op` is applied to user state at load time is §12.5. The one hazard no mechanism can catch is **semantic redefinition under a stable uid** — an author who keeps the uid but changes the milestone into a materially different achievement. That is a review judgment, and the style rubric must carry Mozilla's localization rule verbatim: *a typo or clarity fix keeps the uid; a change of meaning requires a new uid and a lineage entry.* Tracked as **R-03**.
 
@@ -757,7 +759,7 @@ facets:
   …
 ```
 
-The **id/display-name split is the mechanism behind F20**: renaming a domain in the UI changes `title` and touches no tree. Adding a domain is a new entry plus map geometry (§10). Removing one requires a lineage-style migration for the trees that referenced it, which is why the schema makes ids cheap to add and expensive to delete.
+The **id/display-name split is the mechanism behind F20**: renaming a domain in the UI changes `title` and touches no tree. Adding a domain is a new entry plus map geometry (§10). Removing one requires a lineage-style migration for the trees that referenced it, which is why the schema makes ids cheap to add and expensive to delete. **A domain can be removed this way; a tree cannot be removed at all** (§5.4, §6.4 check 8). The asymmetry is not an oversight: a domain's dependents are tree files, which survive the removal and can carry the migration, whereas a tree's ledger is inside the tree, so a deletion destroys the only thing that could have accounted for it.
 
 Facet ids are extended by maintainer PR to `facets.yaml`. The initial vocabulary (D12) is a PRD-level content decision and is not fixed here; the schema only requires that every facet a tree uses exists in the file.
 
@@ -798,10 +800,10 @@ One command, several subcommands, living in the `tools/` workspace with no appli
 | `lst validate [files…]` | Schema + semantic rules, trees **and taxonomy** (F41) | **yes** |
 | `lst baseline` | uid immutability vs. `main` (§6.4) | **yes** |
 | `lst lint [files…]` | Advisory coherence and style warnings | no |
-| `lst ids [files…]` | Fill missing `uid` values in place | **yes** (missing uid fails) |
+| `lst ids [files…]` | Fill missing `uid` values in place | no (it is the fix; the gate is rule 16) |
 | `lst version [files…]` | Bump `contentVersion` in place where compiled output changed | **yes** (stale version fails, §6.4) |
 | `lst status` | Regenerate `content/REVIEW-STATUS.md` | **yes** (drift fails) |
-| `lst compile` | YAML → JSON bundles + manifest (§7) | **yes** (build step) |
+| `lst compile` | YAML → JSON bundles + manifest (§7) | **yes** (the `content: compile` job, §6.5) |
 | `lst new <id>` | Scaffold a tree skeleton from a template | no |
 
 `lst validate` reports every error it can find in one pass with file, line, and column, rather than stopping at the first. A contributor iterating against a validator that surfaces one error per run will abandon the PR.
@@ -831,6 +833,7 @@ Two layers, both hard gates.
 | 13 | `copyleftDerived` is present and answered | F45 |
 | 14 | Mastery entries carry no level, track, order, or requirement group | F5, §5.7 |
 | 15 | Every `lineage` entry's `into` matches the grammar for its `op` — shape, cardinality, and targets resolving to a uid present in the repository head | §5.4 |
+| 16 | Every milestone and mastery entry carries a `uid` | §5.4 |
 
 **Layer 2b — taxonomy rules**, over `content/taxonomy/`. These are §10.3's five geometry invariants, which that section required without naming an owner. They live here because three of the five — contiguity, exact partition, and the double-claim check — are precisely what JSON Schema cannot express, which is what layer 2 is for, and because a geometry error should surface in the seconds-long validate job with a file and line rather than as a build failure later in the graph.
 
@@ -849,6 +852,10 @@ M3 is a connectivity pass over tile adjacency, not an inference from §10.4's lo
 **The file list scopes what is *reported*, not what is *read*.** `lst validate content/trees/foo.yaml` still loads `domains.yaml`, `facets.yaml`, `map.yaml`, and every other tree — rules 2, 10, 11 and 12 have always required this, since repository-wide uid uniqueness and taxonomy resolution cannot be answered from one file. Stated because the taxonomy rules make the consequence visible: an implementer who scopes M1–M5 to argv will silently run no map checks on the common invocation.
 
 Rule 15 branches on `op` because `into` does (§5.4): it checks cardinality, checks that `split` and `merged` targets are bare uids in the same tree, and checks that a `moved` target is `<treeId>/<uid>` naming a tree that exists, a different tree from this one, and the entry's own uid. Only the resolution half needs the whole repository; the rest is answerable from the entry alone, which is why F7 could leave the git-free half here. It is the only gate in front of §7.2's `moved` map and §12.5's re-homing pass, both of which parse this grammar and neither of which can report a malformed target usefully at runtime.
+
+**Rule 16 is why `lst ids` does not gate.** §5.4 says CI fails a merge on a missing `uid`, and §6.1 used to mark `lst ids` as the enforcer — but `lst ids` *fills* the blanks in place, and a subcommand that rewrites the input cannot be the gate that rejects it. The check is here; the fix is `lst ids`, exactly as rule 4's alias check is a gate that §6.4 can auto-fix.
+
+It is a semantic rule rather than a `required` field in layer 1, and that is not a filing preference. §5.4's authoring flow has the author write **a complete tree with no `uid` lines at all**, then run `lst ids` over it. A schema that required `uid` would reject that draft before `lst ids` could parse it, and the flow the whole identifier scheme rests on would be impossible. Rule 2's repository-wide uniqueness check ranges only over the uids that exist and says nothing about the ones that do not, so it does not cover this. Layer 1 still constrains the *shape* of a `uid` that is present.
 
 Rule 13 deserves comment: CI cannot detect a copyleft derivation, only the *absence of an answer*. A tree answering `true` passes CI and is rejected at review (F45). The gate is there to make the question unskippable, not to adjudicate it.
 
@@ -880,17 +887,23 @@ The job that makes §5.4's identifier guarantees real. On every PR it checks out
 2. No `uid` has been reassigned to a different milestone.
 3. No retired slug has been reused by a different `uid`.
 4. Every slug that changed has its old value in `aliases`. This one CI can auto-fix by pushing a commit to the PR.
-5. Every tree whose **compiled output** differs from the baseline has a higher `contentVersion` than the baseline's. Compile both sides, elide the `contentVersion` field from each, compare the remaining bytes; if they differ and the field did not increase, fail and print the value to paste. This rides on the checkout and compile the job already performs, and mirrors §5.4's uid ergonomics exactly — the tool writes the value locally (`lst version`), CI refuses the merge without it.
+5. Every tree whose **compiled output** differs from the baseline has a higher `contentVersion` than the baseline's. Compile both sides, elide the `contentVersion` field from each, compare the remaining bytes; if they differ and the field did not increase, fail and print the value to paste. This rides on the checkout and compile the job already performs, and mirrors §5.4's uid ergonomics exactly — the tool writes the value locally (`lst version`), CI refuses the merge without it. This compile is a **comparison**, not the compile gate; the gate is §6.5's `content: compile` job. The redundancy is deliberate, and is recorded because it was briefly the only thing gating compile on a content-only PR: narrowing this check to only the trees whose YAML changed is a legitimate optimisation that must not be able to remove compile coverage as a side effect.
 
 6. The baseline's `lineage` ledger is a **prefix** of the head's — same entries, same order, appended to only at the end. §5.4 calls the ledger append-only and §12.5 folds it in file order to compose dispositions across skipped content versions, so an entry inserted mid-list, reordered, or edited in place silently changes the outcome of a migration for every user who skipped a version. Rules 1–5 would all pass such a change. This is the check that makes §5.5's third file-position exception safe to rely on.
 
 7. Every `lineage` entry **appended since the baseline** names a uid that was present in the baseline. This is check 1 run in the opposite direction — check 1 asks that nothing published vanishes undisposed, check 7 asks that nothing is disposed of that was never published — and neither implies the other. A ledger entry naming a typo'd or invented uid disposes of nothing, and §12.5's fold treats a non-matching entry as a no-op, so without this check the error is completely silent at runtime. **"Appended since the baseline" is load-bearing, not a scoping convenience:** the ledger is append-only and never pruned (§5.4), so a `retired` uid is legitimately absent from the baseline three releases later. Re-evaluating that old entry would fail forever and block every future PR on that tree with no author action able to clear it. Check 6 is what makes the appended suffix well defined.
 
+8. Every tree `id` present in the baseline is present in the head. **Trees are never removed and never renamed** (§5.3, §5.4). Checks 1–7 are each a diff of one tree against its own baseline version, so a tree the head no longer contains is simply never visited — they do not fail on a deletion, they pass on nothing, which is the same shape as the `fetch-depth` trap below. Nor could they be rewritten to cover it: the escape hatch in check 1 is "appears in `lineage`", and the ledger is a field of the file being deleted. A rename is the same event with a friendlier trigger and slips through identically. This is one set difference over two checkouts the job already has.
+
+**Checks 1–7 range over trees present on both sides; check 8 ranges over the set.** Stated because the alternative reading — that check 1 quantifies over every baseline uid repository-wide — is not merely a different scope but a wrong one: under it a `moved` uid would satisfy check 1 by existing in its destination tree, and the `moved` disposition F13 is built around would never be needed at all.
+
+Check 8 is also what makes two other guarantees durable rather than incidental. §6.2 rule 15 requires a `moved` target to name a tree that exists, which today holds only because nothing has deleted the destination yet. And the manifest's `moved` map is regenerated from live tree files on every build (§7.3), so deleting a source file would silently drop its entries — re-homing nothing for any user who had not cold-started between the move release and the deletion release, and undoing F13 with no diagnostic anywhere. Nothing else asserts that map is monotone.
+
 **The baseline is `main`**, because merging deploys (§16.1) and therefore merging publishes. There is no release tag anywhere in this spec to compare against, and §16.1 has no step that would create one.
 
 Precisely: the baseline is the tip of **`origin/main`**, and the head is the PR **merged into it** — not the PR branch alone, and not the merge-base. The distinction is not pedantry; merge-base is unsound for checks 5 and 6 the moment two PRs are in flight. Two branches cut from the same commit can each bump one tree from `contentVersion` 4 to 5, and each passes against its own merge-base — leaving `main` with a version 5 whose compiled output is not the output that shipped as 5, so §12.5's `>` comparison means every user who already saw 5 never runs the migration for the second change. Silent, permanent, and undetectable under §16.5's no-telemetry rule. Check 6 fails the same way: two branches each append one ledger entry, both pass, and the merged order on `main` satisfies neither one's prefix claim. Comparing against the tip catches both, at the cost of one requirement on the repository: **a branch must be up to date with `main` before it merges** — GitHub's "require branches to be up to date", or a merge queue. That is the only operational obligation this section imposes, and it exists because the alternative is a class of failure no gate downstream can see.
 
-The job must also **check out enough history to resolve `origin/main`** — `fetch-depth: 0`, or an explicit fetch. `actions/checkout` clones at depth 1 by default, which is the same trap §16.1 records for git-derived counters: at depth 1 there is no `origin/main` and no merge-base, so checks 1–7 do not error, they silently pass on nothing. For a repository of this size full history costs nothing.
+The job must also **check out enough history to resolve `origin/main`** — `fetch-depth: 0`, or an explicit fetch. `actions/checkout` clones at depth 1 by default, which is the same trap §16.1 records for git-derived counters: at depth 1 there is no `origin/main` and no merge-base, so checks 1–8 do not error, they silently pass on nothing. For a repository of this size full history costs nothing.
 
 This is Buf's `breaking --against '.git#tag=vN'` pattern, applied to content rather than protobuf. Buf's own framing is the right one to give reviewers: the tool mechanically identifies breaking changes so the humans can spend their attention on whether to *allow* them.
 
@@ -902,18 +915,20 @@ A tree that has never been merged has no baseline uids at all, so an author may 
 flowchart TD
     PR([Pull request]) --> SETUP["setup<br/><small>Node 20 LTS, npm ci, cache</small>"]
 
-    SETUP --> V["content: validate<br/><small>schema + 15 semantic rules<br/>+ 5 taxonomy rules</small>"]
+    SETUP --> V["content: validate<br/><small>schema + 16 semantic rules<br/>+ 5 taxonomy rules</small>"]
     SETUP --> B["content: baseline<br/><small>uid immutability + contentVersion bump</small>"]
     SETUP --> L["content: lint<br/><small>advisory annotations</small>"]
     SETUP --> ST["content: status<br/><small>REVIEW-STATUS.md is current</small>"]
     SETUP --> TC["app: typecheck<br/><small>tsc + svelte-check</small>"]
     SETUP --> T["app: test<br/><small>vitest — engines + components</small>"]
 
-    V --> BUILD["build<br/><small>lst compile + vite build</small>"]
+    V --> CMP["content: compile<br/><small>lst compile + §14.7 output schema check</small>"]
+    CMP --> BUILD["app: build<br/><small>lst compile + vite build<br/>+ §14.7 gates + §17.1 budget</small>"]
     TC --> BUILD
     T --> BUILD
 
-    BUILD --> GATE{"all required<br/>checks green?"}
+    CMP --> GATE{"all required<br/>checks green?"}
+    BUILD --> GATE
     B --> GATE
     ST --> GATE
     L -. "annotations only,<br/>never blocks" .-> GATE
@@ -926,12 +941,20 @@ flowchart TD
     classDef gate fill:#fbeaea,stroke:#a35050,color:#3d1c1c
     classDef advisory fill:#fdf6e3,stroke:#a3903f,color:#3d3416
     classDef human fill:#eaf1fb,stroke:#4a6a9a,color:#1c2740
-    class V,B,ST,TC,T,BUILD gate
+    class V,B,ST,TC,T,CMP,BUILD gate
     class L advisory
     class REVIEW human
 ```
 
-The six gating jobs run in parallel from `setup`; on a content-only PR the app jobs are skipped by path filter, so a Tree Author's feedback loop is the validate/baseline/lint trio and completes in seconds.
+**Seven gating jobs.** Six run in parallel from `setup`; `content: compile` follows `content: validate`, and `app: build` follows the two app jobs and `content: compile`. On a content-only PR the three **app** jobs — typecheck, test, and build — are skipped by path filter, so a Tree Author's feedback loop is validate, baseline, status, compile and the advisory lint, and it completes in seconds. `content: status` belongs in that list and is easy to omit: it is gating (§6.1), and a PR adding a tree necessarily changes `content/REVIEW-STATUS.md`.
+
+**`content: compile` is a separate job from `app: build` because the two have different inputs, and conflating them made the compile gate unreachable on exactly the PRs it exists for.** `lst compile`'s input is `content/`; `vite build`'s is `app/`. When they shared a job, that job `needs` the app jobs, the path filter skipped those on a content-only PR, and a skipped dependency skips the dependent — so the only gating run of `lst compile` never happened on a content change. Split, every job in this graph works with a plain `needs:` and no conditional expression, and `app: build` skipping on a content PR is correct rather than dangerous.
+
+**A skipped job reports success to branch protection**, and that is why the split matters rather than being tidiness. GitHub counts a `skipped` required check as passing, so the old graph was not merely unenforced — it was *green* while unenforced, which no reviewer could see. `app: build` may still skip, because the content gate no longer rides on it.
+
+**"Path filter" here means a job-level `if:`, not `on.pull_request.paths`.** The distinction is not cosmetic and the wrong choice fails in the opposite direction: a workflow-level `paths:` filter stops the workflow running at all, its required checks never report, and every content PR sits blocked in Pending forever. A job-level condition reports `skipped`, which is the behaviour this graph is drawn against. Stated because the workflow-level form is the one named "path filter" in the Actions documentation and is the first thing an implementer reaches for.
+
+`app: build` recompiles rather than consuming an artifact from `content: compile`. That is §4.3's pipeline and T01's root script run unchanged, and it keeps the one thing this job graph has no other instance of — inter-job artifact passing — out of it. The cost is one redundant compile on a full PR, and it makes `lst compile`'s byte-determinism load-bearing rather than hygienic: the content-hashed filenames in the deployed manifest must name the bundles that actually ship (§7.5).
 
 ### 6.6 Provenance and credit (D18)
 
@@ -962,7 +985,7 @@ The documented workflow is four steps:
 1. **Gather** an existing curriculum or graded framework for the skill (F44) — ABRSM syllabus, CEFR descriptors, a belt curriculum, a published course outline — plus the author's own expertise. F45's copyleft carve-out is checked *here*, before any drafting, because that is the last cheap moment to check it.
 2. **Draft** against a published prompt template that carries the house rules inline: the 1–10 spine, 4–8 milestones per level, achievement phrasing with observable completion conditions, no effort quantities, and the professionalization-is-not-mastery rule from F43.
 3. **Normalize** by hand. The author rewrites every milestone in their own words and deletes anything they cannot personally judge. This step is the one the guide should press hardest on, because an unedited draft is exactly the "empty container with an AI-generated veneer" the PRD's §3 trade-offs name as the failure mode to avoid.
-4. **Validate** with `lst validate`, `lst baseline`, and `lst lint`, then open the PR. `lst baseline` belongs in that list because §6.1 promises no CI-only check an author cannot reproduce locally, and since §6.4 check 7 moved the lineage-versus-history rule out of `lst validate`, an author running validate alone would no longer see it. It needs an up-to-date local `main` (`git fetch origin main`) for the same reason CI does.
+4. **Validate** with `lst ids`, `lst validate`, `lst baseline`, `lst compile`, and `lst lint`, then open the PR. `lst ids` leads because step 2's draft has no `uid` lines at all (§5.4) and §6.2's rule 16 fails a tree that still lacks them. `lst compile` is in the list for the same reason `lst baseline` is: §6.1 promises no CI-only check an author cannot reproduce locally, compile gates (§6.5's `content: compile`), and F9's output-schema validation lives inside it — so an author who skips it cannot see a compile or schema failure until CI does. `lst baseline` belongs in that list because §6.1 promises no CI-only check an author cannot reproduce locally, and since §6.4 check 7 moved the lineage-versus-history rule out of `lst validate`, an author running validate alone would no longer see it. It needs an up-to-date local `main` (`git fetch origin main`) for the same reason CI does.
 
 The prompt template is versioned in the repository so that its output quality is itself reviewable, and so a maintainer who notices a recurring flaw across submissions can fix it once at the source.
 
@@ -1049,6 +1072,7 @@ Sizing: roughly 250 bytes per tree entry, so the PRD's 164-skill projection land
 | `detail` prose retained verbatim | It is the content |
 | `lineage` retained, **in file order** | The runtime migration folds it in that order (§12.5, §5.5) |
 | Every `op: moved` collected into the manifest's `moved` map | The disposition is unreachable from the tree that records it (§7.2) |
+| — the map is rebuilt from live tree files each build, so its completeness rests on §6.4 check 8 | A deleted source file drops its entries silently, re-homing nothing (§6.4) |
 | `contentVersion` retained verbatim | It is §12.5's migration trigger and §8.6's memo key (§5.3) |
 | Comments stripped | They are for authors |
 
@@ -1544,6 +1568,8 @@ contribution(L) = table[L]      // NORMATIVE — L^1.25 × 8, rounded
                                 // [8, 19, 32, 45, 60, 75, 91, 108, 125, 142]
 score(domain)   = Σ contribution(attained_i)   over skills whose PRIMARY domain is d
                                 // an unstarted or level-0 skill contributes 0
+                                // a SKILL row with no manifest entry has no domain,
+                                // so it joins nothing and is summed nowhere (§14.4, §16.3)
 fill(domain)    = s / (s + 48)  // ∈ [0, 1), asymptotic, never saturates
 ```
 
@@ -1600,7 +1626,7 @@ The table ships as **data, not a formula** — auditable, testable, tunable with
 
 **Recency ships as a date, not a decaying channel.** `SKILL.lastActivityAt` rolls up to the domain as a maximum, and the region reports *"Last activity — 12 March."* No decay function, no fade, no constant to tune. §18 **D-20**.
 
-**Both rollups are computed by `domainScores` and land on `DomainScore` (§14.4)**, alongside score and fill. They are three reductions over one row set, and the two subsystems that might otherwise host them cannot: `lib/state` may not import the loader (§14.1), so it can never learn which domain a tree belongs to, and components may not import state at all. A domain with no started skills, or one whose started skills have no recorded activity, reports `lastActivityAt: null`, which renders as *"No activity yet"* — never as a fabricated date. Timestamps are ISO-8601 UTC with a `Z` suffix (§12.2), which is what lets the maximum be a plain string comparison inside a pure engine.
+**Both rollups are computed by `domainScores` and land on `DomainScore` (§14.4)**, alongside score and fill. They are three reductions over one row set, and the two subsystems that might otherwise host them cannot: `lib/state` may not import the loader (§14.1), so it can never learn which domain a tree belongs to, and components may not import state at all. A domain with **no started skills** reports `lastActivityAt: null`, which renders as *"No activity yet"* — never as a fabricated date. There is no second null case: `SKILL.lastActivityAt` is total, seeded from `startedAt` when the skill is started (§12.2), so a started skill always contributes a date and a domain containing one never reads as untouched. Timestamps are ISO-8601 UTC with a `Z` suffix (§12.2), which is what lets the maximum be a plain string comparison inside a pure engine.
 
 This **does not satisfy F35 as written**, which asks for recency on a separate visual channel that may fade, and the deviation is deliberate rather than an oversight. The research is unambiguous: every shipped system that fades a user-visible value for inactivity was either withdrawn by its vendor (Overwatch SR decay, removed explicitly to relieve "fatigue and stress"; Duolingo's cracked skills, removed in three stages), or is universally named the worst part of its product (Rust upkeep, LoL high-elo decay, Habitica damage), or is justified by making a claim that inactivity genuinely invalidates (Anki retrievability, competitive MMR). A life-domain map makes no such claim — a decaying region would be a motivational device wearing the costume of a measurement, which is NG10's territory.
 
@@ -1715,6 +1741,20 @@ erDiagram
 **`grandfathered`** is D-19's frozen satisfaction record (§11.5), shaped
 `{ [level: number]: { uids: string[]; contentVersion: number } }`. Levels appear only once satisfied; the field is `{}` for a skill that has satisfied none. Roughly 100 bytes per skill at ten satisfied levels. It is written in §12.4's transaction, migrated by §12.5, and exported by §12.6 — all three are required, and omitting any one silently breaks invariant 7.
 
+**`SKILL.lastActivityAt` is required, and it is a forward-only watermark.** It is required because `startSkill` writes it, set equal to `startedAt` — without that the field is absent on every started-but-untouched skill and §14.4's `DomainSkillRow` has to carry an optional it can never usefully branch on. Starting a skill *is* activity in the domain; rendering a skill begun yesterday as *"No activity yet"* (§10.5) would be false.
+
+It has exactly three writers, and the boundary matters more than the list:
+
+| Writer | Value |
+|---|---|
+| `startSkill` | `startedAt` |
+| `setMilestoneState` | now — on **every** mutation, including un-completing. §11.9's invariant 1 and §14.4's monotonicity contract both argue from "every mutation"; a correction is still the user engaging with the skill |
+| `import` (§12.6) | the later of the two sides, never now |
+
+**Nothing else writes it.** §12.5's lineage fold, `applyMoves`, and §12.3's reconciliation all mutate records without touching it, because a content release is not user activity: a migration that bumped the watermark would refresh every user's entire map to the day of the release, which is precisely the fabricated date §11.7 refuses to render.
+
+**Forward-only, never derived.** The natural implementation — a `max` over the tree's `MILESTONE.at` values — is wrong, and wrong in a way no unit test over completions would catch: un-completing the most recent milestone *lowers* the maximum, which decreases `DomainScore.lastActivityAt` and breaks §11.9's invariant 1. The stored watermark only ever moves forward, which is what makes the invariant hold.
+
 **Every timestamp in every store is ISO-8601 UTC with a `Z` suffix** — `startedAt`, `lastActivityAt`, and `at`. Stated because §11.7's recency rollup is a `max` performed inside a pure engine (§14.4), and a lexicographic comparison over ISO strings is correct only if the format and precision never vary. Local-offset timestamps would sort wrongly and the failure would be silent.
 
 **`slug` and `title` are frozen snapshots**, written at completion time and never refreshed. They exist so that a human can read an export and understand what was accomplished, so an orphaned record remains meaningful, and so there is a debugging surface in a system with no telemetry. The cost is about 60 bytes per completion. A snapshot that followed upstream edits would not be a record of what the user did, which is why it is deliberately never updated.
@@ -1727,9 +1767,13 @@ erDiagram
 
 It is kept honest by recomputing on every write to that tree (§12.4) and by a **reconciliation on tree open**: when a tree bundle is loaded, the Scoring Engine recomputes attained level from first principles and writes it back if it differs. A discrepancy is expected and benign after a content update changed a level's requirement groups. The map may therefore be up to one session stale for a tree the user has not opened since a content release, which is an acceptable and bounded inaccuracy for an ambient display.
 
+**The tree route owns this, and it is not `applyLineage`.** The write-back is `store.reconcileAttainedLevel(treeId, level)` (§14.5), called by the tree route (§13.4) once the bundle has loaded and the engine has scored it. The route is the only place that can: the store may not import the loader and so cannot fetch the bundle, and §14.1 draws no edge from `lib/state` to `lib/scoring` either, so nothing inside the store can recompute a level from first principles. `applyLineage` is not the hook — it is gated on `contentVersion` advancing (§12.5) and therefore does nothing on the ordinary open, which is exactly the open this reconciliation exists for.
+
+**Ordering against the migration is fixed:** `applyLineage` first, then the reconcile. When the migration ran, its `MigrationReport.attainedLevel.after` has already been shown to the user (§12.5's summary), so a reconcile that then wrote a different number would contradict a statement on screen; running second, it finds the value the migration computed and writes nothing. `applyMoves` is the exception that stays an exception — §14.5 says it deliberately does not recompute the *source* tree's level, and that tree's staleness is cleared by this reconciliation whenever the user next opens it.
+
 ### 12.4 The write path
 
-Every user-visible mutation is one function, and it is the only writer in the system (§3.2):
+Every user-visible mutation of milestone state is one function, and it is the only writer of a `MILESTONE` record in the system (§3.2):
 
 ```ts
 await store.setMilestoneState(uid, 'complete' | 'dismissed' | null, { note? });
@@ -1835,7 +1879,7 @@ It carries both identifiers on purpose, because the file has two readers with di
 | Field | Rule | Why |
 |---|---|---|
 | `startedAt` | **earliest** wins | When you started is a historical fact, and the earlier claim is the true one. |
-| `lastActivityAt` | **latest** wins; present beats absent | Forced: §11.7 rolls this up to the domain as a `max`, and §14.4's monotonicity clause admits no exemption. Any other rule could decrease it. |
+| `lastActivityAt` | **latest** wins; present beats absent | Forced: §11.7 rolls this up to the domain as a `max`, and §14.4's monotonicity clause admits no exemption. Any other rule could decrease it. Never *now* — an import is not activity in the skill. "Present beats absent" survives only for files written before the field became required (§12.2), which §5.10's migration path is expected to fill in; it is a tolerance, not a live case. |
 | `contentVersionSeen` | **minimum** wins | See below. |
 | `grandfathered` | per level, **earliest `contentVersion`** wins | Already specified; the paragraph below is unchanged. |
 | `attainedLevel` | **never merged** — taken from the side with the later `lastActivityAt`, provisionally | See below. |
@@ -1883,7 +1927,7 @@ SvelteKit file-based routing, prerendered where possible, with `adapter-static`'
 |---|---|---|
 | `/` | World map (F21) | yes |
 | `/d/<domainId>` | Domain skill listing (F23) | yes — one per domain |
-| `/s/<treeId>` | Tree view | no — resolved from the manifest at runtime |
+| `/s/<treeId>` | Tree view | no — resolved from the manifest at runtime; a miss is a tree-unavailable state, never a 404 (§16.3) |
 | `/s/<treeId>/m/<slug>` | Tree view with a milestone panel open | no |
 | `/library` | All skills, filterable by domain, subregion, and facet | yes |
 | `/data` | Export, import, storage status (F38, F39) | yes |
@@ -2097,7 +2141,7 @@ export interface DomainSkillRow {
   readonly treeId: string;          // manifest entry id / SKILL key
   readonly domain: DomainId;        // PRIMARY domain — manifest entry (§7.2), never a bundle
   readonly attainedLevel: number;   // SKILL.attainedLevel — §12.2, §12.3
-  readonly lastActivityAt?: string; // SKILL.lastActivityAt — §12.2; absent if never written
+  readonly lastActivityAt: string;  // SKILL.lastActivityAt — §12.2; total, `startSkill` seeds it
 }
 
 /** One domain's three map channels (§10.5), computed together because they are three
@@ -2124,6 +2168,8 @@ Three properties are contractual and are what the test suite asserts:
 
 - **`scoreSkill` stays pure and never writes.** It *reads* `grandfathered` and *reports* `satisfiedBy`; the User State Store decides what to freeze and performs the write, preserving §3.2's single-writer rule. An engine that froze its own records would be a second writer with no transaction.
 - **`domainScores` never reads tree content**, which is what lets the map render before any bundle is fetched (§3.3, §12.3). "Tree content" means a compiled bundle: every field of `DomainSkillRow` comes from the manifest entry or the `SKILL` row, and `domain` was always one of them, so the row has always been a manifest × IndexedDB join. Assembling that join is the App Shell's `$derived` layer (§13.2), the only place that holds both — `lib/scoring` may not import the loader and `lib/state` may not either (§14.1), so neither could compute a per-domain rollup even in principle.
+
+**A `SKILL` row with no manifest entry is dropped from the join and never from storage.** It has no `domain`, so it cannot become a `DomainSkillRow` and contributes to no score and no breadth count — but it is retained in IndexedDB untouched, and `/data` lists it (§16.5) so the user can see it rather than discovering a silent gap. §6.4 check 8 makes this unreachable through a content release; §12.6's import can still produce it from an export written against a different library, and there is no CI rule that could prevent that, which is why the rule is a runtime invariant rather than a note.
 - **Monotonicity (N12).** Adding a skill or completing a milestone never decreases any `DomainScore` field. No exemption: under D-20 recency is a date rolled up as a maximum, and §12.4 writes `lastActivityAt` on every mutation, so it is monotone in wall-clock time like the other three. This is a property test over generated inputs, not a unit test over examples — it is the one invariant the PRD states most emphatically, and it deserves to be checked exhaustively rather than anecdotally. Should R-20's graded channel ever ship, the decaying value is a *rendering* function of `lastActivityAt` computed in the Map Renderer; it is not a `DomainScore` field, and this clause does not need reopening for it.
 
 ### 14.5 User State Store
@@ -2134,6 +2180,7 @@ export interface UserStateStore {
   progressFor(treeId: string): TreeProgress;    // §11.1's input — synchronous, total
   setMilestoneState(uid: string, state: MilestoneState, opts?: { note?: string }): Promise<void>;
   startSkill(treeId: string): Promise<void>;
+  reconcileAttainedLevel(treeId: string, attainedLevel: number): Promise<boolean>;  // §12.3
   applyLineage(tree: CompiledTree): Promise<MigrationReport>;   // §12.5
   applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;   // §12.5, cold start
   export(): Promise<ExportFile>;
@@ -2154,6 +2201,10 @@ Contract: every mutating call is a single transaction and resolves only after th
 
 It reads the mirror rather than the `by-tree` index because the index cannot serve a synchronous caller. §12.2 names its real consumers, all of them inside a transaction.
 
+**`reconcileAttainedLevel` is §12.3's write-back, and it is deliberately dumb.** It takes a number the caller computed and stores it; it does no scoring of its own, because it cannot — §14.1 gives `lib/state` no edge to `lib/scoring` and none to the loader that would fetch the bundle. It writes `SKILL.attainedLevel` only if the value differs, resolves `true` when it wrote and `false` when it did not, and touches **no other field** — in particular not `lastActivityAt`, since a content release is not user activity (§12.2). Like every other writer it refreshes §13.2's mirror on commit. Its caller is the tree route, after `applyLineage` (§12.3); it takes a `treeId` rather than a `CompiledTree` for the same reason it takes a number — the store must not be handed content it is forbidden to read.
+
+A tree with no `SKILL` row is not started, so there is nothing to reconcile and the call is a no-op resolving `false`. It never creates a row: a level computed for a tree the user never began would put an unstarted skill on the map with a rank.
+
 The three types those signatures name:
 
 ```ts
@@ -2168,7 +2219,7 @@ export interface ExportFile {
     readonly treeId: string;
     readonly startedAt: string;
     readonly attainedLevel: number;              // a snapshot; reconciled on tree open (§12.3)
-    readonly lastActivityAt?: string;
+    readonly lastActivityAt: string;             // required — §12.2's watermark is total
     readonly contentVersionSeen: number;         // merged as a minimum — forces §12.5's replay
     readonly grandfathered: Readonly<Record<string, FrozenSatisfaction>>;  // level → §11.5
   }>;
@@ -2229,6 +2280,7 @@ export interface ImportReport {
                          readonly droppedForLiveRecord: number };  // §12.6's milestone-wins rule
   readonly grandfatheredLevelsReplaced: number;   // earliest-contentVersion-wins, §12.6
   readonly treesRewound: number;   // contentVersionSeen lowered → §12.5 replays on next open
+  readonly skillsWithNoManifestEntry: number;   // retained, unscored, listed on /data — §16.3
 }
 ```
 
@@ -2238,7 +2290,7 @@ export interface ImportReport {
 
 `applyMoves` returns an **array** because one manifest's `moved` map can re-home records out of several source trees at once, and each source tree's summary is a separate statement to the user. Its reports carry `fromVersion === toVersion`: the pass advances no tree's `contentVersionSeen`, since it applies one disposition drawn from the manifest rather than a tree's ledger, and claiming otherwise would suppress the real migration when that tree is next opened. `attainedLevel.before === after` for the same reason — the pass deliberately does not recompute it (§12.5).
 
-`ImportReport` counts `droppedForLiveRecord` and `treesRewound` because both are consequences of §12.6's rules that a user would otherwise have no way to observe: one discards a row, the other schedules a migration that will surface on a later tree open, seemingly unprompted.
+`ImportReport` counts `droppedForLiveRecord`, `treesRewound` and `skillsWithNoManifestEntry` because all three are consequences of §12.6's rules that a user would otherwise have no way to observe: one discards a row, one schedules a migration that will surface on a later tree open seemingly unprompted, and the third takes on progress for a tree this library does not have. The last is the only way §16.3's retention branch is reachable once §6.4 check 8 is in place — an export written against a fork or a newer library — so the import is where it must be reported.
 
 `ExportFile`'s milestone entries **tolerate unknown keys** on import — §12.8 reserves `photo` this way, so the import path must ignore what it does not recognise rather than reject the file.
 
@@ -2273,7 +2325,7 @@ Contracts checked in CI, not merely asserted here:
 - **A grep gate** proving `archetype` appears nowhere under `lib/layout/`, `lib/scoring/`, or `lib/components/`. This is the mechanical form of **S1**, and it costs one line.
 - **Purity check**: `lib/layout` and `lib/scoring` import nothing from `svelte`, `$app`, or `lib/state`.
 - **Type generation**: `lib/types` is generated from `schema/*.json`, so validator and renderer cannot drift (§4.2). This now covers the compiled bundle and the manifest as well as the authored forms (§7.3).
-- **Compiler output validation**: `lst compile` validates every bundle and the manifest it emits against `schema/{compiled-tree,manifest}.schema.json` and fails the build on a mismatch. This is the other half of the same guarantee — codegen keeps `app/` honest about the shape, this keeps `tools/` honest about it, and neither workspace can import the other (§4.2).
+- **Compiler output validation**: `lst compile` validates every bundle and the manifest it emits against `schema/{compiled-tree,manifest}.schema.json` and fails on a mismatch. It is the only item in this list that runs in **`content: compile`** rather than `app: build` (§6.5) — it must gate content-only PRs, and the other six have nothing to check on one. This is the other half of the same guarantee — codegen keeps `app/` honest about the shape, this keeps `tools/` honest about it, and neither workspace can import the other (§4.2).
 - **A second `no-restricted-imports` rule** confining cross-subsystem orchestration to `lib/actions`: `lib/content` may not import `lib/state`, and `lib/state` may not import `lib/content`. Without it §14.1's newest forbidden pair is a diagram rather than a constraint.
 - **Property tests** for the monotonicity invariant in §14.4.
 
@@ -2416,6 +2468,8 @@ The system's failure modes are few, because there is almost nothing to fail. Eac
 | Deep link opened with no network | Cold-start failure screen. GitHub Pages' `404.html` fallback needs the network; shell precaching is phase 2 (§4.4, R-26) |
 | IndexedDB hydration fails | Render read-only, surface loudly, **refuse all writes for the session** (§13.3). Progress renders as *unknown*, never as zero — `store.hydrated` is false (§14.5) |
 | IndexedDB write fails (quota) | Surface immediately, do not update the UI as though it succeeded, prompt export |
+| `/s/<treeId>` names a tree not in the manifest | Tree-unavailable screen, never a 404 — the lookup misses before any fetch, so this is a different branch from the bundle failure above. If a `SKILL` row exists for that id, say so explicitly and link to `/data`: the user's progress is intact and they must be able to see that |
+| A started skill's tree is absent from the manifest | The `SKILL` row and its records are **retained, never deleted**; the row is excluded from §11.6's sum and §11.7's breadth count, and listed on `/data` (§16.5). §6.4 check 8 makes this unreachable from a content release, but §12.6's import can produce it from an export written against a different library |
 | Import file invalid | Reject whole, never partially apply; report which field failed |
 | Unknown `schemaVersion` on import, newer than the app | Refuse and say the file came from a newer version — do not guess |
 
@@ -2477,7 +2531,7 @@ There is none, and that is a decision rather than an omission. No analytics, no 
 
 The consequences must be stated honestly because they shape everything else: **a bug that corrupts user progress is undetectable by the maintainer and unreportable in detail by the user.** This is the root justification for four decisions taken elsewhere that would otherwise look like over-engineering — the immutable uid scheme (§5.4), the single-transaction write path (§12.4), the frozen title snapshots (§12.2), and the visible migration summary (§12.5). With no telemetry, correctness must be structural, and the user's own export must be the diagnostic artifact.
 
-What exists instead: a `/data` page showing storage estimate, last export, content version, app version, and the orphan list — enough that a user filing an issue can paste something useful.
+What exists instead: a `/data` page showing storage estimate, last export, content version, app version, the orphan list, and any skills whose tree is no longer in the library (§16.3) — enough that a user filing an issue can paste something useful.
 
 ### 16.6 What this section does not cover
 
@@ -2756,6 +2810,8 @@ Known trade-offs the architecture accepts, recorded so they are not re-derived l
 - **R-19 — Super-linear weighting is a cardinal difficulty claim.** D-21 makes level 8 worth 36 and level 2 worth 5, and the only reason is that level 8 is harder to reach. NG8 says levels do not encode estimated effort, and it is arguable that this is exactly that — an effort model differing from hour-weighting only in that the effort is estimated by fiat rather than measured. It also asserts that every skill escalates at the same rate, which the project's own evidence refutes (ABRSM Grade 7→8 is ~374 hours; an entire knife-skills tree might be 30). *Accepted with the flag understood.* The counterweight is that linear is also an exchange rate and "exactly equal" is itself a strong claim, and that `contribution` is a within-skill statement, which F12 explicitly permits. *Reversal cost: one config line*, which is why the table ships as data.
 - **R-21 — Shallow-tree farming.** Under D-21 a tree whose levels 9–10 are cheap pays out 142 for little. PSN demonstrates this at scale: Ratalaika ports exist to farm 300-point platinums, and the community objection is precise — the top weight is set by the content author's grading choice rather than by anything intrinsic. *Accepted;* the mitigation is F8's milestone bounds and F42's two-round review, not the scoring function. Linear does not have this surface, so it is a genuine new cost of D-21.
 - **R-22 — Un-check blast radius.** Under D-18, un-checking one milestone that was the last satisfying level 2 can drop attained from 8 to 1 and remove 100 from a domain score (§11.6's table, 108 − 8). *Accepted;* the engine recomputes honestly rather than ratcheting, because ratcheting would make an accidental check permanently inflating and destroy the number's meaning. Mitigated by stating the consequence before the action (§11.10) and by `cleared` surviving, so the user loses a rank rather than their history.
+- **R-27 — Trees can never be retired, and a licensing purge is a manual procedure with an accepted user-state cost.** §6.4 check 8 forbids removing or renaming a tree, which is what makes §5.4's dispositions and F13's `moved` map durable — but it leaves the project no in-band way to withdraw a tree that should not have shipped. The case that forces one is F45: rule 13 makes an author *answer* the copyleft question and §6.2 is explicit that CI cannot adjudicate it, so a tree may be found copyleft-derived after merge. *Accepted for v1,* which has three exemplar trees and no retirement need. The escape hatch is a documented maintainer procedure — delete the file, override check 8 for that PR, and announce it — whose consequence is exactly the state §16.3's retention rule handles: users keep their records, the skill stops scoring, and `/data` shows it. *If a real retirement path is ever wanted,* the shape is a `retired: true` flag on the tree file copied to the manifest entry with the bundle still shipped, so score and migration survive; it was priced and declined here because it needs a conditional carve-out from §5.3's ten-levels × 4–8 bound (a tree that has disposed of all its content has no legal shape) and it makes the manifest grow monotonically forever, which is the one artifact fetched on every cold load.
+
 - **R-26 — No offline cold start, and deep links carry a 404 status, in v1.** §16.4 defers the service worker to phase 2, so the app shell is not precached: opening the app with no network fails to §16.3's cold-start screen, and a shared milestone URL is served by GitHub Pages' `404.html` fallback with an HTTP 404 status rather than resolving locally (§4.4). *Accepted;* N9 asks only that the app keep working "once loaded", and §7.4's in-page Cache Storage pinning delivers that without a service worker. The residual cost is real and worth naming: a 404 status on a shared link is visible to crawlers and to anything that treats the status as authoritative, and the fix is one phase-2 config block rather than a design change.
 - **R-18 — Browser storage is not durable.** Safari's ITP evicts script-writable storage after seven days of non-use for non-installed sites, and `navigator.storage.persist()` is effectively unavailable there. This affects IndexedDB and `localStorage` equally, so no storage choice avoids it. *Accepted;* F39's export prompting (§12.7) is the entire mitigation, which is why it is specified as mandatory rather than optional.
 

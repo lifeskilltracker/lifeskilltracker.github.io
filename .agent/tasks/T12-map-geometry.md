@@ -255,3 +255,13 @@ manifest with eight real region paths and no placeholder geometry remaining.
 - Hole detection (a region producing two loops) is a warning, not a gate, specifically
   because it is "far more likely to be an authoring mistake than an intention" (§10.4) —
   keep it non-blocking; a hard failure here would be stricter than the spec asks for.
+
+
+## T26 amendments — 2026-08-06
+
+**F24 is resolved and this task is unaffected behaviourally.** The concern was that
+`lst compile` never ran on a content-only PR, which would have left map geometry ungated on
+its own input had the M1–M5 checks stayed in the compiler. They did not — F17 moved them to
+`lst validate` — and F24 has now split `build` into `content: compile` (needs
+`content: validate` only, never skips) and `app: build`. Both jobs a `map.yaml` change
+depends on now run. No edit to this task's scope; strike any open note on F24.

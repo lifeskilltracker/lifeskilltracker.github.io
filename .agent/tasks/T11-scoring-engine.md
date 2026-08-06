@@ -430,3 +430,17 @@ the test names in `invariants.test.ts`.
 - **§11.1's pipeline diagram has two wrong cross-references**: it cites §11.6 for
   grandfathering (which is §11.5) and §11.7 for `domainScores` (which is §11.6). Harmless,
   but do not follow the diagram's section numbers when hunting for a rule.
+
+## T26 amendments — 2026-08-06
+
+**F19 — `DomainSkillRow.lastActivityAt` is `string`, not `string | undefined`.** §12.2's
+watermark is total: `startSkill` seeds it from `startedAt`, so a started skill always
+carries a date and the row needs no absent branch. `DomainScore.lastActivityAt` stays
+`string | null`, and there is now exactly **one** null case — a domain with no started
+skills. §11.7's second null case ("started skills with no recorded activity") is gone.
+
+Goes to **T11b** when this doc splits.
+
+**F22.** §11.6's sum skips a `SKILL` row with no manifest entry: no entry means no `domain`,
+so it never becomes a `DomainSkillRow` and is summed nowhere. It is not deleted — see T14's
+join and T09's retention rule. Nothing in the engine changes; the row simply never arrives.

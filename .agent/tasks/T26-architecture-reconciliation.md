@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | in progress — F1–F14, F16, F17, F20, F21, F23 resolved 2026-08-05; F15, F18, F19, F22, F24, F25, F26 open |
+| **Status** | in progress — F1–F14, F16, F17, F20, F21, F23 resolved 2026-08-05; F19, F22, F24, F25, F26 resolved 2026-08-06; **F15 and F18 open** |
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
@@ -543,9 +543,12 @@ readonly hydrated: boolean;
       struck, and the same decay language is gone from §2, §10.5 and §15.5. Verified by
       `grep -n "decaying\|shimmer" docs/ARCHITECTURE.md` returning only D-20/R-20's own
       descriptions of the deferred channel.*
-- [ ] F18: the fill band vocabulary is named, and not called "tier".
-- [ ] F19: §12.4 names every writer of `SKILL.lastActivityAt`, and §12.2's field is typed
-      to match.
+- [ ] F18: the fill band vocabulary is named, and not called "tier". *Still needs the owner — the band names are a content call and may belong in the PRD.*
+- [x] F19: §12.4 names every writer of `SKILL.lastActivityAt`, and §12.2's field is typed
+      to match. *§12.2 carries the writer table — `startSkill` (seeded from `startedAt`),
+`setMilestoneState` (every mutation, un-completing included), `import` (the later side).
+No migration writes it. The field is total, so the `?` came off `DomainSkillRow` and
+`ExportFile`, and it is a forward-only watermark, never a `max` over records.*
 - [x] F6: §6.4's opening, §6.4's closing, and §6.5's job label all name the same baseline.
       *All three say `main`, plus §6.1's table row and §6.8's dangling tag reference. §6.4
       additionally pins `origin/main`'s tip versus the PR merge result, the
@@ -584,7 +587,11 @@ readonly hydrated: boolean;
 - [x] F21: `into:`'s grammar is stated per `op` and validated. *§5.4's table fixes shape and
       cardinality; §6.2 rule 15 branches on `op`; §5.2 flags the non-uniformity at the type;
       §7.2 says the compiler parses the tree half.*
-- [ ] F22: the spec says what becomes of a started skill whose tree has left the manifest.
+- [x] F22: the spec says what becomes of a started skill whose tree has left the manifest.
+      *It cannot leave: §6.4 check 8 forbids removing or renaming a tree, because the
+lineage ledger lives inside the file being deleted and cannot dispose of it. If an import
+produces the state anyway, the row is retained, excluded from the join, never scored, and
+listed on `/data` (§16.3). A `retired` flag was priced and deferred to R-27.*
 - [x] F23: `TreeProgress` has a named producer with a signature, and §12.2's `by-tree`
       index has a stated consumer. *`store.progressFor(treeId)` — synchronous, total, off
       §13.2's mirror, which every writer now refreshes. `by-tree` serves §12.4 step 2,
@@ -598,9 +605,20 @@ readonly hydrated: boolean;
       §10.3's "Validated by CI" sentence points at it. Verified by
       `grep -n "map.yaml" docs/ARCHITECTURE.md` returning a §6 hit. *`lst validate`, via
       §6.2's layer 2b rules M1–M5; §5.9's handoff also names it now.*
-- [ ] F24: §6.5 states whether `build` runs on a content-only PR.
-- [ ] F25: exactly one subcommand is named as the gate that fails a missing `uid`.
-- [ ] F26: §12.3's write-back has a named owner reachable on an ordinary tree open.
+- [x] F24: §6.5 states whether `build` runs on a content-only PR. *It does not, and that
+      is now correct: `build` split into `content: compile` (needs validate only, always
+runs) and `app: build` (needs the app jobs, legitimately skips). Seven gating jobs.
+Severity was overstated — §6.4 check 5 was compiling the head all along — so the real
+defect was an unnamed, incidental gate plus the fact that a skipped required check reports
+as passing.*
+- [x] F25: exactly one subcommand is named as the gate that fails a missing `uid`.
+      *`lst validate`, as §6.2 rule 16; `lst ids` stops gating and is the fix. It cannot be
+a layer-1 `required` — §5.4's authoring flow has the author write a tree with no `uid`
+lines at all, which a required field would make unparseable.*
+- [x] F26: §12.3's write-back has a named owner reachable on an ordinary tree open.
+      *`store.reconcileAttainedLevel(treeId, level)`, called by the tree route after
+`applyLineage`. The store cannot compute it — §14.1 gives `lib/state` no edge to the
+loader or to `lib/scoring` — so it takes a number, not a bundle.*
 - [ ] Every affected task doc under `.agent/tasks/` is updated to match the resolutions,
       and `grep -ril "spec is silent\|unresolved spec gap" .agent/tasks/` returns nothing.
 

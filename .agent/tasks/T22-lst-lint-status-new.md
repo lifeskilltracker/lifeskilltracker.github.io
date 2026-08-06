@@ -64,7 +64,7 @@ job is to make that judgment better-informed, never to substitute for it.
 
 **Out of scope**
 
-- `lst validate`, `lst ids` — T03. `lst lint` does not duplicate any of the 15 semantic
+- `lst validate`, `lst ids` — T03. `lst lint` does not duplicate any of the 16 semantic
   rules; a rule that is a hard gate belongs in validate, not here, by definition (D-15).
 - `lst baseline` — T23.
 - `lst compile` and its §7.3 transformations — T04.
