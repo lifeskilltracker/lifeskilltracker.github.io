@@ -1175,13 +1175,31 @@ export function layoutTree(tree: CompiledTree, viewport: Viewport): TreeLayout;
 
 Coordinates are **abstract units**, scaled to pixels by the renderer through the SVG `viewBox`. The engine therefore never knows the screen size, only which of two layout modes applies — which is what keeps it testable without a browser.
 
+**The unit constants ship as tunable data, and no value here is normative.** Because units are abstract and the renderer rescales them, any internally consistent set produces the same drawing; what carries meaning is the *ratios*. They live in one module beside the engine, never inline at a use site, so the first time §9 draws a tree the whole set can be retuned in one place:
+
+| Constant | v1 | What it sets |
+|---|---|---|
+| `slotWidth` | 100 | One lane's horizontal slot |
+| `slotHeight` | 44 | A node's height |
+| `rowHeight` | 96 | A level's row, equal for all ten (§8.2) |
+| `rowGutter` | 52 | `rowHeight − slotHeight`; the channel §8.4 routes through |
+| `colGutter` | 24 | Between adjacent columns |
+| `sideGutter` | 72 | The same-level channel on the right (§8.4) |
+| `sideGutterLane` | 18 | Depth step between two same-level edges in one row |
+| `sameLevelBow` | 12 | Vertical offset that stops a same-level path retracing itself |
+
+Two of these are constrained rather than free, and a retune that breaks either is a bug rather than a preference: `rowGutter` must stay positive, or §8.4's edges have no channel; and `sideGutterLane × (max same-level edges in one row)` must not exceed `sideGutter`, or the outermost lane escapes the tree. Everything else is taste. The values are stated so the engine is buildable and its output snapshot-testable before §9 exists — not because the spec has a view about them.
+
 ### 8.2 The wide algorithm (normative)
 
 ```
 1. rows    ← levels 1..10, level 1 at the BOTTOM, ascending upward.
              Row height is a constant. All rows are equal height, always.
 2. columns ← tracks in declared order, left to right.
-             A tree with no `tracks` has exactly one column.
+             A tree with no `tracks` has exactly one SYNTHETIC column:
+             `{ trackId: '', title: '', x: 0, w: width }`. An empty
+             `trackId` marks a column as synthetic; §9 draws no header
+             for one. `columns[node.col]` always resolves (§8.5).
 3. cells   ← group milestones by (level, track).
 4. lanes   ← within each cell, sort by (order, slug).
              `order` is always explicit in a compiled bundle (§7.3) and
@@ -1190,10 +1208,14 @@ Coordinates are **abstract units**, scaled to pixels by the renderer through the
 5. colWidth[c] ← max(lanes in any cell of column c) × slotWidth
 6. x     ← column origin + (column centred offset for this cell's lane count)
    y     ← row origin
-7. edges ← for each `requires`, route an orthogonal path (§8.4)
+7. edges ← for each `requires` BETWEEN TWO POSITIONED MILESTONES,
+             route an orthogonal path (§8.4). Mastery achievements are
+             excluded — see below.
 ```
 
 Step 6 is the one that matters. Nodes in a cell are **centred within their column** rather than left-packed, so a cell holding two nodes and a cell holding three both sit on the column's centre line.
+
+**Step 7 is scoped to milestones, and it has to be.** §5.7 lets a mastery achievement declare `requires` against milestones, and §6.2 rule 14 forbids mastery entries carrying a level, track, order, or requirement group — so a mastery entry has no cell, no lane, and no position, and §9.6 renders it in a separate panel outside the grid entirely. An edge naming one would have no endpoint. The engine therefore emits an edge only when **both** ends are positioned milestone nodes, and silently drops the rest; §9.6 surfaces a mastery achievement's prerequisites as text, which is the same treatment §8.5 gives every edge in the narrow layout. This is not a tolerance — an unpositioned endpoint is not a degraded edge, it is a category error, and the alternative of inventing a position for mastery would put it in a grid §5.7 exists to keep it out of.
 
 ### 8.3 Grid mapping and the stability guarantee
 
@@ -1231,7 +1253,13 @@ The one non-local case is column widening, and it is bounded, rightward-only, an
 
 Rule 5 of §6.2 guarantees a prerequisite's level is at or below its dependent's, so every edge points upward or sideways and never down. Edges are orthogonal three-segment paths: out of the source's top edge, across the inter-row gutter, into the target's bottom edge.
 
-Same-level prerequisites route through a side gutter rather than the row gutter, so they read as lateral dependencies rather than as progression.
+Same-level prerequisites route through a **side gutter** rather than the row gutter, so they read as lateral dependencies rather than as progression. The geometry, since "a side gutter" alone does not determine a path:
+
+- **One vertical channel, on the right of the whole tree**, outside every column, `sideGutter` units wide. One channel rather than one per column, because a same-level prerequisite may cross any number of tracks and a per-column gutter would have to be entered and left repeatedly.
+- **Each same-level edge takes a lane within the channel**, numbered from the inside out and assigned per row in `(source lane, target lane)` order, at depth `channelX + k × sideGutterLane`. Two edges in different rows may reuse lane 0; two in the same row never share one.
+- **The path is four segments**: out of the source's right edge, right to its lane depth, vertically by `sameLevelBow`, then left into the target's right edge. Both ends leave from the right because the two nodes share a row — without the bow the outbound and return legs would be the same line, which is the degenerate case an implementer hits first.
+
+A target to the *left* of its source produces a path crossing the nodes between them. That is accepted, not routed around: §8.4's whole position is that crossings are never minimized, and a rule that dodged them here would be the first step onto the auto-layout path `docs/RESEARCH.md` §3 rejects.
 
 **Crossings are accepted and never minimized** (F15). This is the deliberate trade `docs/RESEARCH.md` §3 identifies and its strongest counter-argument is recorded there: a tree with many cross-track prerequisites will render as spaghetti that hand placement would have made legible. The architectural mitigations are the `track-overuse` and `lonely-track` lints (§6.3), and the renderer's edge-highlighting on node focus (§9.4), which makes an individual node's dependencies legible even when the whole graph is not.
 
@@ -1244,6 +1272,14 @@ layoutTree(tree, 'narrow')
 ```
 
 Same function, same input, one column. Milestones are ordered by (level, track index, order, slug) and stacked; `edges` is returned empty, and prerequisites are surfaced by the renderer as text references (§9.5). No separate mobile layout is authored, computed, or stored — F16 is satisfied by a parameter, not by a second code path over different data.
+
+**Level 1 is at the TOP in narrow, the opposite of wide.** This is deliberate and is the one place the two modes disagree about direction. Wide is a spatial metaphor — a tree grows upward, so level 1 sits at the bottom (§8.2). Narrow is a *reading order*: it is stacked, it is read top to bottom, and §15 reuses it as the linear presentation given to screen readers **at every viewport**. Level 1 at the bottom would make that reading order run level 10 → level 1, presenting the deepest achievements first and the entry point last, and it would put visual order and focus order in opposition on the one layout where they are the same list.
+
+**`col`, `lane`, and `columns` in narrow:**
+
+- `col` is `0` for every node.
+- `columns` holds exactly one **synthetic** entry, `{ trackId: '', title: '', x: 0, w: width }` — the same shape §8.2 step 2 gives a wide tree with no `tracks`. It is not left empty, so that **`columns[node.col]` resolves in both modes**, which is a property a test can assert and a renderer can rely on without branching on viewport.
+- `lane` keeps its §8.1 meaning — index within the `(level, col)` cell — so in narrow it is the index within the level. It is *not* a running index over the whole tree: one field must not mean two things across two modes, and the stack order is fully recovered as `(level, lane)`.
 
 This also yields, for free, the layout-free fallback that `docs/RESEARCH.md` §3 identified as the accessible and robust option: the narrow layout **is** the linear list, which §15 reuses as the screen-reader presentation at every viewport.
 

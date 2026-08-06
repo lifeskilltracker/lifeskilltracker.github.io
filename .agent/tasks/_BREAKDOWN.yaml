@@ -387,12 +387,13 @@ tasks:
       task docs against the architecture — self-contradictions and undefined types that
       block implementation. F2 (grandfathering has no storage) is the expensive one:
       resolving it after T09 ships means a migration rather than a field.
-      COMPLETE 2026-08-06 — all twenty-six findings resolved. F15 amended all seven of
-      its small omissions; F18 named five fill bands (Quiet, Emerging, Moderate, Active,
-      Deep) as tunable data rather than a closed union type, unblocking T13 and T20.
-      One acceptance criterion is knowingly unmet: T06 still flags four §8 layout gaps
-      that were never raised as findings — unrecorded, not unresolved, and the obvious
-      content of a short §8 pass.
+      COMPLETE 2026-08-06 — all twenty-seven findings resolved and every acceptance
+      criterion met. F15 amended all seven of its small omissions; F18 named five fill
+      bands (Quiet, Emerging, Moderate, Active, Deep) as tunable data rather than a closed
+      union type, unblocking T13 and T20; F27 was filed last, giving verdicts to the five
+      §8 layout gaps T06 had been carrying — narrow is level 1 at the top, one synthetic
+      column so columns[node.col] always resolves, tunable unit constants in §8.1,
+      side-gutter geometry in §8.4, and mastery requires producing no edge.
       Group C added a manifest field (`moved`) and an export field (`contentVersionSeen`),
       so T02 and T04 both gained schema work — no new graph edges.
       Group D moved §10.3's five geometry invariants from `lst compile` to `lst validate`,

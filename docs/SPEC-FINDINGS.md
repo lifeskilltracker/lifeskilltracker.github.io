@@ -1,13 +1,14 @@
 # Spec Findings — Architecture Reconciliation
 
-Decision record for T26. Twenty-six findings have been raised against
+Decision record for T26. Twenty-seven findings have been raised against
 `docs/ARCHITECTURE.md` during the v1 task breakdown — seventeen from the breakdown itself,
 F18 and F19 found while resolving F3 and F4, F20–F23 found while resolving F12–F14,
-F24–F25 found while resolving F17 and F7, and F26 found while resolving F23. Each gets a
+F24–F25 found while resolving F17 and F7, F26 found while resolving F23, and F27 filed last
+to give a verdict to five §8 silences `T06-layout-engine.md` had been carrying. Each gets a
 verdict of **amend**, **tolerate**, or **not a defect**, with a reason and a date.
 
-**All twenty-six are resolved.** The 2026-08-06 session resolved F19, F22, F24, F25 and
-F26, then F15 and F18, and folded eight further defects into those resolutions rather
+**All twenty-seven are resolved.** The 2026-08-06 session resolved F19, F22, F24, F25 and
+F26, then F15, F18 and F27, and folded eight further defects into those resolutions rather
 than appending them as new findings — three into F24 and five into F22, at the owner's
 direction, on the ground that each was a cause or a consequence of the finding it landed
 in. Two more were surfaced and deliberately left unfiled: nothing gates manifest-level
@@ -47,6 +48,7 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F24 | amend | 2026-08-06 | `build` splits into `content: compile` and `app: build`; seven gating jobs; skipped ≠ blocked |
 | F25 | amend | 2026-08-06 | §6.2 rule 16 is the missing-uid gate; `lst ids` stops gating; it cannot be a layer-1 `required` |
 | F26 | amend | 2026-08-06 | `store.reconcileAttainedLevel(treeId, level)`, called by the tree route after `applyLineage` |
+| F27 | amend | 2026-08-06 | §8's five layout silences — narrow is level 1 at top, synthetic column, tunable unit constants, side-gutter geometry, mastery edges dropped |
 
 ---
 
@@ -2149,6 +2151,105 @@ band is not a `DomainScore` field), §15.3, §15.4.
 **T20** takes the accessible-name wording and §15.4's redundancy row. **T11b** is unaffected
 — no engine change, which is the point. Neither task needs a `BandName` union type, and
 introducing one would defeat the resolution.
+
+---
+
+## F27 — §8's five layout silences
+
+### The finding as raised
+
+Not raised during the breakdown. `T06-layout-engine.md` had flagged five places where §8's
+contract does not determine an implementation, under a heading reading *"Where the spec is
+silent — do not invent an answer without flagging it"*. That heading was the last thing
+keeping T26's closing acceptance criterion unmet, and the honest way to clear it was to give
+the five a verdict rather than to delete the marker. Filed and resolved 2026-08-06.
+
+All five are the same class as F15: individually small, none blocking, each capable of
+costing an afternoon or — in two cases — of producing a wrong answer that renders plausibly.
+
+### The five
+
+**1. The narrow layout's vertical direction was unspecified.** §8.2 fixes level 1 at the
+*bottom* for wide; §8.5 says only "stacked". **Resolved: level 1 at the TOP in narrow**, the
+one place the two modes disagree about direction, and deliberately so. Wide is a spatial
+metaphor — a tree grows upward. Narrow is a *reading order*: §8.5 already reuses it as §15's
+linear presentation for screen readers **at every viewport**, so level 1 at the bottom would
+run that reading order level 10 → level 1, present the deepest achievements first and the
+entry point last, and put visual order in opposition to focus order on the one layout where
+they are the same list. T06 had guessed this correctly; it is now spec rather than a comment.
+
+**2. `col`, `lane` and `columns` were undefined in narrow.** §8.1's types require all three.
+**Resolved:** `col = 0` throughout; `columns` holds exactly one **synthetic** entry
+`{ trackId: '', title: '', x: 0, w: width }`, with an empty `trackId` marking it synthetic
+and §9 drawing no header for one.
+
+Leaving `columns` empty was the tempting answer — §8.5 already returns `edges: []`, so an
+empty array for a concept that does not apply looks like the established pattern. It was
+declined because it breaks **`columns[node.col]` resolving**, which is worth more than the
+symmetry: it is a property a test can assert and a renderer can rely on without branching on
+viewport, and `col = 0` indexing into an empty array is a footgun that type-checks.
+
+The same resolution closes a gap the finding did not name: §8.2 step 2 says a wide tree with
+no `tracks` "has exactly one column" and never said what is *in* it. One rule now covers both.
+
+**`lane` keeps its §8.1 meaning** — index within the `(level, col)` cell — so in narrow it is
+the index within the level. T06 had proposed a running index over the whole stack; that was
+declined because one field must not mean two things across two modes, and `(level, lane)`
+recovers the stack order anyway.
+
+**3. No numeric constants existed anywhere in §8.** `slotWidth`, row height, the gutters —
+none had a value, and the engine is not buildable or snapshot-testable without them.
+**Resolved as tunable data with a v1 set**, on the same principle F18 established for the
+fill bands: units are abstract and the renderer rescales them, so no value is normative, and
+what carries meaning is the ratios. They live in one module beside the engine, never inline.
+**Two are constrained rather than free**, and a retune breaking either is a bug: `rowGutter`
+must stay positive or §8.4's edges have no channel to route through, and
+`sideGutterLane × (max same-level edges in one row)` must not exceed `sideGutter` or the
+outermost lane escapes the tree.
+
+**4. Side-gutter geometry was undefined.** §8.4 said same-level prerequisites "route through
+a side gutter" without saying which side, how wide, or how two such edges in one row avoid
+drawing on top of each other. **Resolved:** one vertical channel on the right of the whole
+tree, outside every column; each edge takes a lane within it, numbered inside out and
+assigned per row in `(source lane, target lane)` order; the path is four segments — out of
+the source's right edge, right to its lane depth, vertically by `sameLevelBow`, left into the
+target's right edge.
+
+One channel rather than one per column, because a same-level prerequisite may cross any
+number of tracks and a per-column gutter would have to be entered and left repeatedly. **The
+bow is the part an implementer will otherwise get wrong:** both nodes share a row, so both
+legs leave from the right edge at the same `y`, and without a vertical offset the outbound
+and return legs are the same line. That is the first case anyone hits, and it renders as a
+single stroke that looks like a bug in the data.
+
+A target to the *left* of its source produces a path crossing the nodes between it and the
+channel. **Accepted, not routed around** — §8.4's stated position is that crossings are never
+minimized, and a dodge here is the first step onto the auto-layout path `docs/RESEARCH.md`
+§3 rejects.
+
+**5. Mastery `requires` targets had no layout node.** §5.7 lets a mastery achievement declare
+`requires` against milestones, and §8.2 step 7 said "for each `requires`" without qualifying
+it. **Resolved: step 7 ranges over positioned milestone nodes only**, and an edge with an
+unpositioned end is dropped rather than degraded. §6.2 rule 14 forbids a mastery entry
+carrying a level, track, order, or requirement group, so it has no cell, no lane, and no
+position, and §9.6 renders it in a panel outside the grid entirely. This is a category error
+rather than a tolerance: the alternative — inventing a position for mastery — would put it in
+the grid §5.7 exists to keep it out of. §9.6 surfaces its prerequisites as text, the same
+treatment §8.5 already gives every edge in the narrow layout.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §8.1 (the constants table and its two hard constraints), §8.2
+(synthetic column, step 7's scope, and the mastery paragraph), §8.4 (side-gutter geometry),
+§8.5 (narrow direction, `col`/`lane`/`columns`).
+
+### Downstream
+
+**T06** owns all five; its "where the spec is silent" section is replaced by the resolutions
+and its guesses on items 1 and 2 are now spec — one confirmed, one overruled on `lane`.
+**T08** may rely on `columns[node.col]` resolving in both modes, and draws no header for a
+synthetic column. **T20** gets the reading-order guarantee it needs: narrow is level 1 first,
+at every viewport. Nothing else moves, and no task gains or loses scope.
 
 ---
 

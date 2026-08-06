@@ -4,9 +4,10 @@ Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work i
 Updated 2026-08-06 after Group I. Read this, then `_BREAKDOWN.yaml`, then
 `T26-architecture-reconciliation.md`.
 
-# SESSION 7 — T26 IS COMPLETE. All twenty-six findings resolved.
+# SESSION 7 — T26 IS COMPLETE. All twenty-seven findings resolved.
 
-Group I (F19, F22, F24, F25, F26) then F15 and F18, all on 2026-08-06.
+Group I (F19, F22, F24, F25, F26), then F15 and F18, then F27 — all on 2026-08-06.
+**Every T26 acceptance criterion is met.**
 
 **T26 no longer blocks anything.** Eleven tasks were waiting on it — T02, T04, T07, T08,
 T09, T10, T11a/b, T12, T16, T17, T23. **The critical path is now the T11 split** (step 1
@@ -38,81 +39,33 @@ have no such anchor — the table is one pure dependency-free data module with o
 threshold may be written into a component, and `DomainScore` still carries no band field.
 The bar: renaming a band or moving a boundary is a one-line data edit with no type change.
 
-### One acceptance criterion is knowingly unmet
+### F27 — the last five, filed so they could be closed honestly
 
-`grep -ril "spec is silent" .agent/tasks/` still hits **T06**, which flags four §8 layout
-gaps: the narrow layout's vertical direction, `col`/`lane`/`columns` in narrow mode, the
-total absence of numeric constants in §8, and side-gutter geometry for same-level edges.
-**None was ever raised as a T26 finding**, so no verdict covers them — deleting the marker
-would only make the grep lie. Same class as F15's cluster, and the obvious content of a short
-§8 pass. Nothing is blocked: T06 already tells an implementer to pick a default and record it
-in a comment.
+`T06-layout-engine.md` was carrying five §8 gaps under a heading flagging them as
+unanswered, and that heading was the only thing keeping T26's closing criterion unmet. **None had ever
+been raised as a finding**, so they were filed as **F27** and resolved rather than having the
+marker deleted to make a grep pass.
 
-- **F25** — §6.2 gains **rule 16** (every milestone and mastery entry carries a `uid`) and
-`lst ids` **stops gating**; it is the fix, not the gate. The half the finding never asked
-about is the one that matters: **it cannot be a layer-1 `required` field**, because §5.4's
-authoring flow has the author write a tree with *no `uid` lines at all* and a required field
-would make that draft unparseable by `lst ids`. Rule 2 does not cover it either — uniqueness
-ranges over the uids that exist. The rule count is now **16** everywhere, including §6.5's
-node label and five task docs.
-- **F19** — `SKILL.lastActivityAt` was typed three contradictory ways (§12.2 required,
-`DomainSkillRow` optional, `ExportFile` optional) and `startSkill` never wrote it at all.
-**`startSkill` now seeds it from `startedAt`**, the field is total, both `?` are gone, and
-§11.7's null branch narrows to "a domain with no started skills". Un-checking counts as
-activity — the spec already depended on it, since §11.9 and §14.4 both argue monotonicity
-from "every mutation". **Two riders it did not ask about:** no migration may write it (a fold
-that bumped it would refresh every user's map to the day of the content release — the
-fabricated date §11.7 forbids), and it is a **forward-only watermark, never a `max` over
-records**, because un-completing the most recent milestone lowers that maximum and breaks
-invariant 1.
-- **F26** — `store.reconcileAttainedLevel(treeId, attainedLevel): Promise<boolean>`, called
-by the **tree route** after `applyLineage`. It takes a number, not a bundle: §14.1 gives
-`lib/state` no edge to the loader *or* to `lib/scoring`. **Ordering was the rider** —
-`MigrationReport.attainedLevel.after` is already on screen when the migration ran, so a
-reconcile writing a different number would contradict a statement the user is reading.
-- **F24** — **the finding's severity was wrong and research caught it.** `content: baseline`
-is not path-filtered and §6.4 check 5 compiles both sides, so `lst compile` *was* running on
-content-only PRs; three of the four "ungated" claims were false. The real defect was that the
-gate was unnamed, incidental (a side effect of F8's check, one day old) and contradicted by
-§6.1 — plus the fact that **a skipped required check reports as passing**, so `build` was
-*green* while unenforced. **Adopted:** split into `content: compile` (needs validate only,
-never skips) and `app: build` (needs the app jobs, legitimately skips). **Seven gating jobs**
-— F8's "the six-job count is unchanged" note in T25 is now stale. `app: build` recompiles
-rather than taking an artifact, which promotes T04's byte-determinism criterion from hygiene
-to CI correctness. Both spec-named options were declined because they make content PRs pay
-for `vite build`, destroying the "completes in seconds" property the path filter exists for.
-- **F22** — **the pivotal question inverted the hypothesis.** Tree deletion is *not* forbidden
-and §6.4 would not catch it: check 1's escape hatch is "appears in `lineage`", and the ledger
-is a field of the file being deleted. **A ledger cannot dispose of its own file.** Checks 1–7
-diff each tree against its own baseline version, so a deleted tree is never visited — they
-pass on nothing. Nor is there a workaround: §5.3's ten levels × §6.2's 4–8 bound make an
-emptied stub *inexpressible*. **Adopted:** §6.4 **check 8** (the baseline's tree-id set is a
-subset of the head's — forbids removal *and* rename) plus a **runtime retention rule** (a
-`SKILL` row with no manifest entry is retained, excluded from the join, never scored, listed
-on `/data`). A `retired` flag was priced and **deferred to R-27** — it needs a conditional
-carve-out from the 4–8 bound and makes the manifest grow forever. An F13-style
-`retiredTrees` map was rejected outright: the analogy fails because no disposition exists to
-be made reachable, so it could only orphan everything wholesale. **Zero new store methods,
-zero cold-start cost, no schema change.**
-
-### Eight defects folded in, two left unfiled
-
-Per the owner's direction, F27–F31 were folded into F22 rather than appended: **tree `id`
-had no immutability guarantee** (arguably F22's root cause — it is a PK in three stores, the
-`moved` map, every export row and the URL space, and D-05 gave it no uid/slug split);
-§6.4 **never diffed the tree set**; the **`moved` map had no durability guarantee** (rebuilt
-from live tree files each build, so a deletion silently undoes F13); **import can create a
-`SKILL` row for an unknown `treeId`** and §16.3 had no row for it; and **a tree cannot be
-legally emptied**. Three more folded into F24: T25's hazard note **stated the opposite of
-F24 as settled fact**, "path filter" was never disambiguated (workflow-level blocks the PR in
-Pending forever; job-level reports skipped), and §6.5's "trio" undercounted by two.
-
-**Two were deliberately left unfiled** and are the obvious candidates if a future session
-wants them: **nothing gates manifest-level compiled output** (check 5 is scoped to *trees*,
-so a PR touching only `map.yaml` changes the deployed manifest and is compared by nothing;
-§17.2's manifest budget also has no named enforcer), and **§12.4's "the only writer in the
-system"** overclaimed against §14.5's several mutators — narrowed in passing to "the only
-writer of a `MILESTONE` record", but §3.2's single-writer story deserves a proper pass.
+- **Narrow is level 1 at the TOP**, the opposite of wide — the one place the two modes
+disagree about direction. Wide is a spatial metaphor (a tree grows upward); narrow is a
+*reading order*, and §15 reuses it for screen readers **at every viewport**, so level 1 at
+the bottom would run that order level 10 → level 1.
+- **`col`/`lane`/`columns` in narrow**, and for a track-less wide tree: `col = 0`, and one
+**synthetic** column `{ trackId: '', title: '', x: 0, w: width }` rather than an empty array,
+chosen so **`columns[node.col]` resolves in both modes**. `edges: []` looks like the
+precedent for an empty array and was declined — `col = 0` indexing into one type-checks,
+which is what makes it a footgun. T06's proposal to make `lane` a running index over the
+stack was **overruled**: one field must not mean two things across two modes.
+- **§8.1 ships the unit constants** with v1 values, as tunable data on F18's principle — no
+value is normative, only the ratios. Two are constrained and breaking either is a bug:
+`rowGutter > 0`, and `sideGutterLane × (max same-level edges in a row) ≤ sideGutter`.
+- **§8.4's side gutter** is one channel on the right, lanes assigned per row, four-segment
+path. **The bow is the part that gets missed** — both nodes share a row, so without a
+vertical offset the outbound and return legs are the same line and it renders as one stroke
+that looks like a data bug.
+- **§8.2 step 7 is scoped to positioned milestones**, so a mastery `requires` produces no
+edge at all. §6.2 rule 14 leaves mastery with no cell and no position; an unpositioned
+endpoint is a category error, not a partial edge.
 
 ### No edge changes
 

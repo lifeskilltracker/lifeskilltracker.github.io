@@ -200,3 +200,23 @@ clean typecheck.
   live-region announcement text) is specified in §15.2 and lands in T20 — this task
   produces the structural hooks (`aria-describedby="ms-…-desc"`) but not the full content
   behind them.
+
+
+## T26 amendments — 2026-08-06 (F27)
+
+**`columns[node.col]` resolves in both viewports.** A tree with no `tracks`, and every narrow
+layout, carries one **synthetic** column `{ trackId: '', title: '', x: 0, w: width }`
+(§8.2 step 2, §8.5). An empty `trackId` is what marks a column synthetic — **draw no header
+for one.** `columns` is never an empty array, so this component needs no viewport branch to
+read a node's column.
+
+**Narrow puts level 1 at the top**, the opposite of wide (§8.5). Visual order and focus order
+are the same list there, and §15 reuses that list for screen readers at every viewport.
+
+**Some `requires` produce no edge, and that is correct.** §8.2 step 7 emits an edge only
+between two positioned milestones, so a mastery achievement's prerequisites never appear in
+`edges` — §9.6 surfaces them as text. Do not treat a missing edge as a layout bug.
+
+**The unit constants are tunable data, not fixed geometry** (§8.1). This is the component that
+first draws them, so it is where a retune will be wanted; change the values in the engine's
+constants module, never at a use site here.

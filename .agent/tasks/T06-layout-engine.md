@@ -226,27 +226,59 @@ the 2 ms benchmark; ESLint clean; a clean typecheck. A reviewer should be able t
   says nothing about cache eviction — an unbounded `Map` is acceptable for v1 given §17.5's
   scale thresholds, but say so in a comment rather than silently.
 
-**Where the spec is silent — do not invent an answer without flagging it:**
+**The spec is no longer silent on any of these.** All five were filed as **T26/F27** and
+resolved 2026-08-06; the answers are §8 now, not inferences. Two of this doc's earlier
+guesses were kept and one was overruled — see the amendments at the end.
 
-- **Narrow-layout vertical direction is unspecified.** §8.2 fixes level 1 at the *bottom*
-  for wide; §8.5 says only "stacked" and orders by `(level, track index, order, slug)`.
-  §15 reuses the narrow layout as the linear list, and a linear list read top-to-bottom
-  should almost certainly start at level 1 — i.e. the opposite y-direction from wide.
-  Pick level 1 at the **top** for narrow, and record the choice in a comment citing this
-  gap so T08 and T20 can overrule it cheaply.
-- **`col` and `lane` in narrow mode are undefined.** The §8.1 types require both. The
-  natural reading is `col = 0` for every node and `lane` = position in the single stack,
-  but §8.5 does not say. Same for `columns` — whether it holds one synthetic entry or the
-  first declared track.
-- **No numeric constants are given anywhere.** `slotWidth`, row height, the row gutter and
-  the side gutter have no values in §8. They are abstract units scaled by the renderer's
-  `viewBox` (§8.1), so any self-consistent set works; put them all in `constants.ts` so the
-  choice is visible and revisable when T08 first draws them.
-- **Side-gutter geometry for same-level edges is undefined.** §8.4 says such edges "route
-  through a side gutter" but does not say which side, how wide it is, or how two same-level
-  edges in one row avoid drawing on top of each other.
-- **Mastery `requires` targets have no layout node.** §5.7 lets a mastery achievement
-  declare `requires` against milestones, and §8.2 step 7 says "for each `requires`, route
-  an orthogonal path" without qualifying it to milestones. Since mastery is not positioned
-  (§9.6), those edges have no endpoint. Emit edges only between positioned milestone
-  nodes and note the exclusion in `edges.ts`.
+## T26 amendments — 2026-08-06 (F27)
+
+The five §8 silences this doc was carrying now have verdicts in the spec.
+
+**1. Narrow is level 1 at the TOP** (§8.5) — the one place the two modes disagree about
+direction. Wide is a spatial metaphor, a tree growing upward; narrow is a *reading order*,
+and §15 reuses it as the linear presentation for screen readers **at every viewport**. Level
+1 at the bottom would run that order level 10 → level 1 and put visual order in opposition to
+focus order. This doc's guess was right and is now spec; no explanatory comment needed.
+
+**2. `col`, `lane`, `columns` in narrow** (§8.5) — `col = 0` throughout; `columns` holds one
+**synthetic** entry `{ trackId: '', title: '', x: 0, w: width }`, an empty `trackId` marking
+it synthetic so §9 draws no header. Not an empty array, despite `edges: []` looking like the
+precedent: the invariant worth keeping is that **`columns[node.col]` resolves in both modes**,
+which a test can assert and T08 can rely on without branching on viewport. `col = 0` indexing
+into an empty array type-checks, which is what makes it a footgun.
+
+**`lane` was overruled.** This doc proposed a running index over the whole stack; §8.5 keeps
+`lane`'s §8.1 meaning — index within the `(level, col)` cell, so in narrow the index within
+the level. One field must not mean two things across two modes, and `(level, lane)` recovers
+the stack order anyway.
+
+The same rule closes a gap this doc did not name: §8.2 step 2's wide tree with no `tracks`
+gets the identical synthetic column.
+
+**3. The unit constants are in §8.1 with v1 values** — `slotWidth` 100, `slotHeight` 44,
+`rowHeight` 96, `rowGutter` 52, `colGutter` 24, `sideGutter` 72, `sideGutterLane` 18,
+`sameLevelBow` 12. **No value is normative**: units are abstract and the renderer rescales
+them, so what carries meaning is the ratios, and they ship as tunable data in one module
+exactly as F18's band table does. `constants.ts`, as this doc planned. **Two are constrained,
+and breaking either is a bug rather than a preference:** `rowGutter` must stay positive or
+§8.4's edges have no channel, and `sideGutterLane × (max same-level edges in one row)` must
+not exceed `sideGutter` or the outermost lane escapes the tree. Both are worth a test.
+
+**4. Side-gutter geometry** (§8.4) — one vertical channel on the right of the whole tree,
+outside every column, `sideGutter` wide. Each same-level edge takes a lane, numbered inside
+out and assigned **per row** in `(source lane, target lane)` order, at depth
+`channelX + k × sideGutterLane`. The path is four segments: out of the source's right edge,
+right to its lane depth, vertically by `sameLevelBow`, left into the target's right edge.
+
+**The bow is the part to get right.** Both nodes share a row, so both legs leave from the
+right edge at the same `y`; without the offset the outbound and return legs are the same
+line, and it renders as a single stroke that looks like a data bug. That is the first case a
+fixture hits. A target to the *left* of its source crosses the nodes between it and the
+channel — accepted, never routed around (§8.4).
+
+**5. Mastery edges are dropped, not degraded** (§8.2 step 7) — the step ranges over
+positioned milestone nodes only. §6.2 rule 14 forbids a mastery entry carrying a level,
+track, order, or requirement group, so it has no cell and no position; §9.6 renders it
+outside the grid and surfaces its prerequisites as text. An unpositioned endpoint is a
+category error rather than a partial edge. Note the exclusion in `edges.ts`, as planned.
+

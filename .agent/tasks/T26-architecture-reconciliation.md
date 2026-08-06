@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | **complete** — all twenty-six findings resolved. F1–F14, F16, F17, F20, F21, F23 on 2026-08-05; F15, F18, F19, F22, F24, F25, F26 on 2026-08-06 |
+| **Status** | **complete** — all twenty-seven findings resolved. F1–F14, F16, F17, F20, F21, F23 on 2026-08-05; F15, F18, F19, F22, F24–F27 on 2026-08-06 |
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
@@ -525,7 +525,7 @@ readonly hydrated: boolean;
 
 ## Acceptance criteria
 
-- [ ] `docs/SPEC-FINDINGS.md` records all twenty-six findings with a verdict of *amend*,
+- [x] `docs/SPEC-FINDINGS.md` records all twenty-seven findings with a verdict of *amend*,
       *tolerate*, or *not a defect*, each with a reason and a date.
 - [ ] F1: §11.6's table and §11.9's invariant 4 agree. Verified by computing
       Δfill(0→1) and Δfill(1→2) from the shipped constants and checking the invariant
@@ -632,16 +632,16 @@ lines at all, which a required field would make unparseable.*
 loader or to `lib/scoring` — so it takes a number, not a bundle.*
 - [x] Every affected task doc under `.agent/tasks/` is updated to match the resolutions.
       *Done for all twenty-six findings.*
-- [ ] `grep -ril "spec is silent\|unresolved spec gap" .agent/tasks/` returns nothing.
-      **Not met, and deliberately not forced.** One doc still trips it:
-      `T06-layout-engine.md` flags four §8 gaps — the narrow layout's vertical direction,
-      `col`/`lane`/`columns` in narrow mode, the absence of any numeric constant in §8, and
-      side-gutter geometry for same-level edges. **None was ever raised as a T26 finding**,
-      so no verdict covers them and deleting the marker would only make the grep lie. They
-      are F15's class — small, cheap, each capable of costing an afternoon — and are the
-      obvious content of a successor finding or a short §8 pass. T06 already tells an
-      implementer to pick a default and record it in a comment, so nothing is blocked; this
-      is unrecorded, not unresolved.
+- [x] `grep -ril "spec is silent\|unresolved spec gap" .agent/tasks/` returns nothing.
+      *Cleared by resolving the five §8 gaps `T06-layout-engine.md` was carrying rather than
+by deleting its marker. Filed as **F27** so they carry verdicts like every other finding.*
+- [x] F27: §8 determines a layout for every input. *Narrow is level 1 at the top;
+      `col`/`lane`/`columns` are defined in narrow and for a track-less wide tree via one
+synthetic column, chosen so `columns[node.col]` always resolves; §8.1 ships the unit
+constants as tunable data with two hard constraints; §8.4 gives the side-gutter channel,
+lane assignment and four-segment path including the bow that stops a same-level edge
+retracing itself; and §8.2 step 7 is scoped to positioned milestones, so a mastery
+`requires` produces no edge.*
 
 ## Verification
 

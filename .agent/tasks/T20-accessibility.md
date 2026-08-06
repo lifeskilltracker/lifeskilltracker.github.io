@@ -257,3 +257,10 @@ Last activity 3 days ago."* — because `moderate` is one of the five names.
 boundaries are provisional and expected to move from real use; the accessible-name builder
 calls the same resolver over the same data table T13 uses. See T13's amendments for the full
 rider — the risk is that two components each grow their own copy of the thresholds.
+
+
+**F27 — the narrow layout's reading order is now guaranteed, not inferred.** §8.5 fixes
+**level 1 at the top** in narrow, explicitly because §15 reuses that layout as the linear
+presentation for screen readers **at every viewport**. Level 1 at the bottom would have run
+the reading order level 10 → level 1. The guarantee is in the spec now, so §15's ordering
+claims rest on it rather than on T06's judgement.
