@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | in progress — F1–F14, F16, F17, F20, F21, F23 resolved 2026-08-05; F19, F22, F24, F25, F26 resolved 2026-08-06; **F15 and F18 open** |
+| **Status** | **complete** — all twenty-six findings resolved. F1–F14, F16, F17, F20, F21, F23 on 2026-08-05; F15, F18, F19, F22, F24, F25, F26 on 2026-08-06 |
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
@@ -543,7 +543,13 @@ readonly hydrated: boolean;
       struck, and the same decay language is gone from §2, §10.5 and §15.5. Verified by
       `grep -n "decaying\|shimmer" docs/ARCHITECTURE.md` returning only D-20/R-20's own
       descriptions of the deferred channel.*
-- [ ] F18: the fill band vocabulary is named, and not called "tier". *Still needs the owner — the band names are a content call and may belong in the PRD.*
+- [x] F18: the fill band vocabulary is named, and not called "tier". *Five bands over
+      `fill` — Quiet `[0,.15)`, Emerging `[.15,.35)`, Moderate `[.35,.55)`, Active
+`[.55,.72)`, Deep `[.72,1)` — in §11.6, with §2 gaining a `Band` glossary entry beside
+`Tier` and §15.3/§15.4 renamed. The top band opens just under a lone L10's 74.7%, so one
+mastered skill reaches it. The name is typed `string`, **not** a closed union like
+`TierName`: the owner expects to tune names, count and boundaries from real use, so the
+table ships as data and a change must be one line with no type or component change.*
 - [x] F19: §12.4 names every writer of `SKILL.lastActivityAt`, and §12.2's field is typed
       to match. *§12.2 carries the writer table — `startSkill` (seeded from `startedAt`),
 `setMilestoneState` (every mutation, un-completing included), `import` (the later side).
@@ -596,7 +602,12 @@ listed on `/data` (§16.3). A `retired` flag was priced and deferred to R-27.*
       index has a stated consumer. *`store.progressFor(treeId)` — synchronous, total, off
       §13.2's mirror, which every writer now refreshes. `by-tree` serves §12.4 step 2,
       §12.5's fold and sweep, and §12.3's reconciliation — never the render path.*
-- [ ] F15: every item in the cluster is either fixed in the spec or recorded as tolerated.
+- [x] F15: every item in the cluster is either fixed in the spec or recorded as tolerated.
+      *All seven amended. §4.4 and §10.5's mis-citations fixed; `MILESTONE.contentVersion`
+made required everywhere and named as provenance, with §12.6's example and merge rule
+following; `ORPHAN`'s missing slug confirmed deliberate and explained; §12.7 rewritten with
+a trigger table, a per-trigger dismissal record in `META`, `lastActivityAt > lastExportAt`
+as the definition of new activity, and T3 labelled phase 2.*
 - [x] F16: §9.3 and §16.4 agree on what produces node state in Phase 0. Verified by
       reading §16.4's Phase 0 prose and confirming that every state T10's gate requires
       has a named producer scheduled no later than T08. *§16.4's Phase 0 chain gains the
@@ -619,8 +630,18 @@ lines at all, which a required field would make unparseable.*
       *`store.reconcileAttainedLevel(treeId, level)`, called by the tree route after
 `applyLineage`. The store cannot compute it — §14.1 gives `lib/state` no edge to the
 loader or to `lib/scoring` — so it takes a number, not a bundle.*
-- [ ] Every affected task doc under `.agent/tasks/` is updated to match the resolutions,
-      and `grep -ril "spec is silent\|unresolved spec gap" .agent/tasks/` returns nothing.
+- [x] Every affected task doc under `.agent/tasks/` is updated to match the resolutions.
+      *Done for all twenty-six findings.*
+- [ ] `grep -ril "spec is silent\|unresolved spec gap" .agent/tasks/` returns nothing.
+      **Not met, and deliberately not forced.** One doc still trips it:
+      `T06-layout-engine.md` flags four §8 gaps — the narrow layout's vertical direction,
+      `col`/`lane`/`columns` in narrow mode, the absence of any numeric constant in §8, and
+      side-gutter geometry for same-level edges. **None was ever raised as a T26 finding**,
+      so no verdict covers them and deleting the marker would only make the grep lie. They
+      are F15's class — small, cheap, each capable of costing an afternoon — and are the
+      obvious content of a successor finding or a short §8 pass. T06 already tells an
+      implementer to pick a default and record it in a comment, so nothing is blocked; this
+      is unrecorded, not unresolved.
 
 ## Verification
 

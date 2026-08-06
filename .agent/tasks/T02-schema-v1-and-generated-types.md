@@ -213,3 +213,5 @@ watermark is total.
 "fix" wrongly: §5.4's authoring flow has the author write a tree with no `uid` lines at all,
 and a required field would make that draft unparseable by `lst ids`. Presence is §6.2's
 rule 16, a semantic rule in T03. Layer 1 constrains the *shape* of a uid that is present.
+
+**F15.** `contentVersion` on an export's milestone rows is **required**, matching §12.2.

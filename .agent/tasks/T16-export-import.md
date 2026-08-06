@@ -329,3 +329,12 @@ observe gets a counter. Such rows are **retained, never deleted**; they are excl
 scoring (T14's join) and listed on `/data` beside the orphan list (§16.5). Needs a
 round-trip fixture: an export naming a tree absent from the manifest imports cleanly,
 reports the count, and loses nothing.
+
+**F15 — `MILESTONE.contentVersion` is required in `ExportFile`, not optional.** §12.2 typed
+it required while §14.5 typed it optional and §12.6's example omitted it, so a round trip
+could drop a required field with no stated default. It is **provenance, not an input** —
+nothing branches on it — and it is always available at write time, so nothing forces the
+optional. The merge rule is now explicit: the whole record travels together, since `slug`,
+`title`, `note` and `contentVersion` are all provenance of the completion the winning `at`
+identifies. Mixing fields across the two sides would describe a completion that never
+happened.

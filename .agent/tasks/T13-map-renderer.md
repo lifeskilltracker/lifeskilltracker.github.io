@@ -214,3 +214,32 @@ Passing looks like: the channel and navigation test suite green, and a clean typ
 - The `k = 6` / `fill = s/(s+48)` constants are Scoring Engine territory (T11) and must
   never be duplicated or re-derived in this component — this component reads the fill
   number T11 already computed and only decides how to draw it.
+
+
+## T26 amendments — 2026-08-06
+
+**F18 — the fill bands are named.** Five, over `fill`: **Quiet** `[0, 0.15)`, **Emerging**
+`[0.15, 0.35)`, **Moderate** `[0.35, 0.55)`, **Active** `[0.55, 0.72)`, **Deep** `[0.72, 1)`
+(§11.6). §15.3 and §15.4 no longer call them "tiers" — that word belongs to §11.3's five
+names over pairs of *skill levels*, and this component must not reuse it.
+
+**The band table is expected to change, and this task is where that gets designed for.**
+The owner considers names, count and boundaries provisional pending real use. So:
+
+- **Do not declare a `BandName` union type.** `TierName` sits nearby as a five-member union
+  and looks like the precedent; it is not. Tiers are closed because F7 fixes them as pairs of
+  levels 1–10. Bands have no anchor, and a union makes renaming one a type change across
+  every consumer. The name is `string`.
+- **Do not write a threshold into this component.** One ordered data table, one resolver,
+  called by both this renderer and §15.3's accessible-name builder. The table is a pure
+  dependency-free constant module — same class as `lib/types`, so §14.1 needs no new node.
+- The bar: renaming a band, moving a boundary, or dropping to four bands must be a one-line
+  data edit with no type change and no change here.
+- Worth a property test that the table is non-empty and ascending, that its first bound is 0,
+  and that every bound is in `[0, 1)`.
+
+`DomainScore` still carries no band field (§14.4) — the mapping is presentation, and that is
+what keeps the table tunable without touching the engine.
+
+**F15.** §10.5's channel table sourced **Breadth** to §11.6; it is §11.7. Fixed in the spec;
+if this doc reproduces that table, fix it here too.

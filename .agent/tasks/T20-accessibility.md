@@ -238,3 +238,22 @@ passing condition is the dated, named record existing and being current for this
   information *only* through motion — if a future feature adds an animation-only signal,
   that is a regression against this section's premise, not just a missed
   `prefers-reduced-motion` handler.
+
+
+## T26 amendments — 2026-08-06
+
+**F18 — §15.3's "named tier" is a named *band*.** Five bands over domain `fill`: **Quiet**,
+**Emerging**, **Moderate**, **Active**, **Deep** (§11.6, with boundaries). The rename is the
+point of the finding: §11.3's tiers are the five names over pairs of *skill levels*, and
+announcing a domain's fill as a "tier" makes the map appear to rank a domain on the same
+scale that ranks a skill.
+
+§15.3's worked example survives unchanged — *"Making. 4 skills started. Fill: moderate.
+Last activity 3 days ago."* — because `moderate` is one of the five names.
+
+§15.4's redundancy row now reads "named band in text on focus (§11.6)".
+
+**Do not declare a `BandName` union, and do not hardcode a boundary.** The names, count and
+boundaries are provisional and expected to move from real use; the accessible-name builder
+calls the same resolver over the same data table T13 uses. See T13's amendments for the full
+rider — the risk is that two components each grow their own copy of the thresholds.

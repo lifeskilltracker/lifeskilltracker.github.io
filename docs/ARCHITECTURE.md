@@ -70,6 +70,7 @@ Project-specific and overloaded terms only. Terms are grouped by what they belon
 | **Level** | An integer 1–10. The row a milestone occupies and the unit of progression. Levels are unlock gates, not effort quanta, and are meaningful only relative to their own skill (F12). |
 | **Spine** | The invariant 1–10 level sequence every tree shares (F7). "Uniform spine" means every tree has exactly ten levels regardless of subject depth. |
 | **Tier** | A named pair of levels: Novice (1–2), Apprentice (3–4), Journeyman (5–6), Expert (7–8), Master (9–10) (F7). Presentation vocabulary; carries no independent completion semantics. |
+| **Band** | A named range of a domain's `fill`: Quiet, Emerging, Moderate, Active, Deep (§11.6). Presentation vocabulary over a *domain*, and deliberately **not** a tier — tiers rank a user's skill, bands describe a region's state. Provisional: names, count, and boundaries ship as tunable data. |
 | **Requirement group** | A rule over a set of milestones that must hold for a level to complete (F9). A level declares a list of groups, all of which must be satisfied. |
 | **Rule** | One of `all`, `n_of`, `any` — the three group kinds. `any` is `n_of` with n=1, retained as a distinct spelling for authoring clarity. |
 | **Track** | An optional named column within a tree, used by branching skills (F14). Determines horizontal placement. Not a category; purely a layout and grouping lane. |
@@ -393,7 +394,7 @@ Four GitHub Pages constraints, all handled in `svelte.config.js`:
 | Site served from `/<repo-name>/` | `kit.paths.base` set from an env var; `/` for a future custom domain. |
 | No server, so deep links 404 | `adapter-static` with `fallback: '404.html'`. Preferred over hash routing for clean URLs. The fallback response carries HTTP 404 with the app body. **In v1 this is accepted as-is** — the fix is shell precaching by a service worker, which §16.4 defers to phase 2 (§7.4). The consequence is that a deep link opened with no network fails to §16.3's cold-start screen rather than resolving locally. N9 is still met, because N9 scopes to "once loaded". Recorded as **R-26** in §19.3. |
 | Jekyll strips `_`-prefixed directories | Empty `.nojekyll` emitted into the build output. Omitting it silently breaks every Vite build. |
-| Aggressive asset caching | Vite's content-hashed filenames handle app assets. The **content manifest is the exception** — see §7.3, which treats manifest freshness explicitly. |
+| Aggressive asset caching | Vite's content-hashed filenames handle app assets. The **content manifest is the exception** — see §7.1 and §7.4, which treat manifest freshness explicitly (§7.3 is the compiler's transformation table). |
 
 **Preview deploys are out of scope.** They would require a second hosting provider and are not worth the operational surface for a solo maintainer (N10). Reviewers evaluate content in the PR diff and via `lst` locally, which is the workflow F42 assumes anyway.
 
@@ -1421,7 +1422,7 @@ A region with a hole (a domain drawn as a ring) would produce two loops. The com
 |---|---|---|
 | **Fill** | A clip rectangle rising from the region's base, animated on change | Domain score through the concave curve (§11.6) |
 | **Recency** | A date beside the label and in the accessible name — *"Last activity — 12 March"*, or *"No activity yet"* when `lastActivityAt` is null. **No saturation, no shimmer, no fade**: D-20 ships a date, and the graded channel is R-20, phase 2 | §11.7 |
-| **Breadth** | A small count of skills started, rendered as text beside the label | §11.6 |
+| **Breadth** | A small count of skills started, rendered as text beside the label | §11.7 |
 | **Fog** | Desaturated, low-contrast, with the region name replaced by a "no skills yet — contribute one" affordance | Zero published trees in the manifest (F22) |
 
 Fog is computed from the **manifest**, not from user state: a domain is fogged when the library has no trees for it, not when the user has not started any. F22 is about signalling forthcoming content and inviting contribution, which is a property of the library.
@@ -1616,6 +1617,30 @@ The Δ row is strictly decreasing and its maximum is the first entry, which is i
 
 **Presentation.** Continuous fill drives the region height; a **named band** over the same number carries the legibility a continuous bar cannot, and is what §15.3 announces to screen readers. This is FIDE's continuous-rating-with-coarse-titles pattern and PSN's profile icon bands. Never a raw percentage (F34).
 
+**The five bands, and where they cut:**
+
+| Band | `fill` | Roughly |
+|---|---|---|
+| **Quiet** | `[0, 0.15)` | nothing attained, up to one skill at level 1 |
+| **Emerging** | `[0.15, 0.35)` | one skill around levels 2–3 |
+| **Moderate** | `[0.35, 0.55)` | one skill around levels 3–5 |
+| **Active** | `[0.55, 0.72)` | one skill around levels 6–9 |
+| **Deep** | `[0.72, 1)` | a mastered skill, and beyond |
+
+The boundaries are anchored to the shipped curve rather than to arithmetic. The top band opens at 0.72, just under a lone level-10 skill's 74.7%, so **one skill taken all the way reaches the top band** — which is the claim R-19's depth premium exists to make, and even quintiles would have denied it by putting the top band out of reach of any single skill. Eight mastered skills reach 95.9%; the band never saturates because `fill` never does.
+
+**The bottom band is `Quiet`, not `None` or `Empty`.** `fill: 0` covers a domain with no started skills *and* a domain whose started skills are all at `attained: 0` (§11.3), and breadth is the channel that distinguishes them — a band claiming emptiness beside a skills-started count of four would contradict the text next to it.
+
+**The vocabulary is descriptive, never a rank.** §11.3's `TierName` already ranks a user's skills; this names the state of a region. That separation is why the words are intensity adjectives rather than achievements — a band that congratulates is a second ladder, which is NG10's territory.
+
+**This table is data, and it is expected to move.** Names, count, and boundaries are all provisional: the right vocabulary is the kind of thing only real use settles, and the owner expects to tune it. Three consequences, each of which makes a later change cheap or expensive depending on whether it was honoured:
+
+- **The band name is `string`, not a closed union.** `TierName` is deliberately a five-member union because F7 fixes tiers as pairs of levels 1–10 and a sixth would mean changing the level spine. Bands have no such anchor, so typing them as a union would make adding, removing, or renaming one a type change rippling through every consumer. `DomainScore` still carries no band at all (§14.4) — the mapping is presentation.
+- **One table, one resolver, no thresholds in components.** The map renderer (§10.5) and the accessible-name builder (§15.3) both call the same resolver over the same ordered table. A threshold written into a component is the change this design exists to prevent.
+- **The table is a pure, dependency-free constant module** — the same class as `lib/types`, importing nothing and doing no I/O, so §14.1's rules do not reach it and it needs no new node in that graph.
+
+Changing a name, moving a boundary, or going from five bands to four must be a one-line data edit with no type change and no component change. Worth a property test that the table is non-empty and ascending, that its first bound is 0, and that every bound lies in `[0, 1)` — the same treatment §11.9 gives the contribution table, and for the same reason.
+
 The table ships as **data, not a formula** — auditable, testable, tunable without a code change, and revertible to the flat `[8,16,24,…,80]` by config if the owner ever reverses the NG8 call.
 
 **The table is normative; `p` is provenance.** `p = 1.25` documents where the integers came from and is what a future maintainer re-derives from, but the shipped artefact is the ten integers, and **§11.9 invariant 4 is asserted against those integers, never against `L^p`**. This distinction is not pedantry: the ×2 rounding defect above was invisible precisely because the invariant was written against the continuous form while the app shipped the rounded one.
@@ -1738,6 +1763,8 @@ erDiagram
 
 **`contentVersionSeen` and every `contentVersion` in this diagram are the owning tree's own version** (§5.3), never a library-wide counter. `MILESTONE.contentVersion` is the tree's version at the moment that milestone was completed.
 
+**`MILESTONE.contentVersion` is required, and it is provenance rather than an input.** Nothing branches on it: §12.5's migration is driven by `SKILL.contentVersionSeen`, and the scoring engine never sees it. It is written because it is the only record of *which version of the tree the user was looking at when they ticked this* — the same job as the frozen `slug` and `title` above, and the same justification: an export must be readable years later, and there is no telemetry to reconstruct it from. It is always available at write time, since a milestone cannot be completed without its bundle loaded, so it is non-optional in the store and in `ExportFile` alike, and §12.6 merges it with the record it belongs to.
+
 **`grandfathered`** is D-19's frozen satisfaction record (§11.5), shaped
 `{ [level: number]: { uids: string[]; contentVersion: number } }`. Levels appear only once satisfied; the field is `{}` for a skill that has satisfied none. Roughly 100 bytes per skill at ten satisfied levels. It is written in §12.4's transaction, migrated by §12.5, and exported by §12.6 — all three are required, and omitting any one silently breaks invariant 7.
 
@@ -1829,6 +1856,8 @@ It is **idempotent by construction** and needs no seen-marker: after re-homing, 
 
 **Nothing is ever silently deleted from user state.** Orphans keep their frozen title, timestamp, and note, are always exported, and surface in a "retired achievements" section rather than vanishing. They never score.
 
+**An orphan keeps no `slug`, and the omission is deliberate.** A slug is a tree-local reference — it resolves through §5.4's `aliases` into a milestone that still exists, and addresses a `/s/<treeId>/m/<slug>` deep link. An orphaned milestone is precisely one that no longer exists in its tree, so a retained slug would resolve to nothing while looking exactly like a slug that resolves, inviting a dead link from the retired-achievements list. `title` is what makes the record meaningful to a human, and `uid` is what makes it identifiable to the system; the slug's only job was to be a live reference, and there is no longer anything to refer to.
+
 The migration pass must carry **everything attached to a milestone** — state, timestamp, note, and later the photo — not just the completion flag. Minecraft Forge's missing-mappings mechanism is the direct precedent for the three dispositions, and its documented rough edge is exactly this: nested state was dropped because the remap path did not cover it.
 
 The **merge-with-partial-predecessors case is an accepted loss** and should be stated plainly in the UI. A user who completed one of two milestones that were later merged has not done the merged thing, and F46's `dismissed` is explicitly not a partial-credit state. The predecessors survive as orphans with their notes, so nothing the user wrote is destroyed — only the score contribution goes.
@@ -1860,7 +1889,7 @@ Plain JSON, one file, no archive, no photos in phase 1.
     { "uid": "k7m2qp9x", "treeId": "blacksmithing", "slug": "light-the-forge",
       "title": "Light a fire and bring stock to forging heat",
       "state": "complete", "at": "2026-05-01T09:14:00Z",
-      "note": "First proper coal fire. Took three goes." }
+      "note": "First proper coal fire. Took three goes.", "contentVersion": 3 }
   ],
   "orphans": []
 }
@@ -1872,7 +1901,7 @@ It carries both identifiers on purpose, because the file has two readers with di
 
 **Import** defaults to **merge**. The file has three arrays and each needs its own rule; specifying only the milestones — the obvious one — leaves two thirds of the two-device flow F38 implies undefined.
 
-**`milestones`: union by `uid`, newest `at` wins on conflict.** Unchanged, and the reason the flow works at all.
+**`milestones`: union by `uid`, newest `at` wins on conflict.** Unchanged, and the reason the flow works at all. The whole record travels together — `slug`, `title`, `note` and `contentVersion` are all provenance of the completion the winning `at` identifies (§12.2), so mixing fields from the two sides would describe a completion that never happened.
 
 **`skills`: union by `treeId`, merged field by field.** A skill row is not a value with a single timestamp, so there is no one side to prefer:
 
@@ -1900,10 +1929,25 @@ There is no top-level `contentVersion` in the file, because there is no library-
 
 - On first successful write, request `navigator.storage.persist()`. Granted, it exempts the origin from routine eviction. Chrome grants it on engagement signals; Safari effectively does not outside installed PWAs. Request it, do not depend on it.
 - Poll `navigator.storage.estimate()` on session start.
-- **Prompt for export** — non-modal, dismissible, never blocking — when any of: no export ever recorded and the user has ten or more completions; more than thirty days since the last export with new activity since; estimated usage above 60% of quota.
+- **Prompt for export** — non-modal, dismissible, never blocking — when any of three triggers fires:
+
+| # | Trigger | Phase |
+|---|---|---|
+| **T1** | No export ever recorded, and the user has ten or more completions | 1 |
+| **T2** | More than thirty days since the last export, with new activity since | 1 |
+| **T3** | Estimated usage above 60% of quota | **2** |
+
 - The durability message is factual rather than alarming: browser storage can be cleared by the browser, by private-mode expiry, or by the user, and export is the only backup. `lastExportAt` lives in `META` so the prompt does not nag a user who is already exporting.
 
-Phase 1 storage is small — a heavy user with fifty skills at sixty milestones lands well under 1 MB — so quota pressure is a phase-2 concern that arrives with photos.
+**"New activity since" is `lastActivityAt > lastExportAt`**, compared as ISO-8601 UTC strings (§12.2). Both are already stored and both are already `Z`-suffixed, so this needs no new field and no clock arithmetic. It is *activity*, not completions: T2 should fire for a user who has been dismissing and re-ticking milestones, since that is unbacked-up work like any other.
+
+**Dismissal is recorded per trigger in `META`, never as one global flag.** A single `exportPromptDismissed` boolean is the obvious implementation and it silences all three triggers permanently the first time a user waves one away — turning the only backup mechanism in a system with no server (N2) into something a stray click disables forever. Instead `META` holds a dismissal record keyed by trigger id, and each trigger re-arms on its own terms:
+
+- **T1 never re-fires once dismissed.** It is a one-time onboarding nudge, and it is superseded by T2 the moment thirty days pass.
+- **T2 re-arms naturally.** Its condition goes false at the next export and true again after the next thirty-day window with new activity, so a dismissal suppresses one window and no more. No timer is stored.
+- **T3 stores a usage watermark** alongside the dismissal and re-fires when estimated usage climbs another ten percentage points past it. Without the watermark, dismissing at 61% would silence the trigger through 99%.
+
+**T3 cannot fire in phase 1 and is labelled phase 2 rather than left to look live.** §17.4 budgets phase 1 storage well under 1 MB — a heavy user with fifty skills at sixty milestones — against origin quotas measured in hundreds of megabytes, so 60% is unreachable by two or three orders of magnitude. It is specified now because it arrives with photos (§12.8), where it becomes the trigger that actually matters; implementing it in phase 1 would be dead code that no fixture can exercise honestly.
 
 ### 12.8 Photos, phase 2 (D5)
 
@@ -2162,7 +2206,7 @@ export function domainScores(
 
 `tier` is `null` at `attainedLevel: 0` rather than carrying a sixth name. F7 defines tiers as pairs of levels 1–10, so an unranked skill genuinely has none, and a nullable field makes every consumer handle a case that a defaulted one would hide (§11.3 gives the display string).
 
-The returned map is **total over `taxonomy.domains`** — one entry per domain, so §3.3's eight regions render without the caller handling `undefined`. A domain with no started skills is `{ score: 0, fill: 0, breadth: 0, lastActivityAt: null }`. `DomainScore` carries no band name: the named band (§11.6, §15.3) is a presentation mapping over `fill` and belongs to the renderer, not to the engine.
+The returned map is **total over `taxonomy.domains`** — one entry per domain, so §3.3's eight regions render without the caller handling `undefined`. A domain with no started skills is `{ score: 0, fill: 0, breadth: 0, lastActivityAt: null }`. `DomainScore` carries no band name: the named band (§11.6, §15.3) is a presentation mapping over `fill` and belongs to the renderer, not to the engine. That separation is what makes §11.6's band table tunable — its names, count and boundaries are provisional, and were they a field here, moving a boundary would be an engine change with property tests to re-derive.
 
 Three properties are contractual and are what the test suite asserts:
 
@@ -2228,7 +2272,7 @@ export interface ExportFile {
     readonly slug: string; readonly title: string;    // frozen snapshots — §12.2
     readonly state: 'complete' | 'dismissed';
     readonly at: string; readonly note?: string;
-    readonly contentVersion?: number;                 // the tree's version at completion
+    readonly contentVersion: number;                  // the tree's version at completion — §12.2
   }>;
   readonly orphans: ReadonlyArray<{
     readonly uid: string; readonly treeId: string;
@@ -2386,7 +2430,7 @@ Each region is a focusable link with an accessible name carrying every channel a
 "Play. No skills published yet — contribute one."
 ```
 
-Fill is announced by its **named tier**, never as a percentage, which keeps the accessible name consistent with F34's refusal to show a raw percentage visually. Regions follow a stable, documented reading order that does not depend on their pixel positions. Below the legibility threshold the map is replaced by a list (§10.7), which is the same content in the same order — so the small-viewport experience and the screen-reader experience converge rather than diverging.
+Fill is announced by its **named band** (§11.6 — `Quiet`, `Emerging`, `Moderate`, `Active`, `Deep`), never as a percentage, which keeps the accessible name consistent with F34's refusal to show a raw percentage visually. It is a *band*, not a tier: §11.3's tiers are the five names over pairs of skill levels, and using one word for both would have the map appear to rank a domain on the same scale that ranks a skill. Regions follow a stable, documented reading order that does not depend on their pixel positions. Below the legibility threshold the map is replaced by a list (§10.7), which is the same content in the same order — so the small-viewport experience and the screen-reader experience converge rather than diverging.
 
 ### 15.4 Never colour alone
 
@@ -2396,7 +2440,7 @@ Enumerated because it is the requirement most easily lost in implementation:
 |---|---|---|
 | Milestone state | fill hue | glyph (✓ ○ ‧ ✕) + border style (§9.3) |
 | Domain identity | palette | region silhouette + label |
-| Domain fill level | fill height | named tier in text on focus |
+| Domain fill level | fill height | named band in text on focus (§11.6) |
 | Recency | none in v1 — it is text already (§10.5, D-20) | the date in the accessible name and detail panel |
 | Level progress | bar colour | `n / m` text per requirement group |
 

@@ -202,12 +202,41 @@ branch leaving the UI honest.
 - **No install prompt, no PWA nudge.** §12.7 explains *why* Safari withholds persistence
   outside installed PWAs; it does not authorise chasing an install. §16.4 puts PWA work in
   phase 2.
-- **§12.7 does not say where the dismissal flag lives.** `META` would persist it across
-  sessions and thereby silence the prompt permanently, which contradicts the triggers'
-  recurrence; session-scoped in-memory state matches the intent. The spec is silent —
-  implement it in memory and record the choice in the PR.
-- **§12.7 does not define "new activity since".** The natural reading, and the one this task
-  should take, is any `MILESTONE.at` or `SKILL.lastActivityAt` strictly later than
-  `lastExportAt`. Stated here because it is an inference, not a quotation.
+- **Dismissal lives in `META`, per trigger** — see the T26/F15 amendments below. This
+  reverses the guess recorded here previously (session-scoped memory), which would have
+  re-prompted on every reload.
 - `usage` and `quota` from `navigator.storage.estimate()` are browser estimates and are
   deliberately imprecise; do not present them as exact figures on `/data`.
+
+## T26 amendments — 2026-08-06
+
+**F15 answered both of this task's open spec-silences, and answered one of them against the
+guess this doc had recorded.**
+
+**Dismissal lives in `META`, keyed by trigger — not in session memory.** The note here
+previously reasoned that `META` would silence the prompt permanently and so chose
+session-scoped state. That reasoning was right about the hazard and wrong about the fix: a
+single global flag in `META` silences everything forever, but session memory re-prompts on
+every reload, which is the same nagging §12.7's `lastExportAt` sentence exists to prevent.
+The resolution is a **per-trigger** record, and each trigger re-arms on its own terms, so no
+timer is stored:
+
+| Trigger | Condition | Phase | Re-arms |
+|---|---|---|---|
+| **T1** | No export ever recorded, ≥ 10 completions | 1 | Never — a one-time nudge, superseded by T2 after thirty days |
+| **T2** | > 30 days since last export, with new activity since | 1 | Naturally: false at the next export, true at the next window. A dismissal costs one window |
+| **T3** | Estimated usage > 60% of quota | **2** | Ten percentage points past a stored watermark |
+
+T3's watermark is the non-obvious one: without it, dismissing at 61% silences the trigger
+through 99%.
+
+**"New activity since" is `lastActivityAt > lastExportAt`**, string-compared as ISO-8601
+UTC (§12.2). Narrower than this doc's previous inference, which also considered
+`MILESTONE.at`: F19 made `SKILL.lastActivityAt` a **total, forward-only watermark** written
+on every mutation, so it already dominates every `MILESTONE.at` in that tree and checking
+both is redundant. It is deliberately *activity* rather than *completions* — a user who has
+been dismissing and re-ticking has unbacked-up work like anyone else.
+
+**T3 is labelled phase 2 in the spec now**, so the existing note about not treating a
+never-observed branch as dead code stands and is now backed by §12.7 itself rather than by
+this doc's inference.

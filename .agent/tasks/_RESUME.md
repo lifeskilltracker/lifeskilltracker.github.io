@@ -4,12 +4,49 @@ Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work i
 Updated 2026-08-06 after Group I. Read this, then `_BREAKDOWN.yaml`, then
 `T26-architecture-reconciliation.md`.
 
-# SESSION 7 — Group I (F19, F22, F24, F25, F26). T26 is now 24 of 26.
+# SESSION 7 — T26 IS COMPLETE. All twenty-six findings resolved.
 
-**Only F15 and F18 remain open, and neither blocks the critical path the way the rest did.**
-F15 is seven mechanical citation and wording fixes — cheap, delegable, no owner call needed.
-**F18 still needs the owner**: the fill band vocabulary is a content call that may belong in
-the PRD, and it must also rename "tier" at the domain level. Do not derive it.
+Group I (F19, F22, F24, F25, F26) then F15 and F18, all on 2026-08-06.
+
+**T26 no longer blocks anything.** Eleven tasks were waiting on it — T02, T04, T07, T08,
+T09, T10, T11a/b, T12, T16, T17, T23. **The critical path is now the T11 split** (step 1
+below, still undone) and then T01 → T02, which is the first task with no unresolved blocker.
+
+- **F15** — all seven small omissions amended. Two mis-citations (§4.4 → §7.1/§7.4,
+§10.5's Breadth → §11.7). **`MILESTONE.contentVersion` made required everywhere** and named
+as *provenance, not an input* — nothing branches on it; it exists so an export read years
+later says which version of the tree the user was looking at, the same job as the frozen
+`slug`/`title`. §12.6's example and merge rule follow ("the whole record travels together").
+`ORPHAN`'s missing slug confirmed deliberate, with the reason stated: a slug is a live
+reference, and an orphan is exactly the milestone that no longer exists, so keeping one
+invites a dead link out of the retired-achievements list. **§12.7 rewritten** — a trigger
+table (T1/T2/T3), **per-trigger dismissal in `META`** (a single global flag disables the only
+backup mechanism in a serverless system forever; each trigger re-arms on its own terms so no
+timer is stored), `lastActivityAt > lastExportAt` as the definition of "new activity", and
+T3 labelled **phase 2** since §17.4's sub-1 MB budget puts 60% of quota two or three orders
+of magnitude out of reach.
+- **F18** — five bands over `fill`: **Quiet** `[0,.15)`, **Emerging** `[.15,.35)`,
+**Moderate** `[.35,.55)`, **Active** `[.55,.72)`, **Deep** `[.72,1)`. §15.3/§15.4 stop saying
+"tier" and §2 gains a `Band` glossary entry beside `Tier`. Boundaries are landmark-anchored,
+not quintiles: the top band opens just under a lone L10's 74.7%, so **one skill taken all the
+way reaches it**, which is the claim R-19's depth premium exists to make. §15.3's shipped
+example ("Fill: moderate") survives unchanged.
+  **The owner's rider changed the shape of the answer:** names, count and boundaries are
+provisional and expected to move from real use. So the band name is **`string`, not a closed
+union** — `TierName` is closed only because F7 fixes tiers as pairs of levels 1–10, and bands
+have no such anchor — the table is one pure dependency-free data module with one resolver, no
+threshold may be written into a component, and `DomainScore` still carries no band field.
+The bar: renaming a band or moving a boundary is a one-line data edit with no type change.
+
+### One acceptance criterion is knowingly unmet
+
+`grep -ril "spec is silent" .agent/tasks/` still hits **T06**, which flags four §8 layout
+gaps: the narrow layout's vertical direction, `col`/`lane`/`columns` in narrow mode, the
+total absence of numeric constants in §8, and side-gutter geometry for same-level edges.
+**None was ever raised as a T26 finding**, so no verdict covers them — deleting the marker
+would only make the grep lie. Same class as F15's cluster, and the obvious content of a short
+§8 pass. Nothing is blocked: T06 already tells an implementer to pick a default and record it
+in a comment.
 
 - **F25** — §6.2 gains **rule 16** (every milestone and mastery entry carries a `uid`) and
 `lst ids` **stops gating**; it is the fix, not the gate. The half the finding never asked

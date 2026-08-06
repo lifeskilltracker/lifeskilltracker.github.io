@@ -6,8 +6,8 @@ F18 and F19 found while resolving F3 and F4, F20–F23 found while resolving F12
 F24–F25 found while resolving F17 and F7, and F26 found while resolving F23. Each gets a
 verdict of **amend**, **tolerate**, or **not a defect**, with a reason and a date.
 
-**Twenty-four are resolved. F15 and F18 remain open.** The 2026-08-06 session resolved
-F19, F22, F24, F25 and F26, and folded eight further defects into those resolutions rather
+**All twenty-six are resolved.** The 2026-08-06 session resolved F19, F22, F24, F25 and
+F26, then F15 and F18, and folded eight further defects into those resolutions rather
 than appending them as new findings — three into F24 and five into F22, at the owner's
 direction, on the ground that each was a cause or a consequence of the finding it landed
 in. Two more were surfaced and deliberately left unfiled: nothing gates manifest-level
@@ -35,10 +35,10 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F12 | amend | 2026-08-05 | Per-array merge rules; `attainedLevel` never merged; `contentVersionSeen` exported and minimum-wins |
 | F13 | amend | 2026-08-05 | Unknown-sweep scoped to `treeId`; manifest-level `moved` index applied at cold start |
 | F14 | amend | 2026-08-05 | The pass is a fold in file order; `merged` groups by target; the unknown row is a final sweep |
-| F15 | — | — | pending |
+| F15 | amend | 2026-08-06 | Seven small omissions; `MILESTONE.contentVersion` required as provenance; §12.7's triggers tabled, dismissal per-trigger in `META` |
 | F16 | amend | 2026-08-05 | §11 splits at §11.5; §11.1–§11.4 ship in phase 0 |
 | F17 | amend | 2026-08-05 | `lst validate` owns the five geometry invariants as §6.2 layer 2b (M1–M5) |
-| F18 | — | — | pending — raised 2026-08-05 while resolving F3 |
+| F18 | amend | 2026-08-06 | Five bands over `fill` — Quiet, Emerging, Moderate, Active, Deep; landmark-anchored; `string`, not a union, because the table is expected to move |
 | F19 | amend | 2026-08-06 | `lastActivityAt` is a total, forward-only watermark; `startSkill` seeds it; three writers named |
 | F20 | amend | 2026-08-05 | `split` consumes its predecessor and moves the frozen entry; `merged`'s success branch stated to match |
 | F21 | amend | 2026-08-05 | `into`'s shape and cardinality fixed per `op`; rule 15 branches on `op` |
@@ -248,7 +248,7 @@ row in §12.5's table, one key in the export format.
 new shape and reports `satisfiedBy`. **T16** implements the export key and the
 earliest-version merge rule. **T17** implements the lineage deviation for frozen sets.
 **T02** picks up `FrozenSatisfaction` and the widened `TreeProgress` in generated
-types; note this interacts with F3, which is still pending.
+types; note this interacts with F3, resolved later the same day.
 
 ---
 
@@ -1988,6 +1988,167 @@ notes; no schema change. **T14** drops unjoined rows without deleting them, bran
 an export naming a tree this library lacks. **T09** gains the retention rule as a store
 invariant, no new method. **T04** notes the `moved` map's dependency on check 8.
 **T17 is explicitly unchanged**, which is worth recording: the migration passes do not move.
+
+---
+
+## F15 — a cluster of small omissions
+
+### The finding as raised
+
+Seven items, each cheap to fix and each capable of costing an afternoon if hit cold. All
+seven are resolved by amendment; none needed a judgment call.
+
+### The seven
+
+**1. §4.4 cited the wrong section.** It forwarded the reader to "§7.3, which treats
+manifest freshness explicitly". §7.3 is the compiler's transformation table; freshness is
+§7.1 and §7.4. Now cites both, and says what §7.3 actually is so the next reader does not
+re-follow the dead pointer.
+
+**2. `MILESTONE.contentVersion` was declared, unconsumed, and typed two ways.** §12.2
+required it, §14.5's `ExportFile` made it optional, §12.6's worked example omitted it, and
+§12.6's milestone merge rule was silent — so a round trip could drop a required field with
+no stated default. **Resolved as required everywhere, and named as provenance rather than
+an input:** nothing branches on it (§12.5 migrates off `SKILL.contentVersionSeen`, and the
+engine never sees it), it exists so an export read years later says *which version of the
+tree the user was looking at when they ticked this* — the same job §12.2 already gives the
+frozen `slug` and `title`, and the same justification, since there is no telemetry to
+reconstruct it from. It is always available at write time because a milestone cannot be
+completed without its bundle loaded, so nothing forces the optional. §12.6's merge rule now
+says the whole record travels together: `slug`, `title`, `note` and `contentVersion` are all
+provenance of the completion the winning `at` identifies, and mixing fields across the two
+sides would describe a completion that never happened.
+
+**3. `ORPHAN` carries no `slug` while `MILESTONE` does.** Confirmed intentional and now
+stated, with the reason. A slug is a *live reference* — it resolves through §5.4's `aliases`
+into a milestone that still exists and addresses a `/s/<treeId>/m/<slug>` deep link. An
+orphan is precisely a milestone that no longer exists, so a retained slug would look exactly
+like one that resolves while resolving to nothing, inviting a dead link straight out of the
+retired-achievements list. `title` carries the human meaning and `uid` the identity; the
+slug's only job was reference, and there is nothing left to refer to.
+
+**4. §12.7 did not say where the export-prompt dismissal flag lives**, and the finding
+already named the hazard: persisting it naively silences all three triggers permanently.
+**Resolved as a per-trigger record in `META`, never one global boolean** — a single flag
+turns the only backup mechanism in a system with no server (N2) into something one stray
+click disables forever. Each trigger then re-arms on its own terms, which is what makes the
+design need no timers: **T1** never re-fires, being a one-time onboarding nudge superseded
+by T2 after thirty days; **T2** re-arms naturally, since its condition goes false at the
+next export and true again at the next window, so a dismissal costs one window; **T3**
+stores a usage watermark and re-fires ten percentage points later, without which dismissing
+at 61% would silence it through 99%.
+
+**5. §12.7's "new activity since" was undefined.** Now `lastActivityAt > lastExportAt`,
+compared as ISO-8601 UTC strings — both fields already exist and both are already
+`Z`-suffixed (§12.2, and F19 made the first of them total), so this needs no new field and
+no clock arithmetic. It is deliberately *activity* and not *completions*: a user who has
+been dismissing and re-ticking has unbacked-up work like anyone else.
+
+**6. §12.7's 60%-of-quota trigger cannot fire in phase 1.** §17.4 budgets phase 1 storage
+well under 1 MB against origin quotas in the hundreds of megabytes, so 60% is unreachable by
+two or three orders of magnitude. **Labelled phase 2** in a new trigger table rather than
+left to read as live. It stays specified because it arrives with photos (§12.8), where it
+becomes the trigger that matters; building it in phase 1 would be dead code no fixture can
+exercise honestly.
+
+**7. §10.5's channel table sourced Breadth to §11.6.** Breadth is §11.7. Same class as item
+1, found during F5's sweep of the adjacent Recency row and left for this cluster.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §4.4, §10.5, §12.2 (two paragraphs), §12.5, §12.6 (example, merge
+rule), §12.7 (rewritten), §14.5 (`ExportFile.contentVersion`).
+
+### Downstream
+
+**T18** owns §12.7 and gains the trigger table, the per-trigger dismissal record, the
+`lastActivityAt > lastExportAt` definition, and T3's phase-2 label — the largest share.
+**T16** makes `contentVersion` required in the export and merges the record whole. **T09**
+writes it on completion. **T02** makes it required in the export schema. **T13** takes the
+Breadth citation fix. No task gains or loses scope.
+
+---
+
+## F18 — the fill band vocabulary was required in three places and defined in none
+
+### The finding as raised
+
+§11.6 required a "named band" over `fill`, §15.3 announced it to screen readers, and §15.4's
+redundancy table listed it — and no section named the bands. Two of the three called it a
+**tier**, colliding with F7's `TierName` (Novice, Apprentice, Journeyman, Expert, Master),
+which is a different thing over a different quantity. The finding noted this needs the
+owner, not a derivation.
+
+### Resolution
+
+**Amend.** Five bands over `fill`: **Quiet** `[0, 0.15)`, **Emerging** `[0.15, 0.35)`,
+**Moderate** `[0.35, 0.55)`, **Active** `[0.55, 0.72)`, **Deep** `[0.72, 1)`. §15.3 and
+§15.4 stop saying "tier", and §2's glossary gains a `Band` entry beside `Tier` so the
+collision cannot quietly return.
+
+The vocabulary is spec-native rather than invented: §11.6 already frames the entire channel
+as *"is Body quiet compared to Mind?"*, and §15.3's worked accessible-name example already
+read *"Fill: moderate"* — so that example survives the resolution unchanged, which is a
+small sign the words were the ones the document was already reaching for.
+
+**The boundaries are anchored to the shipped curve, not to arithmetic.** The top band opens
+at 0.72, just under a lone level-10 skill's 74.7%, so one skill taken all the way reaches
+the top band. Even quintiles were declined for exactly this: their top band opens at 0.80,
+which no single skill however deep can reach, denying the claim R-19's depth premium exists
+to make.
+
+### Two constraints that shaped the words
+
+**No band may imply a denominator.** `fill` is `s/(s+48)` — asymptotic, never reaching 1.
+Eight mastered skills reach 95.9%. So "Full" or "Complete" at the top would be false, and
+§11.6 is explicit that domains have no denominator and F34 forbids showing the number at all.
+
+**The bottom band cannot claim emptiness.** `fill: 0` covers a domain with no started skills
+*and* one whose started skills all sit at `attained: 0` (§11.3), and breadth is the channel
+that tells them apart. A band named `None` beside a skills-started count of four would
+contradict the text next to it. `Quiet` is true of both.
+
+And underneath both: the words are intensity adjectives because a band that congratulates is
+a second ladder. §11.3's tiers already rank a user's skill; a band describes a region's
+state, and conflating the two is what the word "tier" was doing.
+
+### The rider the owner added, and it changed the shape of the answer
+
+**The table is expected to move** — names, count, and boundaries are all provisional, since
+the right vocabulary is the kind of thing only real use settles. That turns this from a
+naming decision into a decision about where the names live, and three consequences follow:
+
+- **The band name is `string`, not a closed union.** This is the one most likely to be got
+wrong, because `TierName` sits four sections away as a five-member union and looks like the
+precedent. It is not: `TierName` is closed because F7 fixes tiers as pairs of levels 1–10, so
+a sixth would mean changing the level spine. Bands have no such anchor, and a union would
+make renaming one a type change rippling through every consumer.
+- **One table, one resolver, no threshold in any component.** The map renderer (§10.5) and
+the accessible-name builder (§15.3) call the same resolver over the same ordered table.
+- **The table is a pure, dependency-free constant module** — the same class as `lib/types`,
+importing nothing and doing no I/O, so §14.1's rules do not reach it and it needs no new node
+in that graph.
+
+`DomainScore` still carries no band field, as F3 decided and F18 confirmed for a second
+reason: were the band a field there, moving a boundary would be an engine change with
+property tests to re-derive, rather than a one-line data edit.
+
+The bar is explicit: **changing a name, moving a boundary, or going from five bands to four
+must be a one-line data edit with no type change and no component change.** Worth a property
+test that the table is non-empty and ascending, that its first bound is 0, and that every
+bound lies in `[0, 1)` — the treatment §11.9 already gives the contribution table.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §2 (glossary), §11.6 (the table and four paragraphs), §14.4 (why the
+band is not a `DomainScore` field), §15.3, §15.4.
+
+### Downstream
+
+**T13** renders the band on the map and must not write a threshold into the component.
+**T20** takes the accessible-name wording and §15.4's redundancy row. **T11b** is unaffected
+— no engine change, which is the point. Neither task needs a `BandName` union type, and
+introducing one would defeat the resolution.
 
 ---
 

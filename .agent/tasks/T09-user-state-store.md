@@ -397,3 +397,9 @@ after `applyLineage`.
 manifest entry is **retained, never deleted**. The store never prunes rows against the
 manifest; it cannot even see the manifest (§14.1). Dropping such a row from scoring is
 T14's join; deleting it is nobody's.
+
+**F15 — write `MILESTONE.contentVersion` on completion.** Required, taken from the loaded
+bundle's `contentVersion`. It is provenance for a human reading an export years later, in the
+same class as the frozen `slug` and `title`; nothing branches on it, and §12.5 migrates off
+`SKILL.contentVersionSeen` instead. It is always available because a milestone cannot be
+completed without its bundle loaded.
