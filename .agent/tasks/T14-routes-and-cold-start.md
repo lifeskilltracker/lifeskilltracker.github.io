@@ -179,6 +179,8 @@ app/src/routes/*.test.ts                       cold-start branch tests per route
 // ARCHITECTURE §14.5 — the store surface this task's cold-start sequence calls into
 export interface UserStateStore {
   hydrate(): Promise<void>;
+  progressFor(treeId: string): TreeProgress;   // synchronous — the tree route's input
+  readonly hydrated: boolean;   // false until hydrate() resolves — §13.3, T26/F23
   readonly writable: boolean;   // false if hydration failed — §13.3
 }
 
@@ -217,6 +219,14 @@ export interface ContentLoader {
       the remainder of the simulated session — i.e. `writable` is `false` and every
       mutator call in the test throws or rejects rather than silently no-opping (§13.3,
       §16.3 row 5, §14.5).
+- [ ] The same failing-hydration test asserts a tree route renders progress as **unknown**,
+      not as zero completions. `progressFor` is total and returns empty maps, so a view that
+      does not branch on `store.hydrated` tells the user they have no progress rather than
+      that it could not be read — the display-side twin of §13.3's "read as empty, then
+      wrote" (T26/F23).
+- [ ] A test asserts a deep link to `/s/<treeId>` opened cold does not paint a zeroed tree
+      before `hydrate()` resolves: `hydrated` is false during first paint (§13.3 step 4
+      loads route data after it), and the tree renders its unknown-progress state.
 - [ ] A test simulating one tree bundle fetch failing (while the manifest succeeds)
       renders the map and every other tree normally, with only the failed tree marked
       unavailable (§16.3 row 3).

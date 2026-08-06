@@ -45,7 +45,11 @@ and with no telemetry, correctness has to be structural rather than observed.
 - **Reserving `PHOTO` now** — created empty, with no read or write path. §12.8 requires it
   reserved so that no schema migration is needed when photos land (**R-06**).
 - `hydrate()`: read `META`, `SKILL`, `MILESTONE`, `ORPHAN` into the
-  `lib/state/progress.svelte.ts` rune store of §13.2.
+  `lib/state/progress.svelte.ts` rune store of §13.2. Everything, not lazily per tree —
+  §17.4 budgets a heavy phase-1 user under 1 MB, and §12.2 makes that an over-count since an
+  incomplete milestone has no row at all.
+- `progressFor(treeId): TreeProgress` — synchronous, total, off that mirror (§14.5, T26/F23),
+  and `hydrated` alongside `writable`.
 - The `writable` latch: `false` for the whole session after a hydration failure, with every
   mutator rejecting while it is false (§13.3, §14.5).
 - `setMilestoneState(uid, state, opts)` implementing §12.4's three steps in **one**
@@ -96,12 +100,14 @@ app/src/lib/state/db.test.ts            upgrade path, store + index existence
 
 ## Interface contract
 
-Copied from ARCHITECTURE §14.5. This task implements `hydrate`, `setMilestoneState`,
-`startSkill`, `storageStatus`, and `writable`; it declares the rest.
+Copied from ARCHITECTURE §14.5. This task implements `hydrate`, `progressFor`,
+`setMilestoneState`, `startSkill`, `storageStatus`, `hydrated`, and `writable`; it declares
+the rest.
 
 ```ts
 export interface UserStateStore {
   hydrate(): Promise<void>;
+  progressFor(treeId: string): TreeProgress;    // §11.1's input — synchronous, total
   setMilestoneState(uid: string, state: MilestoneState, opts?: { note?: string }): Promise<void>;
   startSkill(treeId: string): Promise<void>;
   applyLineage(tree: CompiledTree): Promise<MigrationReport>;   // §12.5
@@ -109,13 +115,15 @@ export interface UserStateStore {
   export(): Promise<ExportFile>;
   import(file: ExportFile, mode: 'merge' | 'replace'): Promise<ImportReport>;
   storageStatus(): Promise<{ usage: number; quota: number; lastExportAt?: string }>;
+  readonly hydrated: boolean;   // false until hydrate() resolves — §13.3
   readonly writable: boolean;   // false if hydration failed — §13.3
 }
 ```
 
 > Contract: every mutating call is a single transaction and resolves only after the write
 > is durable. `writable` is false for the whole session after a hydration failure, and
-> every mutator rejects while it is false.
+> every mutator rejects while it is false. `progressFor` is not a mutating call — it is a
+> synchronous projection of the hydrated mirror and does no I/O (T26/F23).
 
 `MilestoneState` comes from the Scoring Engine's contract (§14.4) and is normative here:
 
@@ -225,9 +233,26 @@ level's requirement groups (**R-17**).
 - [ ] A test asserts `writable` stays `false` after a subsequent successful `hydrate()`
       call within the same session — the latch is per-session, not per-attempt (§13.3).
 - [ ] A test asserts `startSkill('x')` twice does not reset `startedAt`.
+- [ ] `progressFor` is **total and synchronous**: called for a treeId with no `SKILL` row and
+      no records it returns empty `milestones` and `grandfathered` maps — not `undefined`,
+      not a throw — and its return type is `TreeProgress`, not `Promise<TreeProgress>`.
+      Enforced structurally too: `grep -n "async progressFor\|await" ` over its implementation
+      returns nothing.
+- [ ] A test completes a milestone and asserts the **same** `progressFor(treeId)` call now
+      reflects it, with no reload and no await — the mirror is the read path (T26/F23).
+- [ ] A test asserts `hydrated` is `false` before `hydrate()` resolves and after it rejects,
+      and `true` only after it resolves. Paired with the existing `writable` tests: a
+      hydration failure leaves `hydrated === false` **and** `writable === false`, which is
+      what lets a view distinguish "no progress" from "progress unknown" (§13.3).
+- [ ] A test asserts §12.4 step 2's recompute reads through the **`by-tree` index inside the
+      transaction**, not from the mirror: complete a milestone and assert
+      `SKILL.attainedLevel` accounts for that write in the same transaction. Reading the
+      mirror leaves the level one milestone behind on every mutation (T26/F23).
 - [ ] A test asserts reconciliation on tree open: seed `SKILL.attainedLevel` to a wrong
       value, open the tree, and assert the stored value is corrected and written back
-      (§12.3).
+      (§12.3). **Which call performs that write-back is T26/F26, open** — §14.5 exposes no
+      method for it and `applyLineage` is version-gated, so it does nothing on an ordinary
+      open. Do not invent one here; write the test against whatever F26 names.
 - [ ] A test asserts `storageStatus()` returns `lastExportAt` from `META` and `undefined`
       when the key is absent.
 - [ ] `npx tsc --noEmit` passes and `app/src/lib/state/store.ts` exports a value typed as
@@ -280,11 +305,25 @@ and the grep showing exactly one module touching IndexedDB.
   `lastActivityAt`, `at` (§12.2, added by T26/F4). Not stylistic: §11.7's domain recency is
   a lexicographic `max` over these strings inside a pure engine, and a local-offset or
   variable-precision value sorts wrongly with no error anywhere.
-- **Nothing in the spec says how `TreeProgress` is produced — T26/F23, open.** `scoreSkill`
-  consumes it (§14.4) and §11.9's invariant 7 depends on it reaching the engine, but §14.5's
-  interface has no accessor that returns one, and §12.2's `by-tree` index has no stated
-  consumer anywhere. Do not invent the signature here; it was load-bearing for F13's
-  resolution and deserves a verdict rather than a first-implementer's guess.
+- **~~Nothing in the spec says how `TreeProgress` is produced.~~ RESOLVED by T26/F23,
+  2026-08-05, and this task owns it.** `progressFor(treeId): TreeProgress` is **synchronous**,
+  performs no I/O, and is **total** — an unstarted tree returns empty maps, never `undefined`
+  and never a throw. It reads §13.2's mirror, which is why it can sit inside the `$derived`
+  layer the renderer uses. Two things fall out that are easy to miss:
+  - **Every writer refreshes the mirror on commit, not just §12.4.** `applyLineage`,
+    `applyMoves` and `import` rewrite `MILESTONE` rows wholesale (T17, T16), and a mirror
+    updated by the milestone write path alone is stale exactly when those have just run.
+  - **`readonly hydrated: boolean`** joins `writable`. Empty maps are the right answer for an
+    unstarted tree and a lie for an unhydrated store, and the caller cannot tell them apart:
+    under §13.3's failure branch every tree would render as having no completions, which is
+    the display-side twin of the "read as empty, then wrote" failure `writable` already
+    guards. Views branch on it (T14).
+- **The `by-tree` index serves the write path, never the read path (T26/F23).** Its busiest
+  consumer is §12.4 **step 2**, on every mutation: the attained-level recompute must read that
+  tree's records back **inside the same transaction**, because reactive state updates only on
+  commit — so at step 2 the mirror does not yet contain step 1's write, and a recompute
+  against it is one milestone behind forever. The other consumers are §12.5's fold and sweep
+  (T17) and §12.3's reconciliation.
 - **An import can lower `contentVersionSeen` — T26/F12.** §12.6 merges it as a minimum to
   force T17's pass to replay. The field is not monotonic; do not add an assertion that it is.
 - **`SKILL.lastActivityAt` has an unresolved gap this task will hit — T26/F19.** §12.2

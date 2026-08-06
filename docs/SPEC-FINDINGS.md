@@ -1,10 +1,10 @@
 # Spec Findings — Architecture Reconciliation
 
-Decision record for T26. Twenty-five findings have been raised against
+Decision record for T26. Twenty-six findings have been raised against
 `docs/ARCHITECTURE.md` during the v1 task breakdown — seventeen from the breakdown itself,
-F18 and F19 found while resolving F3 and F4, F20–F23 found while resolving F12–F14, and
-F24–F25 found while resolving F17 and F7. Each gets a verdict of **amend**, **tolerate**,
-or **not a defect**, with a reason and a date.
+F18 and F19 found while resolving F3 and F4, F20–F23 found while resolving F12–F14,
+F24–F25 found while resolving F17 and F7, and F26 found while resolving F23. Each gets a
+verdict of **amend**, **tolerate**, or **not a defect**, with a reason and a date.
 
 This file is the audit trail. The resolutions themselves live in the spec.
 
@@ -29,12 +29,13 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F17 | amend | 2026-08-05 | `lst validate` owns the five geometry invariants as §6.2 layer 2b (M1–M5) |
 | F18 | — | — | pending — raised 2026-08-05 while resolving F3 |
 | F19 | — | — | pending — raised 2026-08-05 while resolving F4 |
-| F20 | — | — | pending — raised 2026-08-05 while resolving F14 |
-| F21 | — | — | pending — raised 2026-08-05 while resolving F13 |
+| F20 | amend | 2026-08-05 | `split` consumes its predecessor and moves the frozen entry; `merged`'s success branch stated to match |
+| F21 | amend | 2026-08-05 | `into`'s shape and cardinality fixed per `op`; rule 15 branches on `op` |
 | F22 | — | — | pending — raised 2026-08-05 while resolving F12 |
-| F23 | — | — | pending — raised 2026-08-05 while resolving F13 |
+| F23 | amend | 2026-08-05 | `store.progressFor(treeId)` — synchronous and total; every writer refreshes the mirror; `by-tree` is the write path |
 | F24 | — | — | pending — raised 2026-08-05 while resolving F17 |
 | F25 | — | — | pending — raised 2026-08-05 while resolving F7 |
+| F26 | — | — | pending — raised 2026-08-05 while resolving F23 |
 
 ---
 
@@ -1283,6 +1284,270 @@ the common invocation. §6.2 now says the list scopes reporting, not reading.
 from "fails compilation" to "fails validation", and gains **T03** as a blocker. **T03** owns
 M1–M5 and the read-versus-report scoping. **T04** — no change; the compiler still emits the
 unioned paths and still warns on a hole.
+
+---
+
+## F20 — `split` never stated the predecessor's fate
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+§12.5's disposition table gave the *successors'* outcome under `split` — "**every** successor
+becomes complete" — and said nothing about the record the split consumed. Every other
+disposition states its subject's fate explicitly. The frozen-set clause had the same gap in a
+sharper form: "`split` **copies** the set entry to every successor", and a copy leaves the
+predecessor uid in the set — a uid now in no bundle, which §11.5 can never read as `complete`.
+
+### The spec did not omit the predecessor's fate — it implied retention, permanently
+
+The finding understated the problem. The final sweep orphans records whose uid is in "neither
+bundle **nor lineage**", and a split predecessor's uid *is* in the lineage — it is the entry's
+own `uid`. So the sweep spares it by construction, and nothing else in the pass touches it.
+The current text therefore has an answer, and the answer is wrong: the record survives every
+pass, is exported forever as a live `MILESTONE`, and appears in `TreeProgress` as `complete`
+for a uid no bundle contains.
+
+That also settles what the disposition cannot be. A retained record stays in §12.5's working
+set, so it re-matches its own `split` entry on every later pass — and §12.6 *forces* a replay
+on import. A successor the user deliberately un-checked would be silently re-completed by the
+next import. Replay-safety, which F14 had just made a stated guarantee, was already false for
+this row.
+
+### Resolution
+
+The predecessor is **consumed**: the record is deleted, `at` and `note` are copied onto every
+successor, and the disposition is reported with `outcome: 'rewritten'` and `became` naming the
+successors. The frozen-set entry is **moved, not copied** — the predecessor uid is replaced by
+all successors.
+
+`merged`'s all-complete branch gets the same sentence, because it has the identical gap and
+could not be left in a table that now answers the question one row above.
+
+### Why consume rather than orphan, and what it costs
+
+`merged`'s existing wording is the argument. It orphans predecessors in the "otherwise" branch
+— the partial merge — and R-16's paragraph explains why: *"The predecessors survive as orphans
+with their notes, so nothing the user wrote is destroyed — only the score contribution goes."*
+Orphaning is the consolation for a **lost** credit. Under `split` nothing is lost; the user
+holds everything the record stood for, decomposed. An `ORPHAN` row there would put an entry in
+"retired achievements" where every other entry means a loss, and would need a fourth
+`OrphanReason` on a type F3 had just closed at three.
+
+The cost is real and is stated in the spec rather than argued away: deletion loses the
+predecessor's frozen `title` snapshot from persisted state. §12.6's milestone-beats-orphan
+rule sets a **two-part** test for a non-silent drop — the surviving row carries every field
+the dropped one did, *and* the drop is reported — and consumption satisfies the second half
+outright while satisfying the first only for what the user wrote. The user's `note` and `at`
+ride onto every successor; the author's title does not. That is acceptable because after the
+disposition the successors' own titles describe the same accomplishment, so §12.6's human
+reader still gets a readable export.
+
+### The rule that had to come with it
+
+**A successor that already has a live record keeps it.** §6.2 rule 15 requires an `into`
+target to *resolve*, not to be new, so an author may legitimately fold a coarse milestone into
+one that already shipped — at which point "copying timestamp and note" overwrites the user's
+own prose with the predecessor's. This needs no unusual authoring to reach: a device that never
+opened the tree still holds the predecessor, §12.6 unions it in and rewinds
+`contentVersionSeen`, and the forced replay re-applies the split over successors the other
+device already migrated. Timestamps and notes are therefore copied only into successors with no
+record of their own.
+
+### The frozen-set move is entailed, not a second decision
+
+Once the predecessor is consumed, `progress[uid]` can never read `complete` for it again, so a
+copied set entry fails §11.5's `.every` forever — the same permanent unverifiability the
+`retired` and `moved` deviations exist to prevent, reached through a third disposition.
+Consuming the record while copying the set entry is not a coherent half-adoption; the pair
+ships together or D-19 breaks. §12.5 now says so, because the two clauses sit far enough apart
+to be amended independently.
+
+One consequence is stated rather than fixed: §12.6 merges `grandfathered` per level as a whole
+entry with the earliest `contentVersion` winning, so an import from a device that never applied
+the split reintroduces the predecessor uid into a set whose record is gone. It self-heals —
+the same import rewinds `contentVersionSeen` and the next tree open folds the split over the
+set again — but the repair waits for a tree open. That is §12.3's existing staleness bound
+applied to a D-19 protection instead of a displayed number, and it is worth knowing about
+because §11.5's whole premise is that this class of drop is otherwise unobservable.
+
+### Two riders
+
+**Rule 3 gained a second exit.** It defined the working set's only permanent exit as `ORPHAN`;
+consumption is a second one and needs the same never-re-examined property, or F14's
+replay-safety guarantee is asserted over a case the rules no longer describe.
+
+**`MigrationReport.entries` needed a reading.** `outcome` is one value per row while `split`
+now touches two structures. Stated: a row is one *record's* disposition, `rewritten` covers
+both re-homing and consumption (`became` distinguishes them), and `unfrozen` is for the case
+where a frozen set was the only thing affected.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §12.5, §14.5.
+
+### Downstream
+
+**T17** owns the fold, the consumption, the no-overwrite rule, and the frozen-set move; its
+fixtures need the existing-successor case and the import-reintroduction case. **T16** — no
+rule change, but the `grandfathered` merge now has a stated interaction with `split` worth a
+test. **T09** — `setMilestoneState` is unaffected; the deletion path already exists for the
+`null` case.
+
+---
+
+## F21 — `into:` had two grammars and neither was validated
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+§5.4's example used a tree-qualified target for `moved` (`into: [bladesmithing/c5fj92tk]`) and
+bare uids for `split` and `merged`. §5.2 typed the field `string[]` with no note of the
+distinction, and §6.2 rule 15 validated the entry's own `uid` only. F13's manifest index is
+built by parsing exactly this grammar, so it had a consumer that would fail unhelpfully on a
+malformed target.
+
+### Resolution
+
+One table in §5.4, fixing shape and cardinality per `op`, and rule 15 branches on `op` to
+enforce it.
+
+| `op` | `into` | Targets | Target form |
+|---|---|---|---|
+| `split` | required | ≥ 2 | bare uid, this tree |
+| `merged` | required | exactly 1 | bare uid, this tree |
+| `retired` | absent or `[]` | 0 | — |
+| `moved` | required | exactly 1 | `<treeId>/<uid>`, a different tree, uid equal to the entry's own |
+
+### Three things the grammar decides that the finding did not ask about
+
+**The repeated uid in `moved`'s target is checked, not decorative.** §12.5 re-homes the record
+by rewriting `treeId` and keeping the uid — uids are immutable, so there is no other available
+reading — which means a mistyped uid in the qualified half currently changes nothing and is
+invisible at runtime. Requiring equality is what turns it into a checkable field. The tree half
+is not decorative at all: it is the only written record of the destination, and §7.2's index
+is built by parsing it rather than by searching every tree for the uid.
+
+**`split` and `merged` stay inside one tree.** §12.5's fold is per-tree and its working set is
+this tree's records, so a successor belonging to another tree would produce a record carrying
+this tree's `treeId` under a uid that lives elsewhere — invisible in both. An author who wants
+both writes two entries.
+
+**Cardinality is part of the grammar.** `split` with `into: []` passes validation today and
+disposes of nothing; `split` into one target is a rename under a new uid, which is `merged`'s
+case.
+
+### Why not accept both forms everywhere
+
+The permissive reading — qualified or bare under any `op`, bare defaulting to the current tree
+— was declined because it reopens F13's hole through the validator. A `moved` entry written
+with a bare uid would parse cleanly, contribute no entry to `manifest.moved`, and leave the
+record stranded on a tree that no longer contains it: exactly the reachability failure F13 was
+resolved to close, arriving by a different route and equally silent.
+
+Naming only the destination tree (`into: [bladesmithing]`) was also declined. It drops a
+redundant uid, but a bare treeId and a bare uid are both lowercase tokens with no `/`, so a
+`moved` entry written with a uid by mistake would parse as a tree that does not exist rather
+than as a malformed target — and it contradicts §5.4's own shipped example.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §5.2, §5.4, §6.2, §7.2.
+
+### Downstream
+
+**T03** implements rule 15 as an `op`-branching check — this is the rule F7 left as the
+git-free half, and it was not implementable until now. **T04** parses the qualified target's
+tree half to build `manifest.moved`, and may assume rule 15 has already validated it. **T17**
+parses nothing: §12.5 receives a destination `treeId` that the compiler resolved. **T02**'s
+`tree.schema.json` carries the shape it can express and no more — the per-`op` constraints are
+semantic by construction.
+
+---
+
+## F23 — nothing produced `TreeProgress`
+
+**Verdict: amend.** 2026-08-05.
+
+### The finding as raised
+
+§11.1 and `scoreSkill` consume `TreeProgress`, and §11.9's invariant 7 is enforceable *"only
+because §11.5's frozen satisfaction records … reach the engine through `TreeProgress`"* — via a
+path that did not exist. `UserStateStore` exposed no accessor returning one. Related and
+resolved together: §12.2's `by-tree` index was declared in the ER diagram and no prose anywhere
+stated what reads it.
+
+### Resolution
+
+`progressFor(treeId: string): TreeProgress` on `UserStateStore` — **synchronous**, no I/O, a
+projection of the §13.2 mirror that `hydrate()` fills wholesale. **Total**: an unstarted tree
+returns empty maps, never `undefined` and never a throw. Plus `readonly hydrated: boolean`.
+
+The `by-tree` index's stated consumers are the three places that need one tree's records
+*inside a transaction*: §12.4 step 2, §12.5's fold and final sweep, and §12.3's reconciliation.
+It is explicitly **not** the read path.
+
+### The mirror was stale in exactly the moments the accessor is read
+
+This is the part that matters, and it is not what the finding asked about. §13.2 described the
+mirror as *"written via §12.4"* — the milestone write path and nothing else. But
+`applyLineage`, `applyMoves` and `import` all rewrite `MILESTONE` rows wholesale, and a
+synchronous read off an unrefreshed mirror is wrong precisely when those have just run:
+
+- A tree renders immediately after its migration (§12.5), so the successors a `split` just
+  created would be invisible on the first paint after a content update — the one paint §12.5
+  exists to make correct.
+- `applyMoves` rewrites `treeId`, which is the key `progressFor` reads on. A re-homed record
+  would stay under the source tree for the whole session, defeating §13.3's stated reason for
+  running that pass *before* the map derives at all.
+
+§13.2 now says every writer refreshes the mirror on commit. Without that sentence the accessor
+is a bug rather than a contract.
+
+### Why synchronous, and why `UserStateStore` is the right home
+
+The weak version of this argument is "a `$derived` cannot await" — weak because the tree route
+is not prerendered and already awaits its bundle, so one more await is not an architectural
+change. The argument that carries it is that §13.2 already calls this an **in-memory mirror**
+and §13.3 already calls `hydrate()` wholesale, while §17.4 budgets a heavy phase-1 user at
+under 1 MB — an over-count, since an incomplete milestone has no row at all. There is nothing
+to lazily load. An asynchronous per-tree accessor would demote a mirror to a cache in the
+spec's own words, in exchange for scaling headroom the storage budget says is not needed.
+
+The home question is a non-issue on inspection: the store interface and the rune mirror are the
+same `lib/state` node in §14.1, so no edge changes either way; §14.5's "one transaction"
+contract is scoped to *mutating* calls; and `readonly writable` is already a synchronous member
+of that interface.
+
+### `hydrated` exists because totality has a failure mode
+
+Empty maps are the right answer for an unstarted tree and the wrong answer for an unhydrated
+store, and the caller cannot tell them apart. Under §13.3's hydration-failure branch every tree
+would render as having no completions — the user's whole record apparently erased, for the
+session. `writable: false` already makes that state safe for *writes*; §13.3's real warning is
+about "read as empty, then wrote", and this is its display-side twin. Views branch on
+`hydrated` and render progress as unknown while it is false.
+
+### The `by-tree` index's primary consumer is the write path, not §12.5
+
+The obvious guess — that the index serves per-tree reads — is what leads an implementer to
+build the asynchronous accessor. Its busiest consumer is §12.4 step 2, on **every** mutation:
+the attained-level recompute needs that tree's records, and it cannot read the mirror, because
+§12.4 states that reactive state updates only on transaction commit, so at step 2 the mirror
+does not yet contain step 1's write. §12.4's step 2 now says this in the step itself.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §11.9, §12.2, §12.4, §13.2, §13.3, §14.4, §14.5, §16.3.
+
+### Downstream
+
+**T09** owns `progressFor`, `hydrated`, the mirror refresh on every writer, and the `by-tree`
+consumers; its open note on this finding is resolved. **T11a** may assume a total, synchronous
+`TreeProgress` and needs no null branch. **T14** branches on `hydrated` in the cold-start and
+read-only paths. **T17** refreshes the mirror on commit for both passes — the same requirement
+that makes §13.3's first-frame guarantee hold.
 
 ---
 

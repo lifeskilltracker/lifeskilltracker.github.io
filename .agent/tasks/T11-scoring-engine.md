@@ -114,8 +114,13 @@ Copied verbatim from ARCHITECTURE §14.4. Every downstream task — T13, T14, T1
 export type MilestoneState = 'complete' | 'dismissed' | null;
 export type NodeState = 'complete' | 'bonus' | 'available' | 'locked' | 'dismissed';
 
-/** All milestone states for one tree, keyed by uid. */
-export type TreeProgress = ReadonlyMap<string, MilestoneState>;
+/** Everything the engine needs about one tree's user state. Widened by T26/F2 from a bare
+ *  map; produced by `store.progressFor(treeId)` (§14.5, T26/F23) — synchronous, and total
+ *  for an unstarted tree, so the engine never handles `undefined` here. */
+export interface TreeProgress {
+  readonly milestones: ReadonlyMap<string, MilestoneState>;
+  readonly grandfathered: ReadonlyMap<number, FrozenSatisfaction>;   // §11.5
+}
 
 export interface GroupProgress {
   rule: 'all' | 'n_of';

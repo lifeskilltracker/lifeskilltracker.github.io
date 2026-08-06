@@ -250,6 +250,24 @@ ceremonial — keep it, and add one per bump.
 
 ## Notes and hazards
 
+- **T26 F20 (2026-08-05): the `grandfathered` merge can reintroduce a uid whose record is
+  gone, and that is tolerated rather than fixed.** §12.5 now *consumes* a `split`
+  predecessor and **moves** its frozen-set entry to the successors. Because this section
+  merges `grandfathered` per level as a whole entry with the earliest `contentVersion`
+  winning, an import from a device that never applied the split puts the predecessor uid back
+  into a set whose record no longer exists, and §11.5's `.every` then fails — the level
+  un-satisfies. It self-heals through the rewind this section already performs: the next open
+  of that tree folds the split over the set again. **Do not "fix" it by unioning uids across
+  the two sides or by pruning uids with no record** — the first defeats earliest-wins, the
+  second cannot distinguish a consumed predecessor from a milestone the user un-checked. The
+  right test asserts the round trip: import, assert the level is temporarily unsatisfied,
+  open the tree, assert it is satisfied again.
+
+- **T26 F23 (2026-08-05): `import` refreshes §13.2's mirror on commit.** It rewrites
+  `MILESTONE` rows wholesale, and §13.2 previously named §12.4 as the mirror's only writer.
+  `store.progressFor` is a synchronous read off that mirror, so an import that does not
+  refresh it leaves every affected tree rendering pre-import state until a reload.
+
 - **T26 F8 (2026-08-05): the export file has no top-level `contentVersion`.** The global
   counter is gone (§7.2). §12.6's example now carries `generated`, copied from the manifest
   the export was taken against — archaeology for a human reader, never used by the import

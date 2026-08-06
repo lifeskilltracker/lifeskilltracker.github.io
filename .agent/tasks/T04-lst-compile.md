@@ -187,8 +187,10 @@ The `lst` table row this task owns, copied verbatim from §6.1:
 - [ ] A fixture with a `moved` entry in one tree produces a `manifest.moved` entry mapping
       that uid to the **destination** tree id, parsed out of the `<treeId>/<uid>` target;
       trees with no `moved` entries contribute nothing and the key is `{}` rather than
-      absent. (T26/F21 — the target grammar is not yet validated anywhere; fail loudly on a
-      malformed one rather than emitting a broken map.)
+      absent. (T26/F21 — §5.4's grammar table now fixes the target form and §6.2 rule 15
+      enforces it, so the compiler **parses the tree half and does not search** every tree
+      for the uid. It may assume a well-formed target; still fail loudly rather than emit a
+      broken map, since compile and validate are separate invocations.)
 - [ ] A bundle's `lineage` array is byte-order-identical to the authored file's. T26/F14
       makes ledger order load-bearing for the runtime migration, so any sort, re-key, or
       map round-trip in the compiler is a correctness bug, not a style one.

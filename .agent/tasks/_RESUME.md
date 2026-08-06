@@ -1,26 +1,76 @@
 # RESUME — T26 spec reconciliation, wave 2
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-05 after Group D. Read this, then `_BREAKDOWN.yaml`, then
+Updated 2026-08-05 after Group G. Read this, then `_BREAKDOWN.yaml`, then
 `T26-architecture-reconciliation.md`.
 
 ## Where things stand
 
 **All 27 task docs written** (`5c69e91`). **T26 is the front of the critical path** and is
-now 16 of 25 findings resolved — the count grew again because Group D found two more.
+now 19 of 26 findings resolved — the count grew again because Group G found one more.
 
 | Resolved | Open |
 |---|---|
 | F1, F2 (2026-08-05, session 1) | F15 — the omission cluster, never started |
 | F8, F9, F10, F11, F16 (session 2) | F18, F19 (raised by Group B) |
-| F3, F4, F5 (session 3, Group B) | F20, F21, F22, F23 (raised by Group C) |
-| F12, F13, F14 (session 4, Group C) | **F24, F25** (new, raised by Group D) |
-| F6, F7, F17 (session 5, Group D) | |
+| F3, F4, F5 (session 3, Group B) | F22 (raised by Group C) |
+| F12, F13, F14 (session 4, Group C) | F24, F25 (raised by Group D) |
+| F6, F7, F17 (session 5, Group D) | **F26** (new, raised by Group G) |
+| F20, F21, F23 (session 6, Group G) | |
 
 Resolutions are recorded in `docs/SPEC-FINDINGS.md` and amended into
 `docs/ARCHITECTURE.md`. No implementation has begun; the repository is still docs-only.
 
 **Do not use the sqz MCP tools.** The user asked for built-in Read/Grep/Bash instead.
+
+**Confidence bars go in the option *label*, not only the description** — the user asked
+for this twice in session 6. `[#########-] Consume, both ops (Recommended)`.
+
+## What session 6 changed (Group G — F20, F21, F23)
+
+- **F20** — `split` **consumes** its predecessor (deleted, `at`/`note` copied forward,
+  reported as `rewritten`), and the frozen-set entry **moves** rather than copies. The
+  finding said the fate was unstated; it was worse — **the spec implied permanent
+  retention**, because the final sweep only orphans a uid in "neither bundle **nor
+  lineage**" and a split predecessor's uid *is* in the lineage. That also settles the
+  verdict: a retained record stays in the working set, re-matches its own entry, and since
+  §12.6 forces a replay on import it **silently re-completes a successor the user
+  un-checked** — F14's replay guarantee was already false for this row. `merged`'s
+  all-complete branch had the identical gap and got the same sentence. Orphaning was
+  declined on `merged`'s own wording: it orphans in the "otherwise" branch because R-16's
+  partial merge is a *loss*. Riders: **a successor with a live record of its own is never
+  overwritten** (rule 15 lets `into` name an already-shipped uid), rule 3 gains consumption
+  as a second exit, and `MigrationReport.entries` is stated to be per *record*.
+- **F21** — `into`'s shape and cardinality are fixed per `op` in §5.4 and rule 15 branches
+  on `op`. Three constraints the finding never asked about: **`moved`'s target uid must
+  equal the entry's own** (§12.5 keeps the uid and rewrites only `treeId`, so a typo there
+  is invisible forever), `split`/`merged` stay inside one tree, and cardinality is part of
+  the grammar (`split` with `into: []` passes today). The permissive reading was declined
+  because it **reopens F13's hole through the validator**.
+- **F23** — `store.progressFor(treeId): TreeProgress`, synchronous and total. **The
+  signature was the easy half.** §13.2 scoped mirror writes to §12.4 alone, so
+  `applyLineage`, `applyMoves` and `import` never refreshed it — making a synchronous read
+  wrong exactly when those have just run (a `split`'s successors invisible on the first
+  paint after a content update; a re-homed record stranded under the source tree for the
+  session, defeating §13.3's reason for ordering `applyMoves` before the map derives).
+  Every writer now refreshes on commit. `hydrated` joins `writable` so an empty map cannot
+  mean both "unstarted" and "unhydrated". The `by-tree` index is the **write path's**, its
+  busiest consumer being §12.4 step 2 — which cannot read the mirror, since reactive state
+  updates only on commit.
+- **New: F26** — §12.3 requires a write-back on tree open and §14.5 has no method for it;
+  `applyLineage` is version-gated and does nothing on an ordinary open. `T09` already
+  carries an acceptance criterion for that reconciliation, so this is the second finding
+  (after F24) that makes an existing task doc untestable as the spec is drawn.
+- **Also noted, not filed:** T26's finding ids collide with the PRD feature ids used
+  throughout the spec — §14.4 uses "F20" for domain-id stability and §13.1 uses "F23" for
+  the domain listing. Renaming 26 findings now is churn; just be careful in prose.
+
+### No edge changes
+
+Group G touched no `blocked_by`/`blocks` edge. What it did add is a §14.5 surface change
+(`progressFor`, `hydrated`) owned by T09 but consumed by T11a and T14, and a mirror-refresh
+obligation that lands on **three** tasks — T09, T16 and T17 — which is the kind of
+cross-task rider the coherence pass exists to catch.
 
 ## What session 5 changed (Group D — F6, F7, F17)
 
@@ -174,16 +224,18 @@ Suggested grouping, unchanged from this session's analysis:
 | ~~**B — engine types**~~ | ~~F3, F4, F5~~ | — | **Done, session 3.** |
 | ~~**C — lineage & import**~~ | ~~F12, F13, F14~~ | — | **Done, session 4.** Raised F20–F23. |
 | ~~**D — CLI & map validation**~~ | ~~F6, F7, F17~~ | — | **Done, session 5.** Raised F24, F25. |
-| **G — the lineage leftovers** | F20, F21, F23 | T03, T04, T09, T11a, T17 | Raised by Group C. F20 and F21 are §12.5/§5.4 and should be done together; F23 is the `TreeProgress` accessor and is the most overdue, since **three** resolutions have now turned on what it is. F21 additionally **blocks T03's new rule 15** from Group D — that rule cannot be implemented without the per-`op` `into` grammar. |
-| **E — the omission cluster** | F15, F19, F22, F25 | T03, T09, T14, T16 | Seven small items plus F19. F22 and F25 are the same class — a stated guarantee with no named owner — and F25 lands in T03's territory like the rest. |
+| ~~**G — the lineage leftovers**~~ | ~~F20, F21, F23~~ | — | **Done, session 6.** Raised F26. |
+| **E — the omission cluster** | F15, F19, F22, F25, F26 | T03, T09, T14, T16 | Seven small items plus F19. F22 and F25 are the same class — a stated guarantee with no named owner — and **F26 is that class again**, which is the argument for taking it here rather than alone: §12.3's write-back, §5.4's missing-uid gate and §5.9's tree removal are three instances of one question. |
 | **H — the CI topology** | F24 | T25 | Alone, and it does not fit the others. It is a job-graph decision, not a §6.4/§10.3 ownership question, and it is the only open finding that makes an existing task doc's acceptance criterion unsatisfiable as the spec is drawn. |
 | **F — the band vocabulary** | F18 | T13, T20 | Does not fit the others: naming the bands is a content/PRD-adjacent call, probably T00's, and it must also rename "tier" at the domain level. Ask the owner rather than deriving. |
 
-**Group G is the natural next one** — F21 now blocks a rule Group D just wrote into §6.2, and
-F23 has been load-bearing for three separate resolutions without ever being written down.
-**F24 is the one to do if you want the highest-severity single finding**: as the spec is
+**F24 is the one to do next if you want the highest-severity single finding**: as the spec is
 drawn, `lst compile` — and therefore §7.3, F9's schema validation, F13's `moved` map, and
-§6.4 check 5 — never gates a content-only PR.
+§6.4 check 5 — never gates a content-only PR. **Group E is the alternative**, and it is now
+five findings rather than four; if you take it, do F22, F25 and F26 as one sitting, since all
+three are "a stated guarantee with no named owner" and answering one shapes the others.
+**F18 still needs the owner, not a derivation** — the band names are a content call and may
+belong in the PRD.
 
 ## Working agreements from this session
 
@@ -207,6 +259,11 @@ drawn, `lst compile` — and therefore §7.3, F9's schema validation, F13's `mov
   `attained: 0`, so the null case is phase 0).
 - **Group D's one edge change is T03 → T12**, and it is the kind the coherence pass below
   exists to catch: moving a check between subcommands moves a dependency between tasks.
+- **Group G's rider spans three tasks with no edge to carry it.** Every §14.5 writer must
+  refresh §13.2's mirror on commit — T09 for `setMilestoneState`, T17 for both migration
+  passes, T16 for `import`. Nothing in the graph expresses "these three implement one
+  invariant", and the failure is silent: stale progress on the first paint after a
+  migration. Same shape as Group C's two build-artifact fields.
 - **Group C added two fields to build artifacts**, and both are load-bearing rather than
   informational: `manifest.moved` (T02's schema, T04 emits it) and the export file's
   `contentVersionSeen` (T02's schema, T09 writes it, T16 merges it as a minimum). Neither

@@ -75,7 +75,8 @@ identifier user state will key on.
 - The full schema definitions and their generated TypeScript — T02. This task consumes
   `schema/*.json`, it does not author it.
 - Applying `lineage` operations to user state at load time — T17 (§12.5). Rule 15 here only
-  checks that an entry's `into` targets resolve, not how the runtime uses them.
+  checks an entry's grammar and that its `into` targets resolve, not how the runtime uses
+  them.
 - Auto-recording a changed slug into `aliases` — that correction is described in §6.4 as
   something "CI can auto-fix by pushing a commit," which is baseline's job (T23), not
   validate's. `lst validate` may *reject* a missing alias if some future rule requires it,
@@ -133,7 +134,7 @@ The 15 semantic rules, copied verbatim from §6.2:
 | 12 | Every facet exists in `facets.yaml` | F19, F41 |
 | 13 | `copyleftDerived` is present and answered | F45 |
 | 14 | Mastery entries carry no level, track, order, or requirement group | F5, §5.7 |
-| 15 | Every `lineage` entry's `into` targets resolve to a uid present in the repository head | §5.4 |
+| 15 | Every `lineage` entry's `into` matches the grammar for its `op` — shape, cardinality, and targets resolving to a uid present in the repository head | §5.4 |
 
 **Layer 2b — taxonomy rules, over `content/taxonomy/`, copied verbatim from §6.2. Added by
 T26/F17, 2026-08-05: these are §10.3's five geometry invariants, which that section required
@@ -183,6 +184,13 @@ The identifier table, copied verbatim from §5.4:
       that rule and fails, one clean file that passes.
 - [ ] Rule 2's repository-wide uid uniqueness is exercised across **two** fixture tree
       files sharing a duplicate uid — a single-file fixture cannot prove this rule.
+- [ ] Rule 15 needs **one failing fixture per row of §5.4's grammar table plus three for
+      the constraints that are not resolution** (T26/F21): `split` with one target and with
+      `into: []`; `merged` with two targets; `retired` carrying a non-empty `into`; `moved`
+      with a bare uid, with a qualified target naming this same tree, with a target naming a
+      tree that does not exist, and with a target whose uid differs from the entry's own.
+      The last is the one an implementer omits, and the one §12.5 can never surface at
+      runtime — it keeps the uid and rewrites only `treeId`, so a typo there changes nothing.
 - [ ] Each of M1–M5 has an independent fixture pair against a `map.yaml`. M2's failing
       fixture claims a tile twice **within one region**, not across two — the cross-domain
       case is the easy one and the intra-region case is the silent one (T26/F17).
@@ -232,12 +240,25 @@ semantic rules and all five taxonomy rules independently exercised, and a re-run
   present in the baseline. `lst validate` is now git-free by construction, so there is no
   git-diffing machinery to duplicate. Note the rule count stays at **15** deliberately, so
   every "15" in this document is still correct.
-- **The new rule 15 is not implementable until T26/F21 lands — do not guess.** "Resolve"
-  depends on the `into` grammar, which differs per `op`: `moved` targets are tree-qualified
-  (`bladesmithing/c5fj92tk`) and resolve into a *different* tree, while `split` and `merged`
-  targets are bare uids. F21 records that neither grammar is validated anywhere and neither
-  is specified per `op`. Resolution is repo-wide and head-only, which this task already does
-  for rule 2 — but the parsing rule has to come from F21.
+- **~~The new rule 15 is not implementable until T26/F21 lands.~~ RESOLVED by T26/F21,
+  2026-08-05.** §5.4 now carries the grammar table and rule 15 branches on `op`:
+
+  | `op` | `into` | Targets | Target form |
+  |---|---|---|---|
+  | `split` | required | ≥ 2 | bare uid, **this** tree |
+  | `merged` | required | exactly 1 | bare uid, **this** tree |
+  | `retired` | absent or `[]` | 0 | — |
+  | `moved` | required | exactly 1 | `<treeId>/<uid>`, a **different** tree, uid **equal to the entry's own** |
+
+  Three checks are easy to drop and each is silent if dropped. **Cardinality**: `split` with
+  `into: []` passes a resolution-only check while disposing of nothing. **The uid equality on
+  `moved`**: §12.5 keeps the uid and rewrites `treeId`, so a mistyped uid in the qualified
+  half changes nothing at runtime and is invisible forever. **The same-tree constraint on
+  `split`/`merged`**: the fold's working set is per-tree, so a foreign successor produces a
+  record invisible in both trees. Only the resolution half needs the whole repository — the
+  rest is answerable from the entry alone, which is why F7 could leave this half here.
+  This rule is the only gate in front of T04's `manifest.moved` map and T17's re-homing pass,
+  neither of which can report a malformed target usefully at runtime.
 - **M1–M5 are new here, and M3 is the one with a wrong shortcut.** Contiguity is a
   connectivity pass over tile adjacency. Do **not** infer it from §10.4's loop count: a
   region with a hole and a region in two disconnected pieces both produce two closed loops,

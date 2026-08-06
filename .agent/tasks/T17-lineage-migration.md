@@ -134,8 +134,8 @@ task; every cell is a test.**
 | `op` | Applied to a **complete** record | Applied to a **dismissed** record |
 |---|---|---|
 | *(no entry — reword, re-level, retrack, slug change)* | nothing; the uid is unchanged | nothing |
-| `split` into [a, b, …] | **every** successor becomes complete, copying timestamp and note | every successor becomes dismissed |
-| `merged` into [c] *(all entries sharing target `c`, as one group)* | `c` becomes complete **only if every predecessor was complete**; otherwise predecessors move to `ORPHAN` with notes intact | `c` dismissed only if all predecessors were |
+| `split` into [a, b, …] | **every** successor becomes complete, copying timestamp and note into those that have no record of their own; the predecessor is **consumed** | every successor becomes dismissed, on the same terms; the predecessor is consumed |
+| `merged` into [c] *(all entries sharing target `c`, as one group)* | `c` becomes complete **only if every predecessor was complete**, and the predecessors are then **consumed**; otherwise `c` is not granted and the predecessors move to `ORPHAN` with notes intact | `c` dismissed only if all predecessors were, on the same terms |
 | `retired` | record moves to `ORPHAN`, reason `retired` | same |
 | `moved` to another tree | record follows the uid; `treeId` updated to the qualified target's tree | same |
 | **final sweep** — uid in neither bundle nor lineage, **and `treeId` is this tree** | record moves to `ORPHAN`, reason `unknown` | same |
@@ -150,8 +150,9 @@ the table, and three of the four change how the table is executed:**
 > 2. **`merged` folds by target, not by entry.** `LineageEntry` carries one `uid` (§5.2), so
 >    an *n*-into-one merge is *n* entries sharing an `into` target. They are evaluated as
 >    **one disposition** at the position of the last of them.
-> 3. **The working set is live `MILESTONE` records for this tree.** A record that moves to
->    `ORPHAN` leaves the working set permanently and is never re-examined by the same pass.
+> 3. **The working set is live `MILESTONE` records for this tree.** A record leaves it
+>    permanently by exactly two routes — moving to `ORPHAN`, or being **consumed** by the
+>    disposition that carried its credit forward — and is never re-examined afterwards.
 > 4. **The unknown-uid disposition is a final sweep, not a table row.** It runs once, after
 >    the fold completes, over records whose `treeId` is this tree.
 
@@ -160,6 +161,25 @@ the table, and three of the four change how the table is executed:**
 Rule 2 is the one most likely to be got wrong, and it is not an edge case: a two-into-one
 merge is two entries, and reading them in isolation grants the merged milestone to a user who
 completed only the first predecessor — R-16's accepted loss inverted into silent over-credit.
+
+**Consumption, and the two rules that come with it (§12.5, T26/F20, 2026-08-05).** "Consumed"
+means the `MILESTONE` row is **deleted** — reported, never silent — and it is the disposition
+for a predecessor whose credit was carried forward in full: `split` always, `merged` only in
+the all-complete branch. Orphaning is the other branch's answer, because R-16's partial merge
+is a loss and the orphan is what survives it. Two rules ride with it, and both are tests:
+
+- **A successor that already has a live record keeps its own `at` and `note`.** Timestamps and
+  notes are copied only into successors with no record. Rule 15 requires an `into` target to
+  *resolve*, not to be new, so an author may fold a coarse milestone into one that already
+  shipped — and the same collision arrives with ordinary authoring through §12.6's import,
+  which unions in a predecessor from a device that never opened the tree, rewinds
+  `contentVersionSeen`, and forces this pass to replay over already-migrated successors.
+- **Consumption is why replay-safety holds for `split` at all.** A predecessor left live stays
+  in the working set, re-matches its own entry on every later pass, and — since an import
+  forces a replay — silently re-completes a successor the user deliberately un-checked.
+
+What is lost is the predecessor's frozen `title` snapshot: it leaves persisted state and
+survives only in the `MigrationReport`. That is accepted, not an oversight.
 
 **The cross-tree pass, new in §12.5 and §14.5 (T26/F13):**
 
@@ -224,10 +244,22 @@ ORPHAN {
       satisfy this criterion; this is the Forge failure named in §12.5.
 - [ ] `split` on a complete record produces a complete record for **every** uid in `into`,
       each carrying the predecessor's `at` and `note`, and the predecessor record is gone
-      from `MILESTONE` (superseded, not orphaned — the table gives no orphan for `split`).
-- [ ] `split` on a dismissed record produces a dismissed record for every successor.
+      from `MILESTONE` — **consumed, not orphaned** (T26/F20; this task doc inferred it
+      before the spec said it, and the inference was right).
+- [ ] `split` on a dismissed record produces a dismissed record for every successor, and
+      consumes the predecessor.
+- [ ] **`split` does not overwrite an existing successor.** Seed a complete record for
+      successor `a` with its own `at` and note, then apply `split q → [a, b]` with `q`
+      complete: `a` keeps **its own** `at` and `note`, `b` gets `q`'s, and `q` is consumed.
+      Reachable with no import at all — rule 15 lets an `into` target name a uid that
+      already shipped (T26/F20).
+- [ ] **A retained predecessor would break replay-safety, so assert it is gone.** Apply the
+      split, un-check successor `a`, then replay the whole ledger: `a` stays un-checked. If
+      the predecessor survives the first pass, the replay silently re-completes it — this is
+      the concrete failure T26/F20 fixed, and it is reachable through §12.6's forced replay.
 - [ ] `merged` with **all** predecessors complete produces one complete record for the
-      successor.
+      successor, and **every predecessor is consumed** — gone from `MILESTONE`, and not in
+      `ORPHAN` either. The orphan branch is the partial case only (T26/F20).
 - [ ] `merged` with **some** predecessors complete produces **no** successor record, moves
       **every** predecessor to `ORPHAN` with notes intact, and the returned
       `MigrationReport` marks the case so the UI can state **R-16**'s loss.
@@ -268,6 +300,17 @@ ORPHAN {
       `contentVersionSeen`.
 - [ ] A test asserts `applyLineage` is a **no-op** when `tree.contentVersion <=
       SKILL.contentVersionSeen`, performs no write, and returns an empty report.
+- [ ] **The frozen set moves under `split`, it does not copy.** Seed
+      `grandfathered[2] = { uids: [q], … }`, apply `split q → [a, b]`, and assert the set is
+      exactly `[a, b]` — `q` absent. Then assert level 2 still reads satisfied through
+      §11.5's frozen path. A copied set leaves `q` in place, `progress[q]` can never read
+      `complete` once the record is consumed, and the level silently un-satisfies: D-19
+      defeated by the mechanism meant to preserve it (T26/F20).
+- [ ] **Both passes refresh §13.2's mirror on commit** (T26/F23). After `applyLineage`,
+      `store.progressFor(treeId)` reflects the migrated records without a reload; after
+      `applyMoves`, the re-homed uid appears under the **destination** tree's
+      `progressFor` and is gone from the source's. Without this the first paint after a
+      migration renders pre-migration state, which is the paint §12.5 exists to make correct.
 - [ ] A test asserts `contentVersionSeen` is updated and `SKILL.attainedLevel` recomputed
       after a pass that changed something.
 - [ ] A test asserts orphans never score: seed an orphan whose milestone would satisfy a

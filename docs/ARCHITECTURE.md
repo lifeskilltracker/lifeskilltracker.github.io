@@ -491,6 +491,8 @@ classDiagram
     LineageEntry ..> Milestone : by uid, across versions
 ```
 
+`LineageEntry.into` is typed `string[]` here, but its **grammar and cardinality are fixed by `op`** and are not uniform across the four dispositions — §5.4 gives the table, §6.2 rule 15 enforces it, and §12.5 and §7.2 both parse it. A schema cannot express the whole of it, which is why it is a semantic rule rather than a pattern in `schema/tree.schema.json`.
+
 ### 5.3 The tree file
 
 A worked example exercising every feature. Most trees use a fraction of this.
@@ -651,6 +653,21 @@ lineage:
     op: moved
     into: [bladesmithing/c5fj92tk]
 ```
+
+**`into` has a different grammar under each `op`**, which the example above exercises without saying so. It is one field with four shapes, and every consumer — §6.2 rule 15, §7.2's `moved` map, §12.5's fold — parses it:
+
+| `op` | `into` | Targets | Target form |
+|---|---|---|---|
+| `split` | required | **≥ 2** | bare uid, in **this** tree |
+| `merged` | required | **exactly 1** | bare uid, in **this** tree |
+| `retired` | absent, or `[]` | 0 | — |
+| `moved` | required | **exactly 1** | `<treeId>/<uid>`, in a **different** tree, and the uid **equals the entry's own** |
+
+The three constraints that are not obvious:
+
+- **`moved`'s target repeats the entry's uid, and that repetition is checked.** §12.5 re-homes the record by rewriting its `treeId` and keeps the uid — uids are immutable, so there is no other possible reading — which means a mistyped uid in the qualified target changes nothing and is invisible at runtime. Requiring equality turns a decorative field into a checked one. The tree half is not decorative: it is the only place the destination is written down, and §7.2's manifest index is built by parsing it.
+- **`split` and `merged` stay inside one tree.** §12.5's fold is per-tree and its working set is this tree's records, so a successor belonging to another tree would create a record carrying this tree's `treeId` under a uid that lives elsewhere — invisible in both trees. An author who wants both writes two entries: the structural change here, and a `moved` for each uid that leaves.
+- **Cardinality is part of the grammar.** `split` into one target is a rename under a new uid, which is `merged`'s case, and `split` with an empty list currently passes validation while disposing of nothing.
 
 CI enforces completeness by diffing against `main`: **every `uid` present in the published tree must either still exist, or appear in `lineage` with a disposition.** This is Buf's `breaking --against` pattern applied to content; §6.4 specifies the job and its baseline. It is what turns "ids are stable" from a convention into an invariant.
 
@@ -813,7 +830,7 @@ Two layers, both hard gates.
 | 12 | Every facet exists in `facets.yaml` | F19, F41 |
 | 13 | `copyleftDerived` is present and answered | F45 |
 | 14 | Mastery entries carry no level, track, order, or requirement group | F5, §5.7 |
-| 15 | Every `lineage` entry's `into` targets resolve to a uid present in the repository head | §5.4 |
+| 15 | Every `lineage` entry's `into` matches the grammar for its `op` — shape, cardinality, and targets resolving to a uid present in the repository head | §5.4 |
 
 **Layer 2b — taxonomy rules**, over `content/taxonomy/`. These are §10.3's five geometry invariants, which that section required without naming an owner. They live here because three of the five — contiguity, exact partition, and the double-claim check — are precisely what JSON Schema cannot express, which is what layer 2 is for, and because a geometry error should surface in the seconds-long validate job with a file and line rather than as a build failure later in the graph.
 
@@ -830,6 +847,8 @@ M2's scope is stated because the intra-region case fails silently and is the eas
 M3 is a connectivity pass over tile adjacency, not an inference from §10.4's loop count. A region with a hole and a region in two disconnected pieces both produce two closed loops, so loop count cannot tell them apart; §10.4's warning is scoped to holes precisely because M3 has already rejected disconnection upstream.
 
 **The file list scopes what is *reported*, not what is *read*.** `lst validate content/trees/foo.yaml` still loads `domains.yaml`, `facets.yaml`, `map.yaml`, and every other tree — rules 2, 10, 11 and 12 have always required this, since repository-wide uid uniqueness and taxonomy resolution cannot be answered from one file. Stated because the taxonomy rules make the consequence visible: an implementer who scopes M1–M5 to argv will silently run no map checks on the common invocation.
+
+Rule 15 branches on `op` because `into` does (§5.4): it checks cardinality, checks that `split` and `merged` targets are bare uids in the same tree, and checks that a `moved` target is `<treeId>/<uid>` naming a tree that exists, a different tree from this one, and the entry's own uid. Only the resolution half needs the whole repository; the rest is answerable from the entry alone, which is why F7 could leave the git-free half here. It is the only gate in front of §7.2's `moved` map and §12.5's re-homing pass, both of which parse this grammar and neither of which can report a malformed target usefully at runtime.
 
 Rule 13 deserves comment: CI cannot detect a copyleft derivation, only the *absence of an answer*. A tree answering `true` passes CI and is rejected at review (F45). The gate is there to make the question unskippable, not to adjudicate it.
 
@@ -1009,7 +1028,7 @@ Everything needed to render the world map, the domain listings, and the library 
 
 **The manifest deliberately excludes milestones.** A tree's milestones are the bulk of its bytes and are needed only when the tree is opened.
 
-**`moved` is the one exception, and it exists because a `moved` disposition is unreachable from the tree it concerns.** Every other §12.5 disposition is applied when the tree that recorded it is opened. `moved` is not: the entry lives in the *source* tree's ledger, while the record it re-homes is only wanted by the *destination* tree. A user who never reopens the source tree would keep the record on a `treeId` that no longer contains it — invisible to the destination tree, and at risk of being overwritten in place if they simply completed the milestone again, since `MILESTONE`'s primary key is the uid (§12.2). Collecting every `op: moved` in the library into one manifest-level map lets §12.5's re-homing pass run at cold start with no bundle fetched at all. Repository-wide uid uniqueness (§5.4) is what makes a flat map correct: a uid names one milestone, everywhere, forever. Moves are rare and each entry is roughly 30 bytes, so this does not disturb the sizing above; if it ever did, R-05's sharding covers it.
+**`moved` is the one exception, and it exists because a `moved` disposition is unreachable from the tree it concerns.** Every other §12.5 disposition is applied when the tree that recorded it is opened. `moved` is not: the entry lives in the *source* tree's ledger, while the record it re-homes is only wanted by the *destination* tree. A user who never reopens the source tree would keep the record on a `treeId` that no longer contains it — invisible to the destination tree, and at risk of being overwritten in place if they simply completed the milestone again, since `MILESTONE`'s primary key is the uid (§12.2). Collecting every `op: moved` in the library into one manifest-level map lets §12.5's re-homing pass run at cold start with no bundle fetched at all. The compiler reads each destination out of the tree half of the entry's qualified target (§5.4's grammar, enforced by §6.2 rule 15) rather than searching every tree for the uid, which is what makes the collection a linear pass over the ledgers it already has open. Repository-wide uid uniqueness (§5.4) is what makes a flat map correct: a uid names one milestone, everywhere, forever. Moves are rare and each entry is roughly 30 bytes, so this does not disturb the sizing above; if it ever did, R-05's sharding covers it.
 
 **`contentVersion` is per-tree and nowhere else.** There is no library-wide content counter. Carrying each tree's version in its manifest entry lets the map and browse views compare against `SKILL.contentVersionSeen` without fetching a bundle, and — the point of the whole arrangement — means a release that touches one tree invalidates one tree's layout memo (§8.6) and fires one tree's migration pass (§12.5). A global counter would fire both on every started tree on every release, including trees nothing changed in. `generated` carries "which state of the library is this" for human readers, and is explicitly not comparable across trees.
 
@@ -1614,7 +1633,7 @@ Property tests over generated inputs, not example-based unit tests. These are th
 
 Invariant 4 is the one that will catch a future maintainer retuning `k` or `p` in isolation, which is exactly the mistake the coupling invites. It only does so if it reads the same integers the app reads — see §11.6's normativity note. An invariant asserted against the idealised curve while the app ships a rounded table checks nothing.
 
-Invariant 7 is enforceable only because §11.5's frozen satisfaction records exist in storage (§12.2) and reach the engine through `TreeProgress` (§14.4). Without them it is an unfalsifiable claim.
+Invariant 7 is enforceable only because §11.5's frozen satisfaction records exist in storage (§12.2) and reach the engine through the `TreeProgress` that `store.progressFor(treeId)` returns (§14.4, §14.5). Without them it is an unfalsifiable claim.
 
 ### 11.10 Why `dismissed` must stay presentation-only
 
@@ -1687,6 +1706,8 @@ erDiagram
     MILESTONE ||--o| PHOTO : "phase 2"
 ```
 
+**The `by-tree` index serves the write path, never the read path.** Its consumers are the three places that need one tree's records *inside a transaction*, where the in-memory mirror is not usable: §12.4 step 2, which recomputes attained level after step 1's write and therefore cannot read a mirror that §12.4 updates only on commit; §12.5's fold, whose working set is this tree's live records, and its final `treeId`-scoped sweep; and §12.3's reconciliation on tree open. Rendering reads `store.progressFor(treeId)` (§14.5) off the mirror instead. Stated because an implementer who assumes the index is the read path builds an asynchronous accessor, and the render path cannot await one (§13.2).
+
 `state` is `complete` or `dismissed`. **Incomplete is the absence of a record**, not a record with a state — writing a row for every untouched milestone would multiply the store by an order of magnitude to represent nothing.
 
 **`contentVersionSeen` and every `contentVersion` in this diagram are the owning tree's own version** (§5.3), never a library-wide counter. `MILESTONE.contentVersion` is the tree's version at the moment that milestone was completed.
@@ -1715,10 +1736,10 @@ await store.setMilestoneState(uid, 'complete' | 'dismissed' | null, { note? });
 ```
 
 1. Write or delete the `MILESTONE` record inside a single IndexedDB transaction.
-2. Recompute attained level for that tree from the in-memory tree bundle.
+2. Recompute attained level for that tree from the in-memory tree bundle, reading that tree's records back through the `by-tree` index **within the same transaction**.
 3. Write `SKILL.attainedLevel` and `SKILL.lastActivityAt` in the **same transaction**.
 
-One transaction, so a crash between steps cannot leave the denormalized level disagreeing with the records it summarizes. Reactive state updates from the transaction's completion, not before it — an optimistic UI that displayed a completion the write then failed to persist would be lying about the one thing that must not be lied about.
+One transaction, so a crash between steps cannot leave the denormalized level disagreeing with the records it summarizes. Reactive state updates from the transaction's completion, not before it — an optimistic UI that displayed a completion the write then failed to persist would be lying about the one thing that must not be lied about. Step 2's read is from the object store rather than §13.2's mirror for exactly that reason: at step 2 the mirror does not yet contain step 1's write, so a recompute against it would be one milestone behind on every mutation.
 
 ### 12.5 Applying lineage at load (§5.4)
 
@@ -1730,7 +1751,7 @@ When a tree bundle's `contentVersion` exceeds the `contentVersionSeen` on that s
 
 1. **File order.** Entries are applied in the order they appear in the bundle, which the compiler preserves verbatim (§7.3) and §6.4 check 6 enforces as append-only. Order is load-bearing rather than incidental: a `split` whose successors are `merged` by a later release composes correctly only in that direction. Folded forward, the split creates records under the successor uids and the merge then finds them all complete, granting the merged milestone. Folded backwards, the merge matches nothing, the split then creates successors that no longer exist in the bundle, and the sweep below orphans the lot.
 2. **`merged` folds by target, not by entry.** `LineageEntry` carries one `uid` (§5.2), so an *n*-into-one merge is *n* entries sharing an `into` target. They are evaluated as **one disposition** at the position of the last of them — the table's "every predecessor" is a conjunction over that group, and reading each entry in isolation would grant the merged milestone to a user who completed only the first predecessor, reversing R-16's accepted loss into silent over-credit.
-3. **The working set is live `MILESTONE` records for this tree.** A record that moves to `ORPHAN` leaves the working set permanently and is never re-examined by the same pass. This is what makes "the entry matches nothing, so it does nothing" well defined, and it settles the contradictory-ledger case — a uid retired by one entry and named by a later one stays retired rather than being silently resurrected.
+3. **The working set is live `MILESTONE` records for this tree.** A record leaves it permanently by exactly two routes — moving to `ORPHAN`, or being **consumed** by the disposition that carried its credit forward — and is never re-examined by the same pass afterwards. This is what makes "the entry matches nothing, so it does nothing" well defined, and it settles the contradictory-ledger case — a uid retired by one entry and named by a later one stays retired rather than being silently resurrected. Both exits are required: a predecessor left live in the working set would re-match its own entry on every later pass, and since an import forces a replay (§12.6) that re-fires a `split` over successors the user has since un-checked, silently re-completing them.
 4. **The unknown-uid disposition is a final sweep, not a table row.** It runs once, after the fold completes, over records whose `treeId` is this tree. Applied inline it would orphan any record whose uid the ledger disposes of further down.
 
 Together these give the guarantee an implementer needs: applying entries 1..*n* in one pass equals applying 1..*i* and then *i+1*..*n*. Every entry is a no-op when its subject is not in the working set, so replaying the whole ledger over already-migrated records changes nothing — which is why an import may safely force one (§12.6).
@@ -1738,15 +1759,23 @@ Together these give the guarantee an implementer needs: applying entries 1..*n* 
 | `op` | Applied to a **complete** record | Applied to a **dismissed** record |
 |---|---|---|
 | *(no entry — reword, re-level, retrack, slug change)* | nothing; the uid is unchanged | nothing |
-| `split` into [a, b, …] | **every** successor becomes complete, copying timestamp and note | every successor becomes dismissed |
-| `merged` into [c] *(all entries sharing target `c`, as one group)* | `c` becomes complete **only if every predecessor was complete**; otherwise predecessors move to `ORPHAN` with notes intact | `c` dismissed only if all predecessors were |
+| `split` into [a, b, …] | **every** successor becomes complete, copying timestamp and note into those that have no record of their own; the predecessor is **consumed** | every successor becomes dismissed, on the same terms; the predecessor is consumed |
+| `merged` into [c] *(all entries sharing target `c`, as one group)* | `c` becomes complete **only if every predecessor was complete**, and the predecessors are then **consumed**; otherwise `c` is not granted and the predecessors move to `ORPHAN` with notes intact | `c` dismissed only if all predecessors were, on the same terms |
 | `retired` | record moves to `ORPHAN`, reason `retired` | same |
 | `moved` to another tree | record follows the uid; `treeId` updated to the qualified target's tree | same |
 | **final sweep** — uid in neither bundle nor lineage, **and `treeId` is this tree** | record moves to `ORPHAN`, reason `unknown` | same |
 
+**"Consumed" means the record is deleted, and it is the disposition for a predecessor whose credit was carried forward in full.** It applies to `split` always, and to `merged` in the all-complete branch only — the two cases where the user keeps everything the record stood for. Orphaning is the *other* branch's answer for the opposite reason: R-16's partial merge is a loss, and the orphan is what survives it. Deleting is not the silent deletion §12.5 forbids, on the same two counts §12.6 applies to its milestone-beats-orphan rule: the user's own `note` and `at` ride onto every successor, and the disposition is named in `MigrationReport` with `outcome: 'rewritten'` and `became` listing the successor uids. What is genuinely lost is the predecessor's frozen `title` snapshot (§12.2), which survives only in the migration summary. That is accepted: after the disposition the successors' own titles describe the same accomplishment, decomposed or combined, so the export stays readable to §12.6's human reader. The alternative — an `ORPHAN` for a milestone the user still holds in full — would put an entry in "retired achievements" where every other entry there means a loss.
+
+**A successor that already has a live record keeps it.** Timestamps and notes are copied only into successors with no record of their own. §6.2 rule 15 requires an `into` target to *resolve*, not to be new, so an author may legitimately fold a coarse milestone into one that already shipped; without this rule the copy would overwrite the user's own prose with the predecessor's. The same collision arrives through the two-device flow with no unusual authoring at all: a device that never opened the tree still holds the predecessor, §12.6 unions it in and rewinds `contentVersionSeen`, and the forced replay then re-applies the split over successors the other device already migrated.
+
 **Frozen satisfaction sets migrate too, in lockstep with the records.** Every uid inside `SKILL.grandfathered` runs through the same table, in the same single fold, advancing entry by entry alongside the working set — not in a second pass over the same ledger. `merged`'s set rule is conditional on the set *as it stands at that entry*, so a split-then-merge sequence gives a different and wrong answer if the two structures are folded separately.
 
-Two dispositions deviate: on `retired` **and on `moved`**, the uid is **removed from the frozen set** rather than orphaned or carried. A frozen set records a condition that *was* met, not an achievement the user holds, and §11.5 verifies it by reading `progress[uid]` from that one tree's `TreeProgress` (§14.4). A uid that has left the tree — retired out of the library, or moved into another tree — can therefore never again read as `complete` there, so leaving it in the set would make the set permanently unverifiable and silently revoke the grandfathering it exists to protect: invariant 7 defeated by the mechanism meant to preserve it, with no user action, which is the exact scenario §11.5 opens by describing. `split` copies the set entry to every successor; `merged` replaces the predecessors with the successor only if all predecessors were in the set. A frozen set emptied this way is deleted, since it then imposes no condition and the level stands on current evaluation alone.
+Two dispositions deviate: on `retired` **and on `moved`**, the uid is **removed from the frozen set** rather than orphaned or carried. A frozen set records a condition that *was* met, not an achievement the user holds, and §11.5 verifies it by reading `progress[uid]` from that one tree's `TreeProgress` (§14.4). A uid that has left the tree — retired out of the library, or moved into another tree — can therefore never again read as `complete` there, so leaving it in the set would make the set permanently unverifiable and silently revoke the grandfathering it exists to protect: invariant 7 defeated by the mechanism meant to preserve it, with no user action, which is the exact scenario §11.5 opens by describing. `split` **replaces** the predecessor uid with every successor — it moves the entry rather than copying it, leaving the predecessor uid nowhere in the set; `merged` replaces the predecessors with the successor only if all predecessors were in the set. A frozen set emptied this way is deleted, since it then imposes no condition and the level stands on current evaluation alone.
+
+**The `split` replacement is entailed by the record disposition, not an independent choice.** Once the predecessor is consumed, `progress[uid]` can never again read `complete` for it, so a *copied* entry would leave the set holding a uid that fails §11.5's `.every` forever — the same permanent unverifiability the `retired` and `moved` deviations exist to prevent, reached through a third disposition. Consuming the record and copying the set entry is not a coherent half-adoption of this rule; the two ship together or D-19 breaks.
+
+One consequence is worth stating because it is invisible: §12.6 merges `grandfathered` per level as a whole entry with the earliest `contentVersion` winning, so an import from a device that never applied the split can **reintroduce the predecessor uid** into a set whose record is gone, un-satisfying the level. It repairs itself — the same import rewinds `contentVersionSeen`, and the next open of that tree folds the split over the set again — but the repair waits for a tree open, which is §12.3's existing staleness bound applied to a D-19 protection rather than to a displayed number.
 
 Then `contentVersionSeen` is updated and attained level is recomputed.
 
@@ -1870,9 +1899,12 @@ Three module-level rune stores, each owning one thing.
 
 ```ts
 // lib/content/store.svelte.ts   — manifest + loaded bundles, populated by the Loader
-// lib/state/progress.svelte.ts  — in-memory mirror of user state, written via §12.4
+// lib/state/progress.svelte.ts  — in-memory mirror of user state; filled by hydrate(),
+//                                  updated by every writer in §14.5 on commit
 // lib/state/ui.svelte.ts        — viewport class, panel state, transient notices
 ```
+
+**Every writer refreshes the mirror, not only §12.4.** `applyLineage`, `applyMoves` and `import` all rewrite `MILESTONE` rows wholesale, and a mirror updated by the milestone write path alone would be stale in precisely the moments those passes exist for: a tree renders immediately after its migration (§12.5), so the successors a `split` just created would be invisible on the first paint after a content update; and `applyMoves` rewrites `treeId`, which is the key `progressFor` reads on, so a re-homed record would stay under the source tree for the rest of the session — defeating §13.3's reason for running that pass before the map derives at all. Each refresh happens on transaction commit, like §12.4's.
 
 Everything else is `$derived`. Domain scores, per-level progress, availability, and node states are computed, never stored in a reactive container — they are pure functions of `(content, progress)` and the moment they are cached in state they can disagree with their inputs. The exception is `SKILL.attainedLevel`, which is persisted for the reason §12.3 gives and reconciled on tree open.
 
@@ -1896,6 +1928,8 @@ Everything else is `$derived`. Domain scores, per-level progress, availability, 
 `applyMoves` sits in step 3 rather than step 2 because it is the one operation needing both halves — it is the manifest × store join of §12.5, exactly as `domainScores` is the manifest × store join of §11.6, and the shell is the only place §14.1 permits either. It runs before the map is derived so that a re-homed record is counted under the right domain on the first frame rather than the second. It is skipped entirely when hydration failed, along with every other write.
 
 Step 3's hydration-failure branch matters more than its length suggests. The dangerous failure is not "cannot read progress" but "read as empty, then wrote". The store therefore refuses all writes for the session if hydration errored.
+
+It must also not be read as an *empty* record. `store.progressFor` is total and returns empty maps for an unstarted tree (§14.5), so before hydration resolves — or permanently after it fails — every tree would render as having no completions, which is not "we could not load your progress" but "you have none". Views branch on `store.hydrated` and render progress as unknown while it is false; §16.3's loud surface is what tells the user why.
 
 ### 13.4 View composition
 
@@ -2021,7 +2055,8 @@ export interface FrozenSatisfaction {
   readonly contentVersion: number;    // the version it was frozen against
 }
 
-/** Everything the engine needs about one tree's user state. */
+/** Everything the engine needs about one tree's user state. Produced by
+ *  `store.progressFor(treeId)` (§14.5) — synchronous, and total for an unstarted tree. */
 export interface TreeProgress {
   readonly milestones: ReadonlyMap<string, MilestoneState>;
   readonly grandfathered: ReadonlyMap<number, FrozenSatisfaction>;   // §11.5
@@ -2096,6 +2131,7 @@ Three properties are contractual and are what the test suite asserts:
 ```ts
 export interface UserStateStore {
   hydrate(): Promise<void>;
+  progressFor(treeId: string): TreeProgress;    // §11.1's input — synchronous, total
   setMilestoneState(uid: string, state: MilestoneState, opts?: { note?: string }): Promise<void>;
   startSkill(treeId: string): Promise<void>;
   applyLineage(tree: CompiledTree): Promise<MigrationReport>;   // §12.5
@@ -2103,11 +2139,20 @@ export interface UserStateStore {
   export(): Promise<ExportFile>;
   import(file: ExportFile, mode: 'merge' | 'replace'): Promise<ImportReport>;
   storageStatus(): Promise<{ usage: number; quota: number; lastExportAt?: string }>;
+  readonly hydrated: boolean;   // false until hydrate() resolves — §13.3
   readonly writable: boolean;   // false if hydration failed — §13.3
 }
 ```
 
 Contract: every mutating call is a single transaction and resolves only after the write is durable. `writable` is false for the whole session after a hydration failure, and every mutator rejects while it is false.
+
+**`progressFor` is the producer of `TreeProgress`**, which §11.1 and `scoreSkill` consume and which §11.9's invariant 7 depends on reaching the engine. Three properties, each load-bearing:
+
+- **Synchronous, and it performs no I/O.** It reads the in-memory mirror `hydrate()` filled (§13.2), so it is a projection of state already in the process, not a database call. That is what lets it sit inside the `$derived` layer §13.4 renders through. `readonly writable` is the precedent: this interface's "one transaction" contract is scoped to *mutating* calls and has never covered its synchronous members.
+- **Total.** A tree with no `SKILL` row and no records returns empty maps — never `undefined`, never a throw. An unstarted tree is the normal case for every tree the user has not begun (§11.7 counts them as breadth 0), and a nullable return would push that branch into every caller.
+- **`hydrated` exists so that an empty result cannot mean two things.** Before hydration resolves, and permanently after it fails, every tree would otherwise read as having no completions at all — the user's whole record apparently erased, indistinguishable from a skill they never started. §13.3 makes the read-only branch safe for *writes*; `hydrated` is what makes it honest on *screen*.
+
+It reads the mirror rather than the `by-tree` index because the index cannot serve a synchronous caller. §12.2 names its real consumers, all of them inside a transaction.
 
 The three types those signatures name:
 
@@ -2186,6 +2231,8 @@ export interface ImportReport {
   readonly treesRewound: number;   // contentVersionSeen lowered → §12.5 replays on next open
 }
 ```
+
+**One `entries` row is one record's disposition**, and `outcome` describes what happened to *that record*: `rewritten` covers both a record that followed its uid to another tree and one that was consumed into successors (§12.5 — `became` distinguishes them, and it is empty only when the record was orphaned). A disposition that touches a frozen set as well as a record does not produce a second row; `unfrozen` is for the case where a frozen set was the *only* thing affected, because the uid it named had no live record left to dispose of.
 
 `MigrationReport` reports `attainedLevel` before and after because a migration that changed the user's rank must say so — §11.10 requires rank consequences to be stated rather than discovered, and §12.5's whole purpose is that nothing mutates silently. `partialMerge` exists so the UI can name **R-16**'s accepted loss instead of leaving the user to notice a score drop.
 
@@ -2367,7 +2414,7 @@ The system's failure modes are few, because there is almost nothing to fail. Eac
 | Tree bundle fetch fails | That tree only is unavailable; map and other trees unaffected |
 | Bundle fails the §7.5 shape assertion | Treat as unavailable; clear that bundle from Cache Storage so a stale entry self-heals on retry. The loader owns this cache directly (§7.4), so it holds in v1 with no service worker |
 | Deep link opened with no network | Cold-start failure screen. GitHub Pages' `404.html` fallback needs the network; shell precaching is phase 2 (§4.4, R-26) |
-| IndexedDB hydration fails | Render read-only, surface loudly, **refuse all writes for the session** (§13.3) |
+| IndexedDB hydration fails | Render read-only, surface loudly, **refuse all writes for the session** (§13.3). Progress renders as *unknown*, never as zero — `store.hydrated` is false (§14.5) |
 | IndexedDB write fails (quota) | Surface immediately, do not update the UI as though it succeeded, prompt export |
 | Import file invalid | Reject whole, never partially apply; report which field failed |
 | Unknown `schemaVersion` on import, newer than the app | Refuse and say the file came from a newer version — do not guess |

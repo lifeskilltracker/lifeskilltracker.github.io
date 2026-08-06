@@ -383,17 +383,22 @@ tasks:
     status: written
     doc: T26-architecture-reconciliation.md
     note: >
-      Added 2026-08-05, not from §16.4. Twenty-three spec defects surfaced by writing
+      Added 2026-08-05, not from §16.4. Twenty-six spec defects surfaced by writing
       task docs against the architecture — self-contradictions and undefined types that
       block implementation. F2 (grandfathering has no storage) is the expensive one:
       resolving it after T09 ships means a migration rather than a field.
-      Resolved so far: F1–F5, F8–F14, F16. Open: F6, F7, F15, F17–F23. F18/F19 were
-      appended by the F3/F4/F5 pass and block T13/T20 and T09; F20–F23 by the F12/F13/F14
-      pass and block T17, T03/T04/T17, T14/T16, and T09/T11a respectively.
+      Resolved so far: F1–F14, F16, F17, F20, F21, F23.
+      Open: F15, F18, F19, F22, F24, F25, F26 — blocking T13/T20, T09, T14/T16, T25,
+      T03/T25, and T09/T14 respectively.
       Group C added a manifest field (`moved`) and an export field (`contentVersionSeen`),
       so T02 and T04 both gained schema work — no new graph edges.
       Group D moved §10.3's five geometry invariants from `lst compile` to `lst validate`,
       which is the one edge change: T03 now blocks T12.
+      Group G (F20, F21, F23) changed no edges. It added one method and one flag to
+      §14.5 (`progressFor`, `hydrated`, both T09's), made every §14.5 writer a writer of
+      §13.2's mirror (T09, T16, T17), and raised F26 — §12.3's write-back has no owner,
+      which lands in T09/T14 territory and makes an existing T09 acceptance criterion
+      untestable as the spec is drawn.
 
 # Critical path: T01 → T02 → T03 → T04 → T07 → T08 → T10 → T11b → T14 → T20
 #   T11a (§11.1–§11.4) joins T06/T07 as a T08 prerequisite — see T26 F16.

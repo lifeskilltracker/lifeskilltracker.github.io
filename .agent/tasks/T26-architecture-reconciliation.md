@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | in progress — F1–F14, F16, F17 resolved 2026-08-05; F15, F18–F25 open |
+| **Status** | in progress — F1–F14, F16, F17, F20, F21, F23 resolved 2026-08-05; F15, F18, F19, F22, F24, F25, F26 open |
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
@@ -13,9 +13,9 @@
 ## Goal
 
 `docs/ARCHITECTURE.md` no longer contradicts itself on any point an implementer must
-act on. Twenty-five findings — seventeen raised during task decomposition, F18 and F19
-found while resolving F3 and F4, F20–F23 found while resolving F12–F14, and F24–F25 found
-while resolving F17 and F7 — are each resolved: amended in
+act on. Twenty-six findings — seventeen raised during task decomposition, F18 and F19
+found while resolving F3 and F4, F20–F23 found while resolving F12–F14, F24–F25 found
+while resolving F17 and F7, and F26 found while resolving F23 — are each resolved: amended in
 the spec, or recorded as a deliberate tolerance with the consequence stated. After this
 task, no downstream task doc contains the phrase "the spec is silent on".
 
@@ -33,10 +33,11 @@ the PRD.
 
 ## Scope
 
-**In scope** — twenty-five findings, each needing a verdict. F16 and F17 were appended
+**In scope** — twenty-six findings, each needing a verdict. F16 and F17 were appended
 2026-08-05 by the wave-2 task-doc pass and verified against the spec by the orchestrator;
 F18 and F19 were appended 2026-08-05 by the F3/F4/F5 pass, F20–F23 by the F12/F13/F14
-pass, and F24–F25 by the F6/F7/F17 pass — all eight unresolved:
+pass, F24–F25 by the F6/F7/F17 pass, and F26 by the F20/F21/F23 pass — seven of those
+still unresolved:
 
 **F1 — Invariant 4 is false against the shipped constants. ✅ RESOLVED 2026-08-05 —
 amend.** §11.9 made `Δfill(0→1) ≥ Δfill(L→L+1)` an executable property test while §11.6
@@ -249,7 +250,10 @@ whatever baseline **F6** settles. See `docs/SPEC-FINDINGS.md` F14.
 afternoon if hit cold:
 - §4.4 cross-references "§7.3, which treats manifest freshness explicitly". §7.3 is the
   compiler's transformation table; freshness is §7.1 and §7.4.
-- `MILESTONE.contentVersion` is declared in §12.2's ER diagram and consumed nowhere.
+- `MILESTONE.contentVersion` is declared in §12.2's ER diagram and consumed nowhere — and
+  §14.5's `ExportFile` types it **optional** while §12.2 types it required, with §12.6's
+  example row omitting it and §12.6's milestone merge rule silent on it, so a round trip can
+  drop a required field with no stated default. Extended 2026-08-05 during F20's pass.
 - `ORPHAN` carries no `slug` while `MILESTONE` does. Probably intentional per §12.5's
   "title, timestamp, and note", but unstated.
 - §12.7 does not say where the export-prompt dismissal flag lives. Persisting it naively
@@ -360,28 +364,42 @@ store. **Blocks T09.** Raised 2026-08-05 while resolving F4, whose `DomainSkillR
 the field as optional and whose `DomainScore` reports `null` — that is F4 tolerating the
 ambiguity at the engine boundary, not resolving it at the store.
 
-**F20 — `split` never states the predecessor's fate, in either structure.** §12.5's table
-gives the *successors'* outcome — "**every** successor becomes complete" — and says nothing
-about the record the split consumed. Every other disposition states its subject's fate
-explicitly (`merged` orphans the predecessors, `retired` orphans, `moved` re-homes). The
-frozen-set clause has the same gap in a sharper form: "`split` **copies** the set entry to
-every successor", and a copy leaves the predecessor uid in the set — a uid now in no bundle,
-which §11.5 can never read as `complete`, so the level un-satisfies. That is the same class
-as the `moved` frozen-set defect fixed under F13, reached by a different disposition, and it
-is why the fix there was not generalized in passing. *Decide:* whether `split` deletes,
-orphans, or retains the predecessor record, and whether the frozen-set entry is copied or
-moved. **Blocks T17.** Raised 2026-08-05 while resolving F14.
+**F20 — `split` never stated the predecessor's fate. ✅ RESOLVED 2026-08-05 — amend.**
+**Adopted:** the predecessor is **consumed** — deleted, with `at` and `note` copied onto every
+successor, reported as `outcome: 'rewritten'` with `became` naming them — and the frozen-set
+entry is **moved, not copied**. The same sentence goes into `merged`'s all-complete branch,
+which had the identical gap. **The spec did not omit the fate; it implied retention**: the
+final sweep orphans a uid in "neither bundle **nor** lineage", and a split predecessor's uid
+*is* in the lineage, so the sweep spares it by construction — the record survives every pass
+and reads `complete` for a uid no bundle contains. That also settles the disposition, because
+a retained record stays in §12.5's working set, re-matches its own entry, and §12.6 *forces* a
+replay on import — silently re-completing a successor the user deliberately un-checked, which
+made F14's replay guarantee already false for this row. Orphaning was declined on `merged`'s
+own wording: it orphans in the "otherwise" branch because R-16's partial merge is a **loss**,
+and under `split` nothing is lost. Cost stated rather than argued away: the predecessor's
+frozen `title` snapshot leaves persisted state, so consumption meets only half of §12.6's
+two-part non-silent-drop test — the half covering what the *user* wrote. Two riders:
+**a successor that already has a live record keeps its own `at` and `note`** (rule 15 requires
+targets to resolve, not to be new, and §12.6's rewind reaches the same collision with ordinary
+authoring), and **rule 3 gains consumption as a second permanent exit** from the working set.
+The frozen-set move is **entailed** by the deletion, not an independent choice. See
+`docs/SPEC-FINDINGS.md` F20.
 
-**F21 — `into:` has two grammars and neither is validated.** §5.4's example uses a
-tree-qualified target for `moved` (`into: [bladesmithing/c5fj92tk]`) and bare uids for
-`split` and `merged` (`into: [m3xk90ab, v8t2ncq5]`). §5.2 types the field `string[]` with no
-note of the distinction, and §12.5's `moved` row says "`treeId` updated" without saying the
-new `treeId` is parsed out of the qualified target. §6.2 rule 15 validates the entry's own
-`uid` only — nothing checks that a `moved` target names a tree that exists, or that
-`split`/`merged` targets resolve at all. F13's manifest index is built by parsing exactly
-this grammar, so it now has a consumer that will fail unhelpfully on a malformed target.
-*Decide:* the grammar per `op`, and the validation rule. **Blocks T03, T04, T17.** Raised
-2026-08-05 while resolving F13.
+**F21 — `into:` had two grammars and neither was validated. ✅ RESOLVED 2026-08-05 — amend.**
+**Adopted:** one table in §5.4 fixing shape and cardinality per `op`, with §6.2 rule 15
+branching on `op` to enforce it — `split` ≥ 2 bare uids in this tree, `merged` exactly one,
+`retired` none, `moved` exactly one `<treeId>/<uid>` in a **different** tree whose uid
+**equals the entry's own**. Three decisions the finding did not ask about: the repeated uid in
+a `moved` target is now checked rather than decorative (§12.5 keeps the uid and rewrites
+`treeId`, so a typo there currently changes nothing and is invisible at runtime);
+`split`/`merged` targets stay inside one tree (the fold's working set is per-tree, so a
+foreign successor produces a record invisible in both trees); and cardinality is part of the
+grammar (`split` with `into: []` passes today and disposes of nothing). The permissive
+"accept either form anywhere" reading was declined because it **reopens F13's hole through the
+validator** — a `moved` entry written bare parses cleanly, contributes no `manifest.moved`
+entry, and strands the record exactly as before. Naming only the destination tree was declined
+too: a bare treeId and a bare uid are indistinguishable by shape. See `docs/SPEC-FINDINGS.md`
+F21.
 
 **F22 — a started skill whose tree leaves the manifest loses its score silently.** §5.9
 contemplates removing taxonomy entries; nothing covers removing a *tree*.
@@ -394,15 +412,25 @@ migrated (no bundle, so no pass) and never swept (the sweep is per-tree). Neithe
 whether its records orphan, persist unplaced, or hold their score. **Blocks T14, T16.**
 Raised 2026-08-05 while resolving F12.
 
-**F23 — nothing produces `TreeProgress`.** §11.1 and `scoreSkill` consume it (§14.4), and
-§11.9's invariant 7 depends on it reaching the engine — but `UserStateStore` (§14.5) exposes
-no accessor that returns one. §13.2 says the store holds an in-memory mirror of user state
-and names no read API for it. Related and probably the same fix: §12.2's `by-tree` index is
-declared in the ER diagram and **no prose anywhere states what reads it**. This is a
-signature an implementer must have, and F13's resolution turned on what it is, so it should
-be written down rather than left to the first task that needs it. *Decide:* the accessor's
-signature and whether it is the by-tree index's stated consumer. **Blocks T09, T11a.**
-Raised 2026-08-05 while resolving F13.
+**F23 — nothing produced `TreeProgress`. ✅ RESOLVED 2026-08-05 — amend.** **Adopted:**
+`progressFor(treeId: string): TreeProgress` on `UserStateStore` — **synchronous**, no I/O, a
+projection of §13.2's mirror, and **total** (an unstarted tree returns empty maps, never
+`undefined`) — plus `readonly hydrated: boolean`. **The load-bearing part is not the
+signature.** §13.2 described the mirror as "written via §12.4", so `applyLineage`,
+`applyMoves` and `import` never refreshed it — meaning a synchronous read is wrong precisely
+when those have just run: the successors a `split` just created are invisible on the first
+paint after a content update, and `applyMoves` rewrites the very `treeId` the accessor keys
+on, stranding a re-homed record under the source tree for the session and defeating §13.3's
+stated reason for running that pass before the map derives. §13.2 now says every writer
+refreshes the mirror on commit. `hydrated` exists because totality has a failure mode: empty
+maps are right for an unstarted tree and a lie for an unhydrated store, and under §13.3's
+read-only branch every tree would render as having no completions — the display-side twin of
+"read as empty, then wrote". The `by-tree` index is named as the **write path's**, its busiest
+consumer being §12.4 step 2 on every mutation, which cannot read the mirror because reactive
+state updates only on transaction commit; §12.5's fold and sweep and §12.3's reconciliation
+are the others. An async per-tree accessor was declined: §17.4 budgets a heavy phase-1 user
+under 1 MB — an over-count, since incomplete milestones have no row — so it would demote a
+mirror to a cache for headroom the budget says is not needed. See `docs/SPEC-FINDINGS.md` F23.
 
 **F24 — §6.5's `build` job is unreachable on a content-only PR.** The job graph has
 `V --> BUILD`, `TC --> BUILD` and `T --> BUILD`, and §6.5's closing sentence says "on a
@@ -426,6 +454,21 @@ which is almost certainly right, but that is an inference from two sentences rat
 reading of either. Same class as F17: a stated CI guarantee with no named owner. *Decide:*
 which subcommand fails a missing uid, and whether it is a semantic rule in §6.2's table.
 **Blocks T03, T25.** Raised 2026-08-05 while resolving F7.
+
+**F26 — §12.3's reconciliation has no interface.** §12.3 requires that on tree open the
+Scoring Engine "recomputes attained level from first principles and **writes it back** if it
+differs" — a write, and the mechanism that keeps the design's one accepted denormalization
+honest. §14.5's `UserStateStore` exposes no method for it. The only mutator taking a
+`CompiledTree` is `applyLineage`, which §12.5 gates on `contentVersion > contentVersionSeen`
+and which therefore does nothing on the ordinary tree open where reconciliation is supposed to
+run. The gap is not cosmetic: §12.6's import rule copies `attainedLevel` rather than merging
+it and names §12.3's reconciliation as the correction that later unwinds a provisional value,
+so an unowned reconciliation leaves an imported rank wrong indefinitely; and F13's `moved`
+pass deliberately does not recompute the source tree's level, deferring to the same
+mechanism. *Decide:* whether reconciliation is a distinct `UserStateStore` method, a
+documented effect of an existing one, or the App Shell's sequence — and who calls it on tree
+open. **Blocks T09, T14; weakens T16 and T17 until settled.** Raised 2026-08-05 while
+resolving F23, whose accessor made the missing write-back path visible.
 
 **Out of scope**
 
@@ -469,6 +512,11 @@ export function domainScores(
 export type MovedIndex = Manifest['moved'];              // uid → destination treeId
 applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;
 
+// F23 — RESOLVED: TreeProgress has a producer. Synchronous, no I/O, total for an
+// unstarted tree. `hydrated` is what stops an empty result meaning two things.
+progressFor(treeId: string): TreeProgress;
+readonly hydrated: boolean;
+
 // F3 — RESOLVED: all eight now defined in §14.4 and §14.5
 //   DomainId, TierName, Taxonomy = Manifest['taxonomy'], DomainScore,
 //   ExportFile, OrphanReason, MigrationReport, ImportReport
@@ -477,7 +525,7 @@ applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;
 
 ## Acceptance criteria
 
-- [ ] `docs/SPEC-FINDINGS.md` records all twenty-five findings with a verdict of *amend*,
+- [ ] `docs/SPEC-FINDINGS.md` records all twenty-six findings with a verdict of *amend*,
       *tolerate*, or *not a defect*, each with a reason and a date.
 - [ ] F1: §11.6's table and §11.9's invariant 4 agree. Verified by computing
       Δfill(0→1) and Δfill(1→2) from the shipped constants and checking the invariant
@@ -529,12 +577,18 @@ applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;
       and the ordering rule for composing dispositions. *A fold in file order;
       fold(1..n) = fold(1..i) ∘ fold(i+1..n); `merged` groups by target; the unknown-uid
       disposition is a final sweep. §6.4 check 6 enforces the ordering.*
-- [ ] F20: §12.5 states the predecessor's fate under `split`, in both the record table and
-      the frozen-set clause.
-- [ ] F21: `into:`'s grammar is stated per `op` and validated.
+- [x] F20: §12.5 states the predecessor's fate under `split`, in both the record table and
+      the frozen-set clause. *Consumed in both, and in `merged`'s all-complete branch too;
+      the frozen entry moves rather than copies. Rule 3 gains consumption as a second exit,
+      and a successor with a live record of its own is never overwritten.*
+- [x] F21: `into:`'s grammar is stated per `op` and validated. *§5.4's table fixes shape and
+      cardinality; §6.2 rule 15 branches on `op`; §5.2 flags the non-uniformity at the type;
+      §7.2 says the compiler parses the tree half.*
 - [ ] F22: the spec says what becomes of a started skill whose tree has left the manifest.
-- [ ] F23: `TreeProgress` has a named producer with a signature, and §12.2's `by-tree`
-      index has a stated consumer.
+- [x] F23: `TreeProgress` has a named producer with a signature, and §12.2's `by-tree`
+      index has a stated consumer. *`store.progressFor(treeId)` — synchronous, total, off
+      §13.2's mirror, which every writer now refreshes. `by-tree` serves §12.4 step 2,
+      §12.5's fold and sweep, and §12.3's reconciliation — never the render path.*
 - [ ] F15: every item in the cluster is either fixed in the spec or recorded as tolerated.
 - [x] F16: §9.3 and §16.4 agree on what produces node state in Phase 0. Verified by
       reading §16.4's Phase 0 prose and confirming that every state T10's gate requires
@@ -546,6 +600,7 @@ applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;
       §6.2's layer 2b rules M1–M5; §5.9's handoff also names it now.*
 - [ ] F24: §6.5 states whether `build` runs on a content-only PR.
 - [ ] F25: exactly one subcommand is named as the gate that fails a missing `uid`.
+- [ ] F26: §12.3's write-back has a named owner reachable on an ordinary tree open.
 - [ ] Every affected task doc under `.agent/tasks/` is updated to match the resolutions,
       and `grep -ril "spec is silent\|unresolved spec gap" .agent/tasks/` returns nothing.
 
