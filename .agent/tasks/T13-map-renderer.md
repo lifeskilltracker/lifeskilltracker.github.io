@@ -5,7 +5,7 @@
 | **Status** | pending |
 | **Phase** | 1 |
 | **Cluster** | views |
-| **Blocked by** | T11, T12 |
+| **Blocked by** | T11b, T12 |
 | **Blocks** | T20 |
 | **Spec** | ARCHITECTURE §10.5, §10.6, §10.7 |
 | **PRD** | F21, F33, F34, F35, D-20 |
@@ -71,7 +71,7 @@ the architecture has already closed with evidence, not just style preference.
 
 - The hex-to-path compilation and `map.yaml` authoring — T12. This task consumes the
   compiled `manifest.taxonomy.map` paths; it does not produce them.
-- `domainScores()` and the underlying fill/recency/breadth arithmetic — T11, the Scoring
+- `domainScores()` and the underlying fill/recency/breadth arithmetic — T11b, the Scoring
   Engine (§11.6, §11.7). This component renders `DomainScore` values; it does not compute
   them.
 - The domain skill-listing view itself (`/d/<domainId>`) that selecting a region routes
@@ -211,9 +211,9 @@ Passing looks like: the channel and navigation test suite green, and a clean typ
 - **Region area encodes nothing (§10.3).** Do not let fill rendering or layout code
   accidentally couple region size to score or skill count — Making being a large region is
   a fixed authoring fact from T12, unrelated to how full it renders.
-- The `k = 6` / `fill = s/(s+48)` constants are Scoring Engine territory (T11) and must
+- The `k = 6` / `fill = s/(s+48)` constants are Scoring Engine territory (T11b) and must
   never be duplicated or re-derived in this component — this component reads the fill
-  number T11 already computed and only decides how to draw it.
+  number T11b already computed and only decides how to draw it.
 
 
 ## T26 amendments — 2026-08-06

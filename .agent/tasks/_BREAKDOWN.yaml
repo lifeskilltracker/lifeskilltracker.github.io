@@ -82,7 +82,7 @@ tasks:
     phase: 0
     cluster: cli-toolchain
     blocked_by: [T02, T03, T26]
-    blocks: [T07]
+    blocks: [T07, T23]
     spec: ["§7.1", "§7.2", "§7.3", "§4.3"]
     prd: [N4]
     status: written
@@ -166,16 +166,21 @@ tasks:
     blocked_by: [T02, T26]
     blocks: [T08]
     spec: ["§11.1", "§11.2", "§11.3", "§11.4", "§14.4"]
-    prd: [F9, F11, F36, D-18]
-    status: pending
+    prd: [F9, F11, F36, D-18, D-22]
+    status: written
     doc: T11a-scoring-tree-local.md
     note: >
-      Created 2026-08-05 by T26's F16 resolution. Requirement groups, attained level,
-      and the five node states — everything computable from one compiled tree plus that
-      tree's progress. Phase 0, because §16.4's skeleton must render a tree that is
-      "completable" and §9.3 has no other producer for complete/available/locked.
-      `T11-scoring-engine.md` currently covers all of §11 and must be split; this row
-      and T11b's stay `pending` until it is.
+      Created 2026-08-05 by T26's F16 resolution; document written 2026-08-06 by
+      splitting `T11-scoring-engine.md`, which is deleted. Requirement groups, attained
+      level, the tier mapping, and the five node states — everything computable from one
+      compiled tree plus that tree's progress. Phase 0, because §16.4's skeleton must
+      render a tree that is "completable" and §9.3 has no other producer for
+      complete/available/locked.
+      It ships the whole §14.4 tree-local type block, including the two fields whose
+      BEHAVIOUR is T11b's — `TreeProgress.grandfathered` is accepted and unread, and
+      `LevelProgress.grandfathered` is always false — so that no downstream task's types
+      change at the phase boundary. It also owns the property-test generators and the
+      `fast-check` dependency choice; T11b extends them.
 
   - id: T11b
     title: Scoring Engine — grandfathering and aggregation
@@ -184,17 +189,23 @@ tasks:
     blocked_by: [T10, T26]
     blocks: [T13, T14, T15, T17, T19]
     spec: ["§11.5", "§11.6", "§11.7", "§11.8", "§11.9", "§14.4"]
-    prd: [F33, N12, D-21]
-    status: pending
+    prd: [F33, F34, F35, N12, D-19, D-20, D-21]
+    status: written
     doc: T11b-scoring-aggregation.md
     note: >
-      The §11.5–§11.8 half — frozen satisfaction, domain score, fill, recency, breadth,
-      self-assessment. T26/F4 confirms the recency roll-up is this task's, not the
-      store's: `DomainSkillRow` carries `lastActivityAt` and `DomainScore` reports the
-      per-domain maximum. Phase 1, and after T10 deliberately: §11.5 is the first point §11
-      writes persisted state (`SKILL.grandfathered`), which is exactly what the schema
-      gate exists to break. Monotonicity (N12) is a property test over generated inputs,
-      not examples.
+      Document written 2026-08-06 in the same split. The §11.5–§11.9 half — frozen
+      satisfaction, domain score, fill, recency, breadth, self-assessment, and the
+      §11.9 invariants that need a score to state (1–5, 7, and the score half of 6).
+      T26/F4 confirms the recency roll-up is this task's, not the store's:
+      `DomainSkillRow` carries `lastActivityAt` and `DomainScore` reports the per-domain
+      maximum. T26/F18's five fill bands land here too, as a dependency-free data module
+      with one resolver — `DomainScore` still carries no band field, which is what keeps
+      the vocabulary tunable for T13 and T20. Phase 1, and after T10 deliberately: §11.5
+      is the first point §11 writes persisted state (`SKILL.grandfathered`), which is
+      exactly what the schema gate exists to break. Monotonicity (N12) is a property test
+      over generated inputs, not examples.
+      It MODIFIES three files T11a created — `levels.ts`, `index.ts`,
+      `invariants.prop.ts` — rather than adding a parallel module.
 
   - id: T12
     title: Map geometry — map.yaml, axial maths, region union

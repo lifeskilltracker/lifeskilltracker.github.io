@@ -133,5 +133,5 @@ D20 alone without further product input.
   attained level downward under R-22. The rule should be chosen with that interaction in
   mind rather than in isolation.
 - This task is off the critical path and can run at any time. Doing it early is strictly
-  better: it is the only thing standing between T11 and T15, and every week it waits is a
+  better: it is the only thing standing between T11b and T15, and every week it waits is a
   week the two governing documents disagree.

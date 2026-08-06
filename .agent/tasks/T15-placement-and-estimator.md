@@ -5,7 +5,7 @@
 | **Status** | pending — **specification incomplete until T00 resolves PRD D20** |
 | **Phase** | 1 |
 | **Cluster** | judgment |
-| **Blocked by** | T00, T11 |
+| **Blocked by** | T00, T11b |
 | **Blocks** | — |
 | **Spec** | ARCHITECTURE §11.8, §19.4, §13.4, §15.6 |
 | **PRD** | F29, F30, D20, S3 |
@@ -45,7 +45,7 @@ every tree forever, and C4 already names authoring as the bottleneck.
 
 - Deciding the estimator rule — **T00**. This task implements a decision; it does not
   make one.
-- The Scoring Engine itself — T11. The estimator lives in `lib/scoring` and must obey
+- The Scoring Engine itself — T11a and T11b. The estimator lives in `lib/scoring` and must obey
   its purity constraints, but attainment, groups and node states are already built.
 - The write path and transaction semantics — T09.
 - Single-milestone completion and the milestone panel — T08.

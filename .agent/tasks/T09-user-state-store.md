@@ -79,8 +79,8 @@ and with no telemetry, correctness has to be structural rather than observed.
 - `navigator.storage.persist()`, `navigator.storage.estimate()` polling, and the three
   export-prompt triggers — **T18** (§12.7). This task exposes `storageStatus()`; T18 owns
   the policy that consumes it and the first-successful-write `persist()` hook.
-- Computing attained level. That is the Scoring Engine's `scoreSkill` (§14.4, **T11**).
-  In phase 0 this store calls a minimal recompute; T11 replaces it with the real engine and
+- Computing attained level. That is the Scoring Engine's `scoreSkill` (§14.4, **T11a**).
+  In phase 0 this store calls a minimal recompute; T11a replaces it with the real engine and
   T10 is the gate where that swap is checked. The store must not implement level semantics
   of its own.
 - Photo capture, downscaling, encoding, and the ZIP export form — **Phase 2**, §12.8.

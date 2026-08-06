@@ -263,7 +263,7 @@ verbatim from §16.2:
 - [ ] `build` fails when `app/src/lib/types/authored.d.ts` is stale relative to
       `schema/*.json` (i.e. `npm run gen:types` would produce a diff).
 - [ ] `build` fails when a fixture PR breaks the monotonicity property test named in
-      §14.4 / T11.
+      §14.4 / T11b.
 - [ ] `build` fails when a fixture PR inflates the first-paint bundle (App JS first
       route + CSS, Brotli-compressed) past 70 kB, and passes at or under it.
 - [ ] `deploy.yml` triggers only on push to `main`, not on pull requests.

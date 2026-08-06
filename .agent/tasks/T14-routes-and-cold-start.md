@@ -5,7 +5,7 @@
 | **Status** | pending |
 | **Phase** | 1 |
 | **Cluster** | views |
-| **Blocked by** | T11 |
+| **Blocked by** | T11b |
 | **Blocks** | T16, T20, T25 |
 | **Spec** | ARCHITECTURE §13.1, §13.2, §13.3, §13.4, §16.3 |
 | **PRD** | F23 |

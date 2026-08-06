@@ -5,7 +5,7 @@
 | **Status** | pending |
 | **Phase** | 1 |
 | **Cluster** | runtime-io |
-| **Blocked by** | T09, T11 |
+| **Blocked by** | T09, T11b |
 | **Blocks** | — |
 | **Spec** | ARCHITECTURE §12.5, §5.4 |
 | **PRD** | R-03, R-16 |
@@ -73,7 +73,7 @@ and unreportable by the user — hence the mandatory visible summary.
   the first writer into a store T09 already built.
 - `setMilestoneState` and the single-transaction write path — **T09** (§12.4). This task
   reuses it; it does not open its own write path.
-- Computing attained level. `scoreSkill` is the Scoring Engine's — **T11** (§14.4). This
+- Computing attained level. `scoreSkill` is the Scoring Engine's — **T11a** (§14.4). This
   task calls it and persists the result.
 - The `lineage` block's *authoring* form, its CI completeness check, and `lst baseline` —
   §5.4 / §6.4, owned by **T03** and **T23**. This task consumes `lineage` as the compiler

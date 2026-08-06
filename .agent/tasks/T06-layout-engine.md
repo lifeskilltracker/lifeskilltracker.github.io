@@ -59,7 +59,7 @@ optimized.
 - Any SVG, `viewBox`, pixel scaling, CSS, container query, or DOM — that is the TreeView
   renderer, **T08** (§9).
 - Node state (complete / available / locked / bonus / dismissed). It is computed by the
-  Scoring Engine in **T11** and §8.7 states it never touches layout.
+  Scoring Engine in **T11a** and §8.7 states it never touches layout.
 - Mastery achievements. §5.7 gives them no level, track, or order, and §9.6 renders them
   in a separate panel below the tree, so they are not positioned here and `TreeLayout` has
   no field for them — **T08** owns that panel.

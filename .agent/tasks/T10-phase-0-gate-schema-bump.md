@@ -6,7 +6,7 @@
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | T05, T08, T09 |
-| **Blocks** | T11, T12, T21 |
+| **Blocks** | T11b, T12, T21 |
 | **Spec** | ARCHITECTURE §5.10, §16.4, §19.2 |
 | **PRD** | N8; ARCHITECTURE R-14 |
 
@@ -48,7 +48,7 @@ about to change is the exact waste phase 0 was designed to prevent.
 
 - New features of any kind. This task changes the schema only where phase 0 proved it
   wrong; a field that would be *nice* is not a finding.
-- The Scoring Engine, map, export, and everything else in Phase 1 — T11 onward. Their
+- The Scoring Engine, map, export, and everything else in Phase 1 — T11b onward. Their
   requirements are known from §11 and §12 and may inform the review, but building against
   a schema is not the same as reviewing it, and speculative accommodation is how a schema
   acquires fields nothing uses.
@@ -142,4 +142,4 @@ Then the manual pass: open the tree, complete a milestone, reload, un-complete, 
   retired slug may never be reused. Those are D-05 and the whole identifier scheme rests
   on them.
 - This gate has no CI representation. It is a human judgment recorded in a document, and
-  the only enforcement is that T11, T12 and T21 are blocked on it.
+  the only enforcement is that T11b, T12 and T21 are blocked on it.

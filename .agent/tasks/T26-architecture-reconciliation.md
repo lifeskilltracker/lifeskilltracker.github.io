@@ -6,7 +6,7 @@
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
-| **Blocks** | T02, T04, T07, T08, T09, T10, T11, T12, T16, T17, T23 |
+| **Blocks** | T02, T04, T07, T08, T09, T10, T11a, T11b, T12, T16, T17, T23 |
 | **Spec** | ARCHITECTURE §4.4, §6.1, §6.2, §6.4, §7.2, §7.4, §9.3, §10.3, §11.5, §11.6, §11.9, §12.2, §12.5, §12.6, §12.7, §14.2, §14.4, §14.5, §16.1, §16.4 |
 | **PRD** | — |
 
@@ -92,7 +92,7 @@ manifest × IndexedDB join and `lastActivityAt` sits in the same `SKILL` row as
 `attainedLevel`. What settled it is that the alternatives are forbidden by §14.1 — the
 store can never learn a tree's domain (`STATE ⇢ LOADER` FORBIDDEN) and components may
 import neither state nor the engine, leaving only the shell's derived layer, which gives
-`DomainScore` two producers. `T11-scoring-engine.md`'s "roll-up is a store concern" was
+`DomainScore` two producers. T11's (now **T11b**'s) "roll-up is a store concern" was
 therefore unimplementable and is deleted. Riders: §12.2 now fixes every stored timestamp as
 **ISO-8601 UTC with a `Z` suffix**, without which a lexicographic `max` in a pure engine is
 a silent bug; and §3.3's `domainScores(catalogue, userState)` — matching neither the names

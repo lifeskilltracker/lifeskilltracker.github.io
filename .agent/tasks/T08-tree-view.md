@@ -54,7 +54,7 @@ component has silently reopened D3 and broken S1.
 
 - Positioning and the grid layout algorithm — T07, the Layout Engine (§8). TreeView
   consumes `layoutTree`'s output; it does not compute it.
-- The Scoring Engine's state derivation (`scoreSkill`, node state rules) — T11. TreeView
+- The Scoring Engine's state derivation (`scoreSkill`, node state rules) — T11a. TreeView
   renders `NodeState` values, it does not derive them.
 - The milestone detail panel's own component (`MilestonePanel`) beyond the actions
   TreeView's node interaction opens it with — §13.4 names `MilestonePanel` as a sibling
@@ -124,7 +124,7 @@ export interface SkillProgress {
 ```
 
 Component props are `(tree: CompiledTree, positions: LayoutResult, progress: SkillProgress,
-viewport: 'wide' | 'narrow')` — `positions` from T07's `layoutTree`, `progress` from T11's
+viewport: 'wide' | 'narrow')` — `positions` from T07's `layoutTree`, `progress` from T11a's
 `scoreSkill`. TreeView performs no computation over either; it renders them and emits
 user intent (complete, dismiss, undo, note) upward for the User State Store (T09) to
 apply.
@@ -191,7 +191,7 @@ clean typecheck.
   with a correctness consequence: if state toggling ever re-invokes `layoutTree`, node
   positions could theoretically shift under a live interaction, which nothing in this
   component's design otherwise permits.
-- **§11.10's intercept is UI behaviour, not engine behaviour.** The Scoring Engine (T11)
+- **§11.10's intercept is UI behaviour, not engine behaviour.** The Scoring Engine (T11a)
   computes the consequence honestly and reports it; this component is responsible only for
   surfacing it before commit. Do not attempt to prevent the dismissal or un-check at the
   engine level — dismissal must stay reversible (D-22) and un-checking must stay a real,

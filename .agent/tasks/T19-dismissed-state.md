@@ -5,7 +5,7 @@
 | **Status** | pending |
 | **Phase** | 1 |
 | **Cluster** | views |
-| **Blocked by** | T08, T11 |
+| **Blocked by** | T08, T11b |
 | **Blocks** | — |
 | **Spec** | ARCHITECTURE §11.10, §9.3 |
 | **PRD** | F46, D-22 |
@@ -44,7 +44,7 @@ user from choosing it.
 **In scope**
 
 - The dismiss action from the milestone detail panel: sets `MilestoneState` to
-  `'dismissed'`, which the Scoring Engine (T11) already treats as exactly incomplete for
+  `'dismissed'`, which the Scoring Engine (T11a) already treats as exactly incomplete for
   both `GroupProgress.ratio` and `attained` (§11.2, §11.10).
 - The undismiss (undo) action, symmetric to dismiss, with no special-casing anywhere in
   this task's code that differs from a plain state transition (§11.10, F46).
@@ -69,7 +69,7 @@ user from choosing it.
 **Out of scope**
 
 - The Scoring Engine's treatment of `dismissed` as incomplete-for-scoring — that is
-  already T11's responsibility per §11.2/§11.9 invariant 6; this task consumes and
+  already T11a's and T11b's responsibility per §11.2/§11.9 invariant 6; this task consumes and
   verifies it end to end through the UI, it does not implement the engine-side rule.
 - The five-state node rendering system in general (`complete`, `bonus`, `available`,
   `locked`) — T08 builds the full `TreeView` state machine; this task extends it with the
@@ -184,7 +184,7 @@ the negative case, and a clean typecheck.
   implementation surfaces the idea that dismissal "should" shrink the denominator so
   `n_of` groups read more honestly, that is the exact failure mode D-22 and §11.10 were
   written against — re-read §11.10 rather than re-deriving the answer.
-- **The intercept is UI-side, never engine-side.** T11's `scoreSkill` must remain pure and
+- **The intercept is UI-side, never engine-side.** T11a's `scoreSkill` must remain pure and
   must never refuse a state transition or ask for confirmation — it computes the honest
   consequence and this task's components decide whether and how to warn about it before
   calling the mutator. Putting a confirmation gate inside the Scoring Engine would give it

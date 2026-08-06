@@ -10,8 +10,11 @@ Group I (F19, F22, F24, F25, F26), then F15 and F18, then F27 — all on 2026-08
 **Every T26 acceptance criterion is met.**
 
 **T26 no longer blocks anything.** Eleven tasks were waiting on it — T02, T04, T07, T08,
-T09, T10, T11a/b, T12, T16, T17, T23. **The critical path is now the T11 split** (step 1
-below, still undone) and then T01 → T02, which is the first task with no unresolved blocker.
+T09, T10, T11a/b, T12, T16, T17, T23. **The T11 split is also done** (step 1 below), so
+every task doc exists and nothing in `_BREAKDOWN.yaml` is `pending`. **The critical path is
+now T01 → T02**, which is the first task with no unresolved blocker, and the only
+outstanding planning work is the coherence pass across all 28 docs (last item under "Known
+open items").
 
 - **F15** — all seven small omissions amended. Two mis-citations (§4.4 → §7.1/§7.4,
 §10.5's Breadth → §11.7). **`MILESTONE.contentVersion` made required everywhere** and named
@@ -79,8 +82,12 @@ criterion load-bearing for T25's correctness.
 
 ## Where things stand
 
-**All 27 task docs written** (`5c69e91`). **T26 is the front of the critical path** and is
-now 19 of 26 findings resolved — the count grew again because Group G found one more.
+*(This table is session 6's snapshot, superseded by the session 7 header above — kept for
+the record of which group resolved what.)*
+
+**All 27 task docs written** (`5c69e91`); **28 as of the T11 split on 2026-08-06.**
+**T26 is the front of the critical path** and is now 19 of 26 findings resolved — the count
+grew again because Group G found one more.
 
 | Resolved | Open |
 |---|---|
@@ -244,7 +251,7 @@ running in which asking the agent for the case against first changed the answer.
 - **F4** — the row extends: `DomainSkillRow.lastActivityAt`, and `DomainScore` carries
   `lastActivityAt: string | null`. **T11b owns both rollups.** The store cannot: `domain`
   lives only in the manifest and `STATE ⇢ LOADER` is FORBIDDEN, so
-  `T11-scoring-engine.md`'s "roll-up is a store concern" was unimplementable and is gone.
+  T11's (now T11b's) "roll-up is a store concern" was unimplementable and is gone.
   §12.2 now pins every timestamp as **ISO-8601 UTC with a `Z`** — the `max` is a string
   comparison in a pure engine. The manifest × `SKILL` join is **T14's**.
 - **F5** — the exemption is struck, and the decay language is gone from §2, §10.5 and
@@ -274,19 +281,45 @@ running in which asking the agent for the case against first changed the answer.
   §11.5–§11.8 (grandfathering + aggregation) in Phase 1. §16.4's "no scoring" became "no
   *domain* scoring".
 
-## Step 1 — the T11 split is the one loose end
+## ~~Step 1 — the T11 split~~ DONE, 2026-08-06
 
-`_BREAKDOWN.yaml` now has **T11a** and **T11b** rows, both `status: pending`, and every
-edge in the graph is rewired to them. But `T11-scoring-engine.md` still covers all of §11
-and carries a `**SUPERSEDED**` header row. Split it into:
+`T11-scoring-engine.md` is **deleted**; `T11a-scoring-tree-local.md` (§11.1–§11.4, phase 0,
+blocked by T02/T26, blocks T08) and `T11b-scoring-aggregation.md` (§11.5–§11.9, phase 1,
+blocked by T10/T26, blocks T13/T14/T15/T17/T19) exist and both `_BREAKDOWN.yaml` rows read
+`status: written`. **All 28 task docs are now written and the breakdown has no `pending`
+row.**
 
-- `T11a-scoring-tree-local.md` — §11.1–§11.4, §14.4. Phase 0. Blocked by T02, T26.
-  Blocks T08. This is what unblocks the Phase 0 gate, so it is the higher priority.
-- `T11b-scoring-aggregation.md` — §11.5–§11.9, §14.4. Phase 1. Blocked by T10, T26.
-  Blocks T13, T14, T15, T17, T19.
+Four things about how the split was drawn, because they are decisions rather than
+transcription:
 
-Nothing in the existing document is wrong — only its phase assignment and blocking edges.
-Set both rows to `status: written` when done.
+- **T11a ships the whole tree-local §14.4 block, including two fields it does not
+  implement.** `TreeProgress.grandfathered` is accepted and unread, and
+  `LevelProgress.grandfathered` is always `false`, with a phase-0 test asserting exactly
+  that so T11b has a failing counterpart to flip. The alternative — narrow the type in
+  phase 0 and widen it in phase 1 — would break T08 and T09, which are written against
+  §14.4 *now*. No downstream type changes at the phase boundary.
+- **`satisfiedBy` went to T11a**, not T11b. It is tree-local, T09 is what freezes it, and
+  computing it in phase 0 means §11.5 is one added disjunct in `levels.ts` rather than a
+  restructure. T11b's deliverables list `levels.ts`, `index.ts` and `invariants.prop.ts`
+  as MODIFIED for that reason.
+- **The generators and the `fast-check` choice are T11a's**, because invariant 8 needs
+  them and it is tree-local. §11.9's eight invariants split 2/6: **6 (tree-local form) and
+  8** to T11a, **1–5, 7 and the score half of 6** to T11b. The §11.10 counter-test —
+  the one that proves the suite has teeth — is T11a's, which puts it before any content is
+  authored against the engine.
+- **T26/F18's band table landed in T11b** as `bands.ts`, with the three constraints F18
+  set written as acceptance criteria: name is `string` not a union, one table and one
+  resolver, and a grep test that no numeric threshold appears outside that module.
+
+One stale figure was corrected in passing: the old doc's "raises the containing domain's
+score by exactly 9 (`table[4] − table[1] = 11 − 2`)" was ×2-table arithmetic that F1
+superseded. It is **+37** (45 − 8), and it is now T11b's criterion — T11a asserts only the
+`attained 1 → 4` half, since the score does not exist in phase 0.
+
+Graph edges were rewired in the eight task docs whose header tables still said `T11`
+(T10, T13, T14, T15, T17, T19, T26 — T08 already read `T11a`), and the prose references
+in T00, T04, T06, T08, T09, T10, T13, T15, T17, T19 and T25 were pointed at the correct
+half.
 
 ## Step 2 — the remaining ten findings
 
@@ -326,10 +359,10 @@ belong in the PRD.
 - **T26's F1 and F2 needed the user's judgment** and got it. The rest are mostly delegable,
   but F6 (which baseline ref) is a maintainer preference, not a derivation — and **F18's
   band names are the same kind of call**, plus they may belong in the PRD.
-- **The T11 split is still step 1, and Group B added to it.** `T11-scoring-engine.md` now
-  carries the F3/F4/F5 amendments; when it splits, `DomainSkillRow`, `DomainScore` and both
-  rollups go to **T11b**, and `TierName | null` goes to **T11a** (every skill starts at
-  `attained: 0`, so the null case is phase 0).
+- ~~**The T11 split is still step 1.**~~ **Done 2026-08-06** — see the step 1 section
+  above. `DomainSkillRow`, `DomainScore` and both rollups went to **T11b**;
+  `TierName | null` went to **T11a**, since every skill starts at `attained: 0` and so the
+  null case is phase 0.
 - **Group D's one edge change is T03 → T12**, and it is the kind the coherence pass below
   exists to catch: moving a check between subcommands moves a dependency between tasks.
 - **Group G's rider spans three tasks with no edge to carry it.** Every §14.5 writer must
@@ -344,7 +377,7 @@ belong in the PRD.
   the schemas are far upstream of the tasks that need the behaviour.
 - **T14 stubs `applyMoves` if T17 has not landed.** Deliberately no hard edge — see the
   T17 note in `_BREAKDOWN.yaml`. Do not add one without re-checking the critical path.
-- **The coherence pass across all 27 docs has not been done.** Contradictions between docs
+- **The coherence pass across all 28 docs has not been done.** Contradictions between docs
   that touch the same file or store, `Out of scope` items naming tasks that exist,
   `blocked_by`/`blocks` symmetry. The T11a/T11b rewiring in this session is the kind of
   thing it would catch.

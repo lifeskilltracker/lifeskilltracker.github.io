@@ -6,7 +6,7 @@
 | **Phase** | 0 |
 | **Cluster** | cli-toolchain |
 | **Blocked by** | T02, T03 |
-| **Blocks** | T07 |
+| **Blocks** | T07, T23 |
 | **Spec** | ARCHITECTURE §7.1, §7.2, §7.3, §4.3 |
 | **PRD** | N4 |
 
@@ -35,7 +35,7 @@ The governing rule of §7.3 is **the compiled bundle contains no implicit values
 default materialized, every `any` normalized to `n_of: n: 1`, every `order` and `track`
 resolved to an explicit value, every slug reference resolved to an index with the slug
 retained. This is not tidiness; it is what lets the Layout Engine (T06) and Scoring Engine
-(T11) be **total functions with no fallback branches**, which is in turn what makes them
+(T11a, T11b) be **total functions with no fallback branches**, which is in turn what makes them
 cheap to test exhaustively. A compiler that leaves any transformation for the runtime to
 redo puts a conditional inside a component that the architecture has deliberately kept
 pure and total. This task is bounded tightly by that same logic: compile assumes its input
