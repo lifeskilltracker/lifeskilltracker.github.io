@@ -59,6 +59,8 @@ it did not recognise, in a system with no telemetry to notice (§16.5, **R-15**)
   `orphans.updated`, `droppedForLiveRecord` and `treesRewound` (T26/F12). Exported orphans
   carry `OrphanReason`, which has three members — `retired`, `merged`, `unknown` — the
   middle one being §12.5's partial-merge case, which the table produces and never names.
+- Calling **`refreshProgressMirror()` from T09** after every successful `import` commit
+  (T26/F23 — same helper T17 uses after migration passes).
 - Recording `lastExportAt` in `META` on every successful export (§12.7 depends on it).
 - **Reserving the unknown-`photo`-key tolerance now**: the export schema and the import
   reader must accept and round-trip an unrecognised `photo` key on a milestone without
@@ -263,10 +265,8 @@ ceremonial — keep it, and add one per bump.
   right test asserts the round trip: import, assert the level is temporarily unsatisfied,
   open the tree, assert it is satisfied again.
 
-- **T26 F23 (2026-08-05): `import` refreshes §13.2's mirror on commit.** It rewrites
-  `MILESTONE` rows wholesale, and §13.2 previously named §12.4 as the mirror's only writer.
-  `store.progressFor` is a synchronous read off that mirror, so an import that does not
-  refresh it leaves every affected tree rendering pre-import state until a reload.
+- **T26 F23 (2026-08-05): `import` calls T09's `refreshProgressMirror()` on commit.** It
+  rewrites `MILESTONE` rows wholesale; do not duplicate mirror logic locally.
 
 - **T26 F8 (2026-08-05): the export file has no top-level `contentVersion`.** The global
   counter is gone (§7.2). §12.6's example now carries `generated`, copied from the manifest

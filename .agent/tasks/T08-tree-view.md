@@ -52,14 +52,13 @@ component has silently reopened D3 and broken S1.
 
 **Out of scope**
 
-- Positioning and the grid layout algorithm — T07, the Layout Engine (§8). TreeView
+- Positioning and the grid layout algorithm — **T06**, the Layout Engine (§8). TreeView
   consumes `layoutTree`'s output; it does not compute it.
 - The Scoring Engine's state derivation (`scoreSkill`, node state rules) — T11a. TreeView
-  renders `NodeState` values, it does not derive them.
-- The milestone detail panel's own component (`MilestonePanel`) beyond the actions
-  TreeView's node interaction opens it with — §13.4 names `MilestonePanel` as a sibling
-  component; wiring its full content is a separate deliverable if not already covered by
-  T10.
+  renders `NodeState` values; it does not derive them.
+- **`MilestonePanel`** behaviour and component — **T19** (§9.4, F31, F46). TreeView opens
+  the panel; T19 owns dismiss/undismiss semantics and panel content.
+- Route wiring that composes TreeView, MilestonePanel, and MasteryPanel — **T14** (§13.4).
 - Persisting the dismissal or completion the user triggers — the User State Store
   (§14.5), T09.
 - The dismissed-state end-to-end behaviour beyond the intercept warning text itself —

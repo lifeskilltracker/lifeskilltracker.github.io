@@ -82,7 +82,7 @@ app/src/lib/layout/wide.test.ts        grid mapping, centring, column widths
 app/src/lib/layout/stability.test.ts   one case per row of the §8.3 table
 app/src/lib/layout/narrow.test.ts      ordering, single column, empty edges
 app/src/lib/layout/purity.test.ts      §14.7 purity check over this directory's sources
-app/eslint.config.js                   MODIFIED — no-restricted-imports for §14.1
+eslint.config.js                   MODIFIED — disjoint no-restricted-imports slice for §14.1
 ```
 
 ## Interface contract
@@ -221,7 +221,8 @@ the 2 ms benchmark; ESLint clean; a clean typecheck. A reviewer should be able t
   read surface narrow (`id`, `contentVersion`, `tracks`, `levels[].milestones[]` with
   `uid`, `id`, `track`, `order`, `requires`) so a bump touches few lines.
 - **Memoization depends on `CompiledTree` exposing `id` and `contentVersion`.** §8.6 names
-  that key. Confirm both fields exist on T02's `compiled.ts` before implementing `memo.ts`;
+  that key. Confirm both fields exist on T02's generated `CompiledTree` before implementing
+  `memo.ts`; do not hand-write a parallel type.
   if they do not, that is a T02 defect, not a reason to key on something else. §8.6 also
   says nothing about cache eviction — an unbounded `Map` is acceptable for v1 given §17.5's
   scale thresholds, but say so in a comment rather than silently.

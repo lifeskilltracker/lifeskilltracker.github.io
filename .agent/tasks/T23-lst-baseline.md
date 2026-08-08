@@ -13,7 +13,7 @@
 ## Goal
 
 `tools/src/baseline/` exists and is wired into the `lst` CLI as `lst baseline`. It checks
-out the tree files as they existed at the baseline ref and runs all **seven** §6.4 checks
+out the tree files as they existed at the baseline ref and runs all **eight** §6.4 checks
 against the PR merged into it, comparing uids, slugs, `contentVersion`, and `lineage`
 entries between the two. After this task, a PR that silently drops a uid, reassigns one to a different
 milestone, reuses a retired slug, or renames a slug without recording an alias is
@@ -39,9 +39,10 @@ protecting it.
 
 **In scope**
 
-- `lst baseline` subcommand implementing all **seven** checks in §6.4's list — 1–4 as
-  originally written, 5 (`contentVersion` bump, T26/F8), 6 (ledger prefix, T26/F14), and 7
-  (appended lineage entries name baseline uids, T26/F7).
+- `lst baseline` subcommand implementing all **eight** checks in §6.4's list — 1–4 as
+  originally written, 5 (`contentVersion` bump, T26/F8), 6 (ledger prefix, T26/F14), 7
+  (appended lineage entries name baseline uids, T26/F7), and 8 (baseline tree ids are a
+  subset of head ids — trees never removed or renamed, T26/F22).
 - Baseline ref resolution defaulting to the tip of **`origin/main`**, with the head being
   the PR merged into it — **not the merge-base** (T26/F6; see hazards for why that reading
   is unsound). Overridable via a CLI flag so the checks can be exercised locally against an
@@ -93,7 +94,7 @@ The `lst` table row this task owns, copied verbatim from §6.1:
 |---|---|---|
 | `lst baseline` | uid immutability vs. `main` (§6.4) | **yes** |
 
-The checks, copied verbatim from §6.4. Checks 5–7 were added by T26 (F8, F14, F7) and are
+The checks, copied verbatim from §6.4. Checks 5–8 were added by T26 (F8, F14, F7, F22) and are
 reproduced in the hazards below rather than here:
 
 > On every PR it checks out the tree files as of the **baseline** — the tip of
@@ -116,7 +117,7 @@ reproduced in the hazards below rather than here:
 > merge-base, which is unsound for checks 5 and 6 the moment two PRs are in flight. The
 > price is one repository requirement: **a branch must be up to date with `main` before it
 > merges**. The job must also check out enough history to resolve `origin/main`
-> (`fetch-depth: 0`); at depth 1 checks 1–7 do not error, they pass on nothing.
+> (`fetch-depth: 0`); at depth 1 checks 1–8 do not error, they pass on nothing.
 >
 > A tree that has never been merged has no baseline uids at all, so an author may iterate
 > freely across review rounds — reordering, renaming, splitting, deleting — with no ledger
@@ -144,7 +145,7 @@ lineage:
 
 ## Acceptance criteria
 
-- [ ] Each of the seven checks has a fixture pair (baseline state + head state) that
+- [ ] Each of the eight checks has a fixture pair (baseline state + head state) that
       violates only that check and fails, and a pair that changes the same thing correctly
       (with a `lineage` disposition or an `aliases` entry, as applicable) and passes.
 - [ ] Check 1: a uid present in the baseline and absent from the head with no `lineage`
@@ -180,7 +181,7 @@ lineage:
 - [ ] A tree fixture with no baseline state at all (simulating a tree that has never been
       merged to `main`) passes trivially with no findings.
 - [ ] `lst baseline` exits nonzero when any of checks 1–3 fail unfixed, and exits 0 when
-      all seven checks pass.
+      all eight checks pass.
 - [ ] The baseline ref is overridable via a CLI flag, exercised in tests against a
       constructed git fixture rather than the real `main`.
 
@@ -191,7 +192,7 @@ npm run --workspace tools test
 npx lst baseline --against main
 ```
 
-Passing looks like: all seven checks independently exercised with both a failing and a
+Passing looks like: all eight checks independently exercised with both a failing and a
 passing fixture, the no-baseline-history case passing trivially, and the auto-fix path
 producing a verifiable patch without being required to actually land it.
 

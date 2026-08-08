@@ -54,10 +54,8 @@ identifier user state will key on.
 - `lst ids [files…]`: assigns a missing `uid:` to every milestone and mastery entry that
   lacks one, writing the value back into the YAML file in place; 8-character Crockford
   base32, checked for uniqueness against every existing uid in the repository before it is
-  written.
-- `lst ids`'s gate behaviour: after running, any milestone still without a `uid` (e.g. the
-  tool was not run, or was run and then the file was hand-edited to remove a value) is a
-  hard failure — §6.1 marks this row "**yes** (missing uid fails)".
+  written. After F25, **`lst ids` is the fix, not the gate** — rule 16 in `lst validate`
+  rejects missing uids; `lst ids` only fills them in place.
 - CLI plumbing shared by later subcommands (`lst lint`, `lst status`, `lst baseline`,
   `lst compile` in T22/T23/T04): consistent exit-code convention, consistent
   file-argument handling, consistent error-report shape, so those tasks extend rather than
@@ -85,7 +83,7 @@ identifier user state will key on.
 ## Deliverables
 
 ```
-tools/src/validate/index.ts        orchestrates layer 1 (Ajv) + layer 2 (15 rules) + 2b (M1–M5)
+tools/src/validate/index.ts        orchestrates layer 1 (Ajv) + layer 2 (16 rules) + 2b (M1–M5)
 tools/src/validate/schema.ts       Ajv wiring against schema/*.json
 tools/src/validate/rules/          one module per §6.2 semantic rule (or logical grouping)
 tools/src/validate/map-rules.ts    layer 2b — M1–M5, moved here from T12 by T26/F17
@@ -107,7 +105,7 @@ gating rows:
 | `lst validate [files…]` | Schema + semantic rules, trees **and taxonomy** (F41) | **yes** |
 | `lst baseline` | uid immutability vs. `main` (§6.4) | **yes** |
 | `lst lint [files…]` | Advisory coherence and style warnings | no |
-| `lst ids [files…]` | Fill missing `uid` values in place | **yes** (missing uid fails) |
+| `lst ids [files…]` | Fill missing `uid` values in place | no (rule 16 gates in validate) |
 | `lst status` | Regenerate `content/REVIEW-STATUS.md` | **yes** (drift fails) |
 | `lst compile` | YAML → JSON bundles + manifest (§7) | **yes** (build step) |
 | `lst new <id>` | Scaffold a tree skeleton from a template | no |
@@ -128,7 +126,7 @@ The 16 semantic rules, copied verbatim from §6.2:
 | 6 | Requirement groups name only milestones at their own level | §5.6 |
 | 7 | `1 ≤ n < len(milestones)` for every `n_of` group | §5.6 |
 | 8 | Every milestone appears in ≥1 requirement group at its level | §5.6 |
-| 9 | `track` and `module` references resolve to declared values | F41 |
+| 9 | `track` references resolve to declared `tracks[]` entries; `module` is a free-form label with no registry | F41 |
 | 10 | `domain` and every `secondaryDomains` entry exists in `domains.yaml`; primary not repeated in secondary | F18, F41 |
 | 11 | `subregion` present iff `domain: making`, and valid | F26, F41 |
 | 12 | Every facet exists in `facets.yaml` | F19, F41 |
@@ -174,13 +172,13 @@ The identifier table, copied verbatim from §5.4:
 
 ## Acceptance criteria
 
-- [ ] `lst validate` run against a fixture that violates every one of the 16 semantic
-      rules in a single file reports all 15 violations in one invocation, each with file,
-      line, and column.
+- [ ] `lst validate` run against fixtures that violate every one of the 16 semantic
+      rules reports each rule in one invocation (across files where mutually incompatible),
+      each with file, line, and column.
 - [ ] `lst validate` performs no git operation at all — verifiable by
       `grep -rn "child_process\|simple-git\|exec(" tools/src/validate/` returning nothing.
       Everything needing history is `lst baseline`'s (T23, §6.4 check 7).
-- [ ] Each of the 15 rules has an independent fixture pair: one file that violates only
+- [ ] Each of the 16 rules has an independent fixture pair: one file that violates only
       that rule and fails, one clean file that passes.
 - [ ] Rule 2's repository-wide uid uniqueness is exercised across **two** fixture tree
       files sharing a duplicate uid — a single-file fixture cannot prove this rule.
@@ -226,7 +224,7 @@ npx lst validate tools/test/fixtures/validate/**/*.yaml
 npx lst ids tools/test/fixtures/ids/draft-no-uids.yaml && cat tools/test/fixtures/ids/draft-no-uids.yaml
 ```
 
-Passing looks like: every fixture in the suite landing on its expected verdict, all 15
+Passing looks like: every fixture in the suite landing on its expected verdict, all 16
 semantic rules and all five taxonomy rules independently exercised, and a re-run of
 `lst ids` on an already-id'd file producing no diff.
 
@@ -238,8 +236,8 @@ semantic rules and all five taxonomy rules independently exercised, and a re-run
   `into` target resolves to a uid in the repository **head**. The historical half is §6.4
   **check 7** and belongs to T23: every entry *appended since the baseline* names a uid
   present in the baseline. `lst validate` is now git-free by construction, so there is no
-  git-diffing machinery to duplicate. Note the rule count stays at **15** deliberately, so
-  every "15" in this document is still correct.
+  git-diffing machinery to duplicate. Rule 16 (missing uid) was added by T26/F25; the count
+  is now **16** semantic rules plus M1–M5.
 - **~~The new rule 15 is not implementable until T26/F21 lands.~~ RESOLVED by T26/F21,
   2026-08-05.** §5.4 now carries the grammar table and rule 15 branches on `op`:
 
@@ -266,12 +264,8 @@ semantic rules and all five taxonomy rules independently exercised, and a re-run
   first (T26/F17). M2's multiset scope matters for the same reason — the intra-region
   duplicate is the silent case, since §10.4 discards both copies of every doubled edge and
   the tile vanishes from the outline with the path still closed.
-- **T26/F25 is open and lands squarely here.** §5.4 says CI fails a merge on a missing
-  `uid` and §6.1 marks `lst ids` as the gate — but `lst ids` writes files in place, which a
-  gate cannot do. This document already resolves it by inference (the check in `lst
-  validate`, the write in `lst ids`) and that is almost certainly right, but it is an
-  inference from two sentences rather than a reading of either. Do not harden it into a
-  numbered rule before F25 lands.
+- **~~T26/F25 is open and lands squarely here.~~ RESOLVED by T26/F25, 2026-08-06.** Rule 16
+  gates missing uids in `lst validate`; `lst ids` fills them in place and does not gate CI.
 - **D-05, dual identifiers.** `id` is mutable and unique within the tree; `uid` is
   immutable and unique across the whole repository. This task is what makes both halves
   of that guarantee real: schema (T02) cannot express repository-wide uniqueness, so rule

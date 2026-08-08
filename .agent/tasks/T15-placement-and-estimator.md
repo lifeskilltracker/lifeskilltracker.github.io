@@ -2,10 +2,10 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending — **specification incomplete until T00 resolves PRD D20** |
+| **Status** | written — specification complete; implementation blocked by T11b |
 | **Phase** | 1 |
 | **Cluster** | judgment |
-| **Blocked by** | T00, T11b |
+| **Blocked by** | T11b |
 | **Blocks** | — |
 | **Spec** | ARCHITECTURE §11.8, §19.4, §13.4, §15.6 |
 | **PRD** | F29, F30, D20, S3 |
@@ -29,13 +29,26 @@ with no authored data per skill. Any design that asks tree authors to hand-map
 self-assessment bands to milestones has failed the task: that is authoring burden on
 every tree forever, and C4 already names authoring as the bottleneck.
 
+## Estimator rule (PRD D20, resolved v1.4)
+
+- **Coarse input:** integer **L** ∈ {1..10}. The UI may present named bands mapped to
+  **L** for presentation only.
+- **Output:** every milestone uid in levels 1..**L** — a full contiguous prefix. Mastery
+  achievements are never included.
+- **Semantics:** an editable suggestion before commit, not a commitment. No distinct
+  stored "estimated" state and no per-tree mapping data. Accepting unchanged yields
+  attained **L**.
+- **Guttman interaction:** F29 guarantees honest records will contain out-of-order
+  satisfaction. The estimator will pre-check milestones the user has not actually done;
+  un-checking them can move attained level downward under F32 and F47 (R-22).
+
 ## Scope
 
 **In scope**
 
 - `AssessmentFlow` (§13.4) — the placement and estimate entry points on a skill page.
 - Bulk completion through the store's existing write path.
-- The estimator as a pure function in `lib/scoring`, per the rule T00 records.
+- The estimator as a pure function in `lib/scoring`, implementing D20 above.
 - The pre-check review step: every pre-checked milestone individually reversible and
   announced as pre-checked.
 - The consequence warnings §11.10 requires, since placement can move `attained` sharply
@@ -43,8 +56,6 @@ every tree forever, and C4 already names authoring as the bottleneck.
 
 **Out of scope**
 
-- Deciding the estimator rule — **T00**. This task implements a decision; it does not
-  make one.
 - The Scoring Engine itself — T11a and T11b. The estimator lives in `lib/scoring` and must obey
   its purity constraints, but attainment, groups and node states are already built.
 - The write path and transaction semantics — T09.
@@ -64,11 +75,11 @@ app/src/lib/components/AssessmentFlow.test.ts
 
 ```ts
 // ARCHITECTURE §19.4, §11.8 — pure, no I/O, lives in lib/scoring
+// coarseLevel: integer L ∈ {1..10}
 export function estimateMilestones(tree: CompiledTree, coarseLevel: number): string[];
 ```
 
-Two behaviours are **architectural rather than product**, and hold whatever rule T00
-chooses (§11.8):
+Two behaviours are **architectural rather than product**, and hold for D20 (§11.8):
 
 1. The estimator pre-checks **downward** from the estimate, consistent with §11.3's
    contiguous-prefix definition of attainment.
@@ -90,11 +101,10 @@ await store.setMilestoneState(uid, 'complete', { … });
       `lib/content` — the §14.7 purity check covers it automatically.
 - [ ] The estimator reads **no** field that does not exist in `CompiledTree` today; adding
       an authored mapping field to satisfy it is a failure of the task.
-- [ ] For every coarse input, the returned uid set is downward-closed with respect to
-      level: if a milestone at level L is returned, the estimate does not skip levels
-      below L that the chosen rule includes.
-- [ ] Running the estimator and accepting its output unmodified yields an `attainedLevel`
-      consistent with the coarse input, per the rule T00 recorded.
+- [ ] For **L** ∈ {1..10}, the returned uid set is exactly every milestone uid in levels
+      1..**L** (contiguous prefix); no mastery uids; no skipped levels below **L**.
+- [ ] Running the estimator at **L** and accepting its output unmodified yields
+      `attainedLevel === L`.
 - [ ] Each pre-checked milestone can be individually un-checked before the flow is
       committed, and un-checking one does not disturb the others.
 - [ ] Pre-checked milestones carry an accessible announcement distinguishing them from
@@ -118,11 +128,6 @@ milestones, commit, reload, and confirm the persisted state matches what was on 
 
 ## Notes and hazards
 
-- **This document cannot be finished until T00 lands.** The acceptance criteria above are
-  written to be rule-agnostic on purpose; once D20 is decided, the criteria naming "the
-  chosen rule" must be replaced with the concrete rule. Do not implement against a guessed
-  rule — the whole point of blocking on T00 is that the guess would be a product decision
-  made by an implementer.
 - **F29 guarantees the data will contain Guttman errors.** A user placed at level 6 will
   have pre-checked milestones they have not done, and un-checking them can drop attained
   level sharply under R-22's contiguous ranking. This interaction is the estimator's main

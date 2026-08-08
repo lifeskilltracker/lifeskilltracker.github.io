@@ -55,12 +55,18 @@ anywhere. Refusing writes for the session is the only response that cannot destr
   `loadManifest()` and `store.hydrate()`; the three branches on manifest failure
   (success, offline-with-cache, hard failure) and the hydration-failure branch that
   refuses writes for the session; route-specific data loading after first paint.
-- **Calling `store.applyMoves(manifest.moved)` in step 3**, before domain scores are
-  derived, and rendering the reports it returns through the same migration summary T17
-  provides. Assigned here by T26/F13 for the same reason as the join below: it is the
-  manifest × store operation, and the shell is the only layer holding both (§14.1). It is
-  skipped along with every other write when hydration failed, and it runs before the
-  derivation so a re-homed record counts under the right domain on the first frame.
+- **Calling `store.applyMoves(manifest.moved)` in cold-start step 3** before domain scores
+  are derived, rendering migration reports through T17's summary component. Skipped when
+  hydration failed; runs before derivation so re-homed records count under the right domain
+  on the first frame (§13.3, T26/F13).
+- **The `/s/<treeId>` on-tree-open sequence** after the bundle loads (§13.3 step 4): when
+  hydration succeeded and the tree exists in the manifest, call
+  `store.applyLineage(tree, (progress) => scoreSkill(tree, progress).attainedLevel)` when
+  `tree.contentVersion > SKILL.contentVersionSeen`; then `scoreSkill(tree,
+  store.progressFor(treeId))`; then `store.reconcileAttainedLevel(treeId,
+  skillProgress.attainedLevel)` (§12.3, T26/F26). Order is fixed: migration (with injected
+  evaluator) first, score, then reconcile — see hazards. Cold-start `applyMoves` is step 3
+  only, not repeated here.
 - Every §16.3 error-handling row that is reachable from routing/cold-start: manifest fetch
   failure (both sub-cases), tree bundle fetch failure (isolated to that tree), the §7.5
   shape-assertion failure, IndexedDB hydration failure, IndexedDB write failure (quota).
@@ -72,9 +78,12 @@ anywhere. Refusing writes for the session is the only response that cannot destr
   (`{ treeId, domain, attainedLevel, lastActivityAt? }`, §14.4). Assigned here by T26/F4:
   it is the only layer holding both, since `lib/scoring` may not import the loader and
   `lib/state` may not either (§14.1). §3.3's sequence names it.
-- Enforcing that `TreeView` is the only component importing the Layout Engine and that no
-  component imports the Scoring Engine directly — scores arrive as derived props (§13.4,
-  §14's dependency rules, checkable by inspection or by T14's own import-lint config).
+- Enforcing that `TreeView` is the only **presentational** component importing the Layout
+  Engine, and that **presentational** components under `lib/components/` do not import
+  `lib/scoring/` — scores arrive as props (§13.4). **Exception:** the tree route
+  orchestration layer (`app/src/routes/s/[tree]/`) **may** import `scoreSkill` to supply
+  the `applyLineage` DI callback and run the post-migration reconcile sequence; that is
+  orchestration, not presentation (§14.1).
 
 **Out of scope**
 
@@ -88,8 +97,8 @@ anywhere. Refusing writes for the session is the only response that cannot destr
   `writable` flag and the rejection behaviour of its mutators are T09's.
 - `TreeView`'s internal rendering (§9) — T08. `MapRenderer`'s internal rendering (§10) —
   T13. This task wires routes to those components; it does not build them.
-- Import/export file handling on `/data` beyond routing to the page — the export/import
-  logic is §12.6, a User State Store concern (T09 or an adjacent persistence task).
+- Import/export file handling on `/data` — routing and page chrome only; **T16** owns
+  `export()` / `import()` (§12.6).
 - Full accessibility verification of the routed views — T20, though this task must not
   introduce structure that T20 cannot later verify (e.g. a missing `<main>` landmark in
   `+layout.svelte` would be a defect discovered late).
@@ -236,8 +245,17 @@ export interface ContentLoader {
 - [ ] `TreeView` is the only component under `app/src/routes/` or `app/src/lib/components/`
       that imports from `lib/layout/` — an import-lint rule or grep asserts this (§13.4,
       §14.7).
-- [ ] No route or page component imports from `lib/scoring/` directly — scores arrive only
-      as props derived elsewhere (§13.4).
+- [ ] No **presentational** component under `app/src/lib/components/` imports from
+      `lib/scoring/` — scores arrive only as props (§13.4). **`app/src/routes/s/[tree]/`
+      is explicitly permitted** to import `scoreSkill` for the `applyLineage` DI callback
+      and the post-load reconcile sequence; grep/lint rules must not treat that as a
+      violation.
+- [ ] A test on `/s/<treeId>` asserts the on-tree-open sequence when the bundle's
+      `contentVersion` exceeds `contentVersionSeen`: `applyLineage` receives the scoring
+      callback and runs first, then `scoreSkill`, then `reconcileAttainedLevel` — in that
+      order. After a migration, reconcile should typically resolve `false` (no-op).
+- [ ] A test asserts cold-start step 3 calls `store.applyMoves(manifest.moved)` before
+      domain scores are derived when hydration succeeded (§13.3, T26/F13).
 - [ ] `npm run --workspace app build` succeeds and `npm run --workspace app test -- routes`
       passes.
 
@@ -281,16 +299,13 @@ split, the cold-start and error-branch test suite green, and a clean typecheck.
 
 ## T26 amendments — 2026-08-06
 
-**F26 — the tree route owns §12.3's write-back.** Once the bundle has loaded and the engine
-has scored it, call `store.reconcileAttainedLevel(treeId, level)` (§14.5). This route is
-the only place that can: the store may not fetch a bundle and may not import the engine.
-
-**Ordering is fixed: `applyLineage` first, then the reconcile.** When the content version
-advanced, the migration ran and its `MigrationReport.attainedLevel.after` is already on
-screen as §12.5's summary — a reconcile that then wrote a different number would contradict
-a statement the user is reading. Running second it finds the migration's value and writes
-nothing. This also clears the source-tree staleness F13 deliberately left: `applyMoves` does
-not recompute the source's level, and this reconciliation is what eventually does.
+**F26 — this task owns tree-open orchestration; migration persists level via injection.**
+When the version gate fires, call
+`store.applyLineage(tree, (p) => scoreSkill(tree, p).attainedLevel)` — the store imports
+no scoring code (§14.1). Then `scoreSkill(tree, progressFor(treeId))`, then
+`reconcileAttainedLevel(treeId, attainedLevel)`. Reconcile is the ordinary-open honesty
+pass: it should be a **no-op immediately after migration** but must still run to catch
+non-lineage content changes (requirement edits with no ledger entry).
 
 **F22 — three things.**
 

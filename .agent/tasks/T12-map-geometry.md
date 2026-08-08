@@ -232,8 +232,8 @@ manifest with eight real region paths and no placeholder geometry remaining.
   for a reason outside §10 entirely. §6.5's `build` job `needs` the app jobs, which the path
   filter skips on a content-only PR, and a skipped dependency skips the dependent: **`build`
   does not run on the PRs that change `map.yaml`.** The checks would have lived in a job that
-  never fires on the input they guard. That is recorded separately as **T26/F24**, still
-  open, and it does not affect this task now that the checks have moved.
+  never fires on the input they guard. **F24 is resolved** (§6.5's `content: compile` job);
+  see T26 amendments below.
 - **R-13 is a working-mode instruction, not just an accepted risk.** If hand-authoring the
   eight regions' tile lists is slow or error-prone, the sanctioned response is a throwaway
   local script that helps a human place tiles and prints the resulting YAML — not a

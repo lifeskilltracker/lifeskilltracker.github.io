@@ -1,8 +1,68 @@
 # RESUME — T26 spec reconciliation, wave 2
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-06 after Group I. Read this, then `_BREAKDOWN.yaml`, then
-`T26-architecture-reconciliation.md`.
+Updated 2026-08-07 after Session 9 T01 verification and T00 PRD amendments. Read this, then
+`_BREAKDOWN.yaml`, then the next task doc on the critical path (`T02-schema-v1-and-generated-types.md`).
+
+# SESSION 9 — T01 COMPLETE; T00 COMPLETE
+
+**T01 (repository scaffold) is complete** — verified 2026-08-07 under Node 20.20.2. See
+`T01-repository-scaffold.md` for the command battery and Grok review sign-off. **No commit
+exists yet**; implementation lives on branch `agent/navigator-task-kickoff` in the external
+worktree `life-skill-tracker-worktrees/navigator-task-kickoff`.
+
+**T00 (PRD amendments) is complete** — verified 2026-08-07. PRD v1.4 closes D20 (estimator:
+integer L 1–10, contiguous prefix uids, editable suggestion), D26 (Creative Commons
+Attribution 4.0 International (CC BY 4.0)), and records D23 out of v1. F33/F35 amendments
+and RESEARCH §4 convexity fix align with ARCHITECTURE §19.5. **T15 specification is complete**
+(unblocked by T00; implementation still blocked by **T11b**).
+
+**Next critical-path implementation task: T02** (schema v1 and generated types). The Session 8
+coherence gate **remains closed** — do not reopen the 28-doc pass.
+
+# SESSION 8 — COHERENCE PASS COMPLETE *(superseded by Session 9 header above)*
+
+Session 8 applied the parent-approved coherence fixes across `_BREAKDOWN.yaml`, task docs
+
+Session 8 applied the parent-approved coherence fixes across `_BREAKDOWN.yaml`, task docs
+(where needed), `docs/ARCHITECTURE.md`, `docs/SPEC-FINDINGS.md`, and this file. All **28**
+task docs were **verified** for graph/header symmetry and stale prose. **T26 is complete
+and no longer appears in any active `blocked_by`/`blocks` edge.** The actionable front is **T01 → T02**; **T00** is the only
+other independent task ready now. **T12, T21, T22, and T23 are not startable yet** (each
+still blocked per the graph).
+
+Canonical decisions recorded here and in the task docs:
+
+1. **T26 complete** — historical narrative retained; active graph edges removed.
+2. **T02** authors `schema/compiled-tree.schema.json` and `schema/manifest.schema.json`;
+   `CompiledTree`/`Manifest` are generated from them. **T04** validates compiler output
+   against those schemas; authored-input validation remains **T03**.
+3. **Root `eslint.config.js`** is canonical (**T01** creates it; **T06**, **T11a**, and
+   **T11b** add disjoint rule slices; agents must serialize edits). **T25** verifies through
+   the same flat config.
+4. **Cold start vs tree open:** **T14** calls `applyMoves(manifest.moved)` at cold-start
+   step 3 (§13.3). On tree open, when the version gate fires:
+   `applyLineage(tree, evaluateAttainedLevel)` → `scoreSkill` → `reconcileAttainedLevel`.
+   **T07** defers both to **T14**. **T17** implements migration via injected evaluator — no
+   static `lib/state` → `lib/scoring` import (no T17→T14 hard edge).
+5. **`startSkill(treeId, contentVersion)`** seeds `contentVersionSeen` with the current tree
+   bundle's `contentVersion` (`lib/actions` reads it from the manifest and passes it).
+6. **T09** defines/reuses a mirror refresh helper for its mutators; **T16** and **T17**
+   must call the same helper on commit (cross-task invariant in `_BREAKDOWN.yaml` footer; no
+   new graph edges).
+7. **T08 out of scope:** layout is **T06**; **MilestonePanel** behaviour/component is **T19**,
+   route wiring **T14**; export/import owner is **T16**.
+8. Stale post-T26 "open finding" prose in **T09, T12, T13, T17, T20, T21** replaced with
+   resolved requirements. **T21** architecture gaps go to **SPEC-FINDINGS** / a new
+   reconciliation task, not completed **T26**.
+9. **T23** check count corrected to **eight** (checks 1–8). **T25** `gen:types` gate covers
+   all seven schema documents (`authored` + `compiled-tree` + `manifest` generated outputs).
+10. **applyLineage DI (Session 8 fix pass):** §12.5 persists attained level inside migration
+    via `evaluateAttainedLevel` callback; **T14** injects `scoreSkill`; reconcile remains the
+    ordinary-open honesty pass after migration.
+
+The coherence pass across all 28 docs is **done**. Historical sections below remain
+explicitly historical.
 
 # SESSION 7 — T26 IS COMPLETE. All twenty-seven findings resolved.
 
@@ -354,8 +414,8 @@ belong in the PRD.
 
 ## Known open items
 
-- **T15 is deliberately incomplete.** Written rule-agnostic; its criteria naming "the
-  chosen rule" must be rewritten once T00 resolves PRD D20.
+- **T15 specification is complete** (2026-08-07). D20 rule is concrete in PRD v1.4 and
+  `T15-placement-and-estimator.md`; implementation remains blocked by **T11b**.
 - **T26's F1 and F2 needed the user's judgment** and got it. The rest are mostly delegable,
   but F6 (which baseline ref) is a maintainer preference, not a derivation — and **F18's
   band names are the same kind of call**, plus they may belong in the PRD.
@@ -377,7 +437,5 @@ belong in the PRD.
   the schemas are far upstream of the tasks that need the behaviour.
 - **T14 stubs `applyMoves` if T17 has not landed.** Deliberately no hard edge — see the
   T17 note in `_BREAKDOWN.yaml`. Do not add one without re-checking the critical path.
-- **The coherence pass across all 28 docs has not been done.** Contradictions between docs
-  that touch the same file or store, `Out of scope` items naming tasks that exist,
-  `blocked_by`/`blocks` symmetry. The T11a/T11b rewiring in this session is the kind of
-  thing it would catch.
+- ~~**The coherence pass across all 28 docs has not been done.**~~ **Done 2026-08-07** —
+  Session 8 coherence pass; see the Session 8 header above.

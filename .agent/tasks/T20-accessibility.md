@@ -58,9 +58,10 @@ and a screen-reader user cannot recover any other way.
   (glyph + border, not just fill hue), domain identity (silhouette + label, not just
   palette), domain fill level (named band in text on focus, not just fill height), recency
   (the date in the accessible name/detail panel — it has **no** colour channel in v1, per
-  D-20 and T26/F5), level progress (`n / m` text per group, not just bar colour). The band
-  vocabulary itself is **T26/F18** and does not exist yet; this task cannot verify a name
-  it has to invent, so raise F18 rather than choosing words here.
+  D-20 and T26/F5), level progress (`n / m` text per group, not just bar colour). Domain
+  fill uses the five **F18 bands** (**Quiet**, **Emerging**, **Moderate**, **Active**,
+  **Deep**) via the shared resolver (T11b/T13, T26/F18 resolved 2026-08-06) — do not invent
+  vocabulary or thresholds here.
 - `prefers-reduced-motion: reduce` support: disabling the fill animation and
   edge-highlight transitions, leaving instant state changes, with nothing in the
   interface conveying information only through motion (§15.5).

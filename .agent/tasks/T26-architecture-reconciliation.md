@@ -6,7 +6,11 @@
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
-| **Blocks** | T02, T04, T07, T08, T09, T10, T11a, T11b, T12, T16, T17, T23 |
+| **Blocks** | — |
+
+Active graph edges to this task were cleared in Session 8 (2026-08-07); historical
+`blocks`/`blocked_by` references below are narrative only.
+
 | **Spec** | ARCHITECTURE §4.4, §6.1, §6.2, §6.4, §7.2, §7.4, §9.3, §10.3, §11.5, §11.6, §11.9, §12.2, §12.5, §12.6, §12.7, §14.2, §14.4, §14.5, §16.1, §16.4 |
 | **PRD** | — |
 

@@ -78,6 +78,10 @@ cache and with it §17.3's sub-50 ms milestone toggle.
   positions.
 - Reading or writing user state, including the decision of *which* trees are started. The
   User State Store owns that (T09); `lib/actions` wires `startSkill` to `pin` (see hazards).
+- **The full on-tree-open orchestration** (`applyLineage`, `scoreSkill`,
+  `reconcileAttainedLevel`, and cold-start `applyMoves` beyond what §13.3 requires at map
+  load) — **T14** (§13.3–§13.4). This task loads bundles; T14's tree route sequences store
+  and engine calls after load.
 - The manifest and bundle **producer** — `lst compile`, T04. This task consumes what T04
   writes and must not reshape it.
 - Manifest sharding — **R-05**, triggered at 30 kB compressed, not built now.
@@ -246,8 +250,9 @@ headings served from `app/static/content/` with no route-level fetch.
   a row for the offline deep link, which belongs to T14, not here.
 - **`pin()`'s caller is `lib/actions` — T26 F11, 2026-08-05.** §14.1 gained an
   orchestration module, the one place permitted to import both I/O owners; its sole v1
-  export is `startSkill(treeId): Promise<{ pinned: boolean }>`, which calls
-  `store.startSkill` then `loader.pin`. This task exposes `pin()` and does **not** own the
+  export is `startSkill(treeId): Promise<{ pinned: boolean }>`, which reads the tree's
+  `contentVersion` from the manifest entry, calls `store.startSkill(treeId,
+  contentVersion)`, then `loader.pin`. This task exposes `pin()` and does **not** own the
   wiring. Two rules follow: never import `lib/state` into `lib/content` (now an ESLint
   gate, §14.7), and **`pin()` must reject cleanly rather than throw fatally** — pinning is
   best-effort, the action resolves `pinned: false`, and a user near quota still starts the

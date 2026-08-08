@@ -90,7 +90,7 @@ passes CI and human review and is merged" is measuring against.
 - `svelte.config.js`'s `adapter-static` configuration itself, `paths.base`, and the
   `fallback: '404.html'` setting — T01 already built these. This task verifies the
   deployed *output* honours them; it does not re-author the config.
-- The content of the six gating jobs' underlying tools (`lst validate`, `lst baseline`,
+- The content of the seven gating jobs' underlying tools (`lst validate`, `lst baseline`,
   `lst status`, `svelte-check`/`tsc`, `vitest`) — T03, T04, T22, T23, and the various
   `app/` tasks. This task wires them into workflow jobs; it does not implement them.
 - `lst lint`'s rules and its always-exit-0 behaviour — T22. This task only decides how
@@ -252,16 +252,18 @@ verbatim from §16.2:
       was moved off the job that skips (T26/F24).
 - [ ] The `content: baseline` job checks out with `fetch-depth: 0`, and a fixture run
       against a depth-1 checkout **fails loudly** rather than passing vacuously (T26/F6).
-- [ ] A PR that fails any one of the six gating jobs shows the overall check as failing
-      (blocked), while a PR with only `content: lint` findings and all six gating jobs
+- [ ] A PR that fails any one of the seven gating jobs shows the overall check as failing
+      (blocked), while a PR with only `content: lint` findings and all seven gating jobs
       green shows the overall check as passing.
 - [ ] `build` fails when a fixture PR reintroduces an `archetype` string under
       `app/src/lib/layout/`, `app/src/lib/scoring/`, or `app/src/lib/components/` —
       the direct S1 regression test.
 - [ ] `build` fails when a fixture PR adds an import from `lib/layout` to `lib/state`,
       from `lib/scoring` to `lib/content`, or from `lib/components` to `lib/state`.
-- [ ] `build` fails when `app/src/lib/types/authored.d.ts` is stale relative to
-      `schema/*.json` (i.e. `npm run gen:types` would produce a diff).
+- [ ] `build` fails when generated types under `app/src/lib/types/` are stale relative to
+      any of the seven `schema/*.json` documents (i.e. `npm run gen:types` would produce a
+      diff on `authored.d.ts` and `compiled.d.ts`, the latter covering both
+      `compiled-tree.schema.json` and `manifest.schema.json`).
 - [ ] `build` fails when a fixture PR breaks the monotonicity property test named in
       §14.4 / T11b.
 - [ ] `build` fails when a fixture PR inflates the first-paint bundle (App JS first
@@ -285,8 +287,8 @@ verbatim from §16.2:
 ```bash
 # local dry run of the enforcement checks build.yml wires in:
 grep -rn archetype app/src/lib/layout app/src/lib/scoring app/src/lib/components   # empty
-npm run gen:types && git diff --exit-code app/src/lib/types/authored.d.ts
-npx eslint app/src --no-eslintrc -c .eslintrc.forbidden-imports.js                 # or equivalent
+npm run gen:types && git diff --exit-code app/src/lib/types/
+npx eslint . --ext .ts,.svelte
 npm run --workspace app test -- --grep monotonic
 npm run build:budget-check                                                         # or equivalent, per §17.1
 
@@ -356,6 +358,6 @@ PR / push exercises the workflows end to end with the path filter behaving as sp
   to exit code) as failure.
 - **Branch protection is a repository setting this task cannot express in a file.** Do
   not consider this task complete without explicitly telling the maintainer (in the PR
-  description or a checklist note) that requiring the six gating jobs and two review
+  description or a checklist note) that requiring the seven gating jobs and two review
   rounds as merge requirements is a manual GitHub Settings step, separate from anything
   `ci.yml` itself can enforce.

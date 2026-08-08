@@ -5,7 +5,7 @@
 | **Status** | pending |
 | **Phase** | 0 |
 | **Cluster** | pure-engines |
-| **Blocked by** | T02, T26 |
+| **Blocked by** | T02 |
 | **Blocks** | T08 |
 | **Spec** | ARCHITECTURE §11.1, §11.2, §11.3, §11.4, §14.4 |
 | **PRD** | F9, F11, F36, D-18, D-22 |
@@ -107,7 +107,7 @@ app/src/lib/scoring/nodes.test.ts        one fixture per node state, including b
 app/src/lib/scoring/invariants.prop.ts   generators for CompiledTree + TreeProgress
 app/src/lib/scoring/invariants.test.ts   §11.9 invariants 6 (tree-local) and 8
 app/src/lib/scoring/purity.test.ts       §14.7 purity + archetype grep over this dir
-app/eslint.config.js                     MODIFIED — no-restricted-imports for §14.1
+eslint.config.js                     MODIFIED — disjoint no-restricted-imports slice for §14.1
 app/package.json                         MODIFIED — fast-check as an app devDependency
 ```
 

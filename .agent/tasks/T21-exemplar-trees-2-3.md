@@ -194,8 +194,8 @@ through the unmodified T06/T08 output, and the archetype grep coming back empty.
   finding — do not paper over it by simplifying the tree until it fits.** S1's entire
   value is that it forces a real branching and a real choice-based tree through the
   existing pipeline; a piano tree quietly trimmed to a single track to make T08 happy
-  would make S1 pass on paper while failing in substance. Report any such gap for T26
-  rather than authoring around it.
+  would make S1 pass on paper while failing in substance. Record any such gap as a new
+  **SPEC-FINDINGS** entry and a follow-on reconciliation task — not completed **T26**.
 - **R-12's failure mode is available to the author of this task too.** It is easier to
   write piano as a single wide `all` group than to genuinely use tracks, and easier to
   write mental-health with one big `all` group than to author real electives. Both

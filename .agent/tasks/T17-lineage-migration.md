@@ -12,14 +12,16 @@
 
 ## Goal
 
-`store.applyLineage(tree)` exists and runs before a tree renders whenever that bundle's
-`contentVersion` exceeds the skill's `contentVersionSeen`. It walks the bundle's `lineage`
-ledger and applies each `op` to the user's records according to §12.5's disposition table,
-carrying state, timestamp **and** note across every disposition; moves anything it cannot
-account for into the `ORPHAN` store with a reason rather than deleting it; updates
-`contentVersionSeen`; recomputes attained level; and returns a `MigrationReport` the shell
-renders as one dismissible summary. After this task, user state can survive an arbitrary
-number of content releases without a silent mutation.
+`store.applyLineage(tree, evaluateAttainedLevel)` exists and runs before a tree renders
+whenever that bundle's `contentVersion` exceeds the skill's `contentVersionSeen`. It
+walks the bundle's `lineage` ledger and applies each `op` to the user's records according
+to §12.5's disposition table, carrying state, timestamp **and** note across every
+disposition; moves anything it cannot account for into the `ORPHAN` store with a reason
+rather than deleting it; updates `contentVersionSeen`; **recomputes and persists
+`SKILL.attainedLevel` inside the same transaction** via the injected evaluator (the store
+imports no scoring code); and returns a truthful `MigrationReport` the shell renders as one
+dismissible summary. **T14** injects `(progress) => scoreSkill(tree, progress).attainedLevel`
+and still runs `reconcileAttainedLevel` after migration as the ordinary-open honesty pass.
 
 ## Why this shape
 
@@ -39,7 +41,9 @@ and unreportable by the user — hence the mandatory visible summary.
 
 **In scope**
 
-- `applyLineage(tree: CompiledTree): Promise<MigrationReport>` per §14.5.
+- `applyLineage(tree, evaluateAttainedLevel)` per §14.5 — the callback type is
+  `(progress: TreeProgress) => number`; **T14** supplies scoring via dependency injection;
+  this module imports no `lib/scoring` code.
 - The trigger condition: run when the bundle's `contentVersion` exceeds that skill's
   `SKILL.contentVersionSeen`, **before the tree renders** (§12.5).
 - All six rows of §12.5's disposition table, for both `complete` and `dismissed` records,
@@ -52,7 +56,10 @@ and unreportable by the user — hence the mandatory visible summary.
 - The `ORPHAN` **write** path — the only place in the system that creates orphan records.
 - Carrying `state`, `at`, and `note` through every disposition, and reserving the same
   carry for `photo` in phase 2.
-- Updating `SKILL.contentVersionSeen` and recomputing `SKILL.attainedLevel` after the pass.
+- Updating `SKILL.contentVersionSeen` after the pass. Inside the same transaction, after
+  dispositions complete, read records through the `by-tree` index, build `TreeProgress`,
+  call `evaluateAttainedLevel(progress)`, persist `SKILL.attainedLevel`, and populate
+  `MigrationReport.attainedLevel` before/after truthfully (§12.5, §14.5).
 - Populating `MigrationReport` and `OrphanReason` — both now declared in §14.5 (T26/F3).
   Two fields that came out of that resolution and are not optional: `attainedLevel`
   before/after, because a migration is the one path that changes a rank with no user action
@@ -73,8 +80,9 @@ and unreportable by the user — hence the mandatory visible summary.
   the first writer into a store T09 already built.
 - `setMilestoneState` and the single-transaction write path — **T09** (§12.4). This task
   reuses it; it does not open its own write path.
-- Computing attained level. `scoreSkill` is the Scoring Engine's — **T11a** (§14.4). This
-  task calls it and persists the result.
+- Importing `lib/scoring` or calling `reconcileAttainedLevel`. Attained level during
+  migration comes from the **injected callback** only. **T14** still calls
+  `reconcileAttainedLevel` after migration as the ordinary-open pass (typically a no-op).
 - The `lineage` block's *authoring* form, its CI completeness check, and `lst baseline` —
   §5.4 / §6.4, owned by **T03** and **T23**. This task consumes `lineage` as the compiler
   emits it (§7.3 retains it verbatim).
@@ -103,10 +111,13 @@ app/src/lib/state/fixtures/lineage/     bundles at successive contentVersions wi
 
 ## Interface contract
 
-The method, verbatim from ARCHITECTURE §14.5:
+The method, per ARCHITECTURE §14.5:
 
 ```ts
-applyLineage(tree: CompiledTree): Promise<MigrationReport>;   // §12.5
+applyLineage(
+  tree: CompiledTree,
+  evaluateAttainedLevel: (progress: TreeProgress) => number,
+): Promise<MigrationReport>;   // §12.5
 ```
 
 The authored ledger this consumes, verbatim from §5.4:
@@ -140,7 +151,11 @@ task; every cell is a test.**
 | `moved` to another tree | record follows the uid; `treeId` updated to the qualified target's tree | same |
 | **final sweep** — uid in neither bundle nor lineage, **and `treeId` is this tree** | record moves to `ORPHAN`, reason `unknown` | same |
 
-> Then `contentVersionSeen` is updated and attained level is recomputed.
+> Then, inside the same transaction: read this tree's records through the `by-tree` index,
+> call the supplied `evaluateAttainedLevel(progress)`, persist `SKILL.attainedLevel`,
+> populate `MigrationReport.attainedLevel` before/after, update `contentVersionSeen`, commit,
+> and refresh the mirror (§12.5, §14.5). The store imports no scoring code; **T14**
+> injects `(p) => scoreSkill(tree, p).attainedLevel`.
 
 **The four fold rules, verbatim from §12.5 (T26/F14, 2026-08-05). These are as normative as
 the table, and three of the four change how the table is executed:**
@@ -306,16 +321,18 @@ ORPHAN {
       §11.5's frozen path. A copied set leaves `q` in place, `progress[q]` can never read
       `complete` once the record is consumed, and the level silently un-satisfies: D-19
       defeated by the mechanism meant to preserve it (T26/F20).
-- [ ] **Both passes refresh §13.2's mirror on commit** (T26/F23). After `applyLineage`,
-      `store.progressFor(treeId)` reflects the migrated records without a reload; after
-      `applyMoves`, the re-homed uid appears under the **destination** tree's
-      `progressFor` and is gone from the source's. Without this the first paint after a
-      migration renders pre-migration state, which is the paint §12.5 exists to make correct.
-- [ ] A test asserts `contentVersionSeen` is updated and `SKILL.attainedLevel` recomputed
-      after a pass that changed something.
-- [ ] A test asserts orphans never score: seed an orphan whose milestone would satisfy a
-      level, run `scoreSkill`, and assert `attainedLevel` is unchanged. Equivalently,
-      `grep -rn "ORPHAN\|orphan" app/src/lib/scoring` returns no matches.
+- [ ] **Both passes call T09's `refreshProgressMirror()` on commit** (T26/F23). After
+      `applyLineage`, `store.progressFor(treeId)` reflects the migrated records without a
+      reload; after `applyMoves`, the re-homed uid appears under the **destination** tree's
+      `progressFor` and is gone from the source's.
+- [ ] A test asserts `contentVersionSeen` is updated and **`SKILL.attainedLevel` is
+      persisted** to the value returned by a stub `evaluateAttainedLevel` callback after a
+      pass that changed something — same transaction as the dispositions.
+- [ ] A test asserts `MigrationReport.attainedLevel.before/after` match the stored level
+      before and after the transaction.
+- [ ] A test asserts orphans never enter the scoring path: `grep -rn "ORPHAN\|orphan"
+      app/src/lib/scoring` returns no matches, and orphans are excluded from
+      `progressFor`'s milestone maps.
 - [ ] A component test asserts `MigrationSummary.svelte` renders exactly once per migration
       that changed something, is dismissible, and is **not** rendered for an empty report.
 - [ ] A component test asserts the merge-with-partial-predecessors branch renders text
@@ -379,15 +396,12 @@ the general case.
   safe by the guarantee above and usually mutates nothing, which is why `MigrationReport.
   changed` is pinned to *observed mutation* rather than "entries were evaluated" — a
   twelve-skill import must not produce twelve summaries.
-- **`split`'s predecessor fate is still unstated — T26/F20, open.** This document's
-  criterion below (predecessor superseded, not orphaned) is an inference from the table's
-  silence, not a quotation of it, and the frozen-set half is worse: §12.5 says `split`
-  *copies* the set entry to every successor, which leaves the predecessor uid in a set where
-  §11.5 can never read it as complete. Do not implement the frozen-set branch of `split`
-  until F20 lands.
-- **`into:`'s grammar is unvalidated — T26/F21, open.** `moved` uses `<treeId>/<uid>` while
-  `split` and `merged` use bare uids, and nothing checks either. Parse defensively and fail
-  loudly rather than producing a record on a tree id that does not exist.
+- **`split` predecessor is consumed, not orphaned — RESOLVED by T26/F20 (2026-08-06).**
+  The frozen set **moves** to successors rather than copying the predecessor uid. Implement
+  per §12.5 and the acceptance criteria above.
+- **`into:` grammar — RESOLVED by T26/F21 (2026-08-06).** §5.4's table and §6.2 rule 15
+  fix target form per `op`; T03/T04 validate at author/compile time. Parse defensively in
+  runtime migration and fail loudly on malformed ledger entries.
 - **`contentVersion` is per-tree — T26 F8, 2026-08-05. This note previously said the
   opposite.** It is an authored integer on each tree (§5.3), so
   `contentVersion > contentVersionSeen` is true only for trees whose content actually
@@ -424,10 +438,11 @@ records and frozen sets without touching the watermark. A content release is not
 activity; a fold that bumped it would refresh every user's whole map to the day of the
 release, which is the fabricated date §11.7 refuses to render.
 
-**F26 — neither pass reconciles `attainedLevel` either.** §12.3's write-back is
-`store.reconcileAttainedLevel`, called by T14's tree route **after** `applyLineage`. Do not
-call it from inside a migration: `MigrationReport.attainedLevel.after` is what the summary
-shows the user, and a second computation writing a different number would contradict it.
+**F26 — migration persists attained level via injection; reconcile stays on T14.**
+`applyLineage` takes `evaluateAttainedLevel`, persists the result, and populates truthful
+`MigrationReport.attainedLevel` before/after — all without importing `lib/scoring`.
+**T14** supplies the callback and still calls `reconcileAttainedLevel` afterward as the
+ordinary-open honesty pass (typically a no-op immediately after migration).
 
 **F22 — this task is explicitly unchanged**, which is worth stating because F22 touches its
 neighbours. The migration passes do not move; the `moved` map's durability is a CI concern

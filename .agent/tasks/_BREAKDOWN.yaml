@@ -38,10 +38,9 @@ tasks:
     status: written
     doc: T00-prd-amendments.md
     note: >
-      Resolves D20 (the estimator derivation rule F30 needs), R-24 (F35 recency
-      amendment — the spec is knowingly non-compliant until this lands), R-25 (F33's
-      arithmetic under D-21, plus the concavity/convexity fix in RESEARCH §4), and
-      D26 (content licence, required before the first external contribution).
+      Complete 2026-08-07. PRD v1.4: D20 estimator rule (L 1–10 contiguous prefix,
+      editable suggestion), D26 Creative Commons Attribution 4.0 International (CC BY 4.0),
+      D23 out of v1; F33/F35 and RESEARCH §4 aligned with ARCHITECTURE §19.5. T15 spec complete.
 
   - id: T01
     title: Repository scaffold and toolchain substrate
@@ -53,12 +52,16 @@ tasks:
     prd: [D17, N10]
     status: written
     doc: T01-repository-scaffold.md
+    note: >
+      IMPLEMENTATION COMPLETE 2026-08-07 (Session 9). All acceptance criteria verified under
+      Node 20.20.2; see task doc Verification table. Uncommitted on branch
+      agent/navigator-task-kickoff in external worktree navigator-task-kickoff.
 
   - id: T02
     title: Schema v1 and generated types
     phase: 0
     cluster: substrate-schema
-    blocked_by: [T01, T26]
+    blocked_by: [T01]
     blocks: [T03, T04, T06, T09, T11a]
     spec: ["§5", "§14.6", "§4.2"]
     prd: [F5, F7, F8, F14, F18, F19, F26, D8, D10, D11, D13]
@@ -81,7 +84,7 @@ tasks:
     title: lst compile — manifest and hashed bundles
     phase: 0
     cluster: cli-toolchain
-    blocked_by: [T02, T03, T26]
+    blocked_by: [T02, T03]
     blocks: [T07, T23]
     spec: ["§7.1", "§7.2", "§7.3", "§4.3"]
     prd: [N4]
@@ -114,7 +117,7 @@ tasks:
     title: Content Loader and minimal tree route
     phase: 0
     cluster: runtime-io
-    blocked_by: [T04, T26]
+    blocked_by: [T04]
     blocks: [T08]
     spec: ["§7.4", "§7.5", "§14.2", "§13.1"]
     prd: [N4, N9]
@@ -126,7 +129,7 @@ tasks:
     title: TreeView renderer
     phase: 0
     cluster: views
-    blocked_by: [T06, T07, T11a, T26]
+    blocked_by: [T06, T07, T11a]
     blocks: [T10, T19, T20]
     spec: ["§9"]
     prd: [F10, F31, S1]
@@ -137,7 +140,7 @@ tasks:
     title: User State Store — IndexedDB write path
     phase: 0
     cluster: runtime-io
-    blocked_by: [T02, T26]
+    blocked_by: [T02]
     blocks: [T10, T16, T17]
     spec: ["§12.1", "§12.2", "§12.3", "§12.4", "§14.5"]
     prd: [D4, N2]
@@ -148,7 +151,7 @@ tasks:
     title: PHASE 0 GATE — schema review and breaking bump
     phase: 0
     cluster: judgment
-    blocked_by: [T05, T08, T09, T26]
+    blocked_by: [T05, T08, T09]
     blocks: [T11b, T12, T21]
     spec: ["§5.10", "§16.4", "§19.2"]
     prd: [R-14, N8]
@@ -163,7 +166,7 @@ tasks:
     title: Scoring Engine — tree-local evaluation
     phase: 0
     cluster: pure-engines
-    blocked_by: [T02, T26]
+    blocked_by: [T02]
     blocks: [T08]
     spec: ["§11.1", "§11.2", "§11.3", "§11.4", "§14.4"]
     prd: [F9, F11, F36, D-18, D-22]
@@ -186,7 +189,7 @@ tasks:
     title: Scoring Engine — grandfathering and aggregation
     phase: 1
     cluster: pure-engines
-    blocked_by: [T10, T26]
+    blocked_by: [T10]
     blocks: [T13, T14, T15, T17, T19]
     spec: ["§11.5", "§11.6", "§11.7", "§11.8", "§11.9", "§14.4"]
     prd: [F33, F34, F35, N12, D-19, D-20, D-21]
@@ -211,7 +214,7 @@ tasks:
     title: Map geometry — map.yaml, axial maths, region union
     phase: 1
     cluster: content-gates
-    blocked_by: [T03, T10, T26]
+    blocked_by: [T03, T10]
     blocks: [T13]
     spec: ["§6.2", "§10.3", "§10.4"]
     prd: [F21, D-08, R-13]
@@ -244,21 +247,21 @@ tasks:
     title: Placement and level estimator
     phase: 1
     cluster: judgment
-    blocked_by: [T00, T11b]
+    blocked_by: [T11b]
     blocks: []
     spec: ["§11.8", "§19.4"]
     prd: [F29, F30, D20, S3]
     status: written
     doc: T15-placement-and-estimator.md
     note: >
-      Doc written rule-agnostic; acceptance criteria naming "the chosen rule" must be
-      replaced with the concrete rule once T00 resolves PRD D20.
+      Specification complete 2026-08-07 (D20 rule in PRD v1.4 and task doc). Unblocked
+      by T00; implementation blocked by T11b until domain scoring ships.
 
   - id: T16
     title: Export and import
     phase: 1
     cluster: runtime-io
-    blocked_by: [T09, T14, T26]
+    blocked_by: [T09, T14]
     blocks: [T18]
     spec: ["§12.6", "§14.6"]
     prd: [F38, N7]
@@ -273,7 +276,7 @@ tasks:
     title: Lineage migration at load and orphan records
     phase: 1
     cluster: runtime-io
-    blocked_by: [T09, T11b, T26]
+    blocked_by: [T09, T11b]
     blocks: []
     spec: ["§12.5", "§5.4"]
     prd: [R-03, R-16]
@@ -349,7 +352,7 @@ tasks:
     title: lst baseline — breaking-change detection
     phase: 1
     cluster: cli-toolchain
-    blocked_by: [T03, T04, T26]
+    blocked_by: [T03, T04]
     blocks: [T25]
     spec: ["§6.4", "§5.4"]
     prd: [D-05]
@@ -387,7 +390,7 @@ tasks:
     phase: 0
     cluster: judgment
     blocked_by: []
-    blocks: [T02, T04, T07, T08, T09, T10, T11a, T11b, T12, T16, T17, T23]
+    blocks: []
     spec: ["§4.4", "§6.2", "§6.4", "§7.2", "§7.4", "§11.5", "§11.6", "§11.9",
            "§12.2", "§12.5", "§12.6", "§12.7", "§14.2", "§14.4", "§14.5", "§16.1"]
     prd: []
@@ -399,7 +402,9 @@ tasks:
       block implementation. F2 (grandfathering has no storage) is the expensive one:
       resolving it after T09 ships means a migration rather than a field.
       COMPLETE 2026-08-06 — all twenty-seven findings resolved and every acceptance
-      criterion met. F15 amended all seven of its small omissions; F18 named five fill
+      criterion met. **No longer blocks any task** — remove T26 from active
+      `blocked_by`/`blocks` edges; historical narrative only below.
+      F15 amended all seven of its small omissions; F18 named five fill
       bands (Quiet, Emerging, Moderate, Active, Deep) as tunable data rather than a closed
       union type, unblocking T13 and T20; F27 was filed last, giving verdicts to the five
       §8 layout gaps T06 had been carrying — narrow is level 1 at the top, one synthetic
@@ -424,6 +429,10 @@ tasks:
       which lands in T09/T14 territory and makes an existing T09 acceptance criterion
       untestable as the spec is drawn.
 
-# Critical path: T01 → T02 → T03 → T04 → T07 → T08 → T10 → T11b → T14 → T20
-#   T11a (§11.1–§11.4) joins T06/T07 as a T08 prerequisite — see T26 F16.
-# Off the critical path and startable early: T00, T12, T21, T22, T23
+# T26 COMPLETE (2026-08-06). T01 IMPLEMENTATION COMPLETE (2026-08-07). Actionable front: T02.
+# Critical path: T02 → T03 → T04 → T07 → T08 → T10 → T11b → T14 → T20
+#   T11a (§11.1–§11.4) joins T06/T07 as a T08 prerequisite (T26/F16).
+# Independent and ready now: T00 complete. T15 spec complete (implementation blocked by T11b).
+#   T12, T21, T22, T23 are NOT startable yet — T12 blocked by T03+T10; T21 by T10; T22 by T03; T23 by T03+T04.
+# Cross-task invariant (no graph edge): T09 defines the §13.2 mirror refresh helper; T16 and
+#   T17 must call it on commit after wholesale mirror-affecting writes.

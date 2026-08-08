@@ -5,7 +5,7 @@
 | **Status** | pending |
 | **Phase** | 1 |
 | **Cluster** | pure-engines |
-| **Blocked by** | T10, T26 |
+| **Blocked by** | T10 |
 | **Blocks** | T13, T14, T15, T17, T19 |
 | **Spec** | ARCHITECTURE §11.5, §11.6, §11.7, §11.8, §11.9, §14.4 |
 | **PRD** | F33, F34, F35, N12, D-19, D-20, D-21 |
@@ -63,7 +63,9 @@ break while the corpus is one tree. Three shapes are load-bearing:
 - The remaining §11.9 invariants — **1, 2, 3, 4, 5, 7, and the score half of 6** — as
   property tests over generated inputs, extending T11a's `invariants.prop.ts` with a
   `DomainSkillRow` generator.
-- Extending `index.ts` with the aggregation surface, and `app/eslint.config.js` /
+- Extending `index.ts` with the aggregation surface, and `eslint.config.js` (root —
+  **T01** creates it; add a disjoint `no-restricted-imports` slice here; serialize edits
+  with **T06** and **T11a**) /
   `purity.test.ts` coverage over the new files (both already exist from T11a).
 
 **Out of scope**
@@ -104,6 +106,7 @@ app/src/lib/scoring/levels.test.ts       MODIFIED — grandfathering cases
 app/src/lib/scoring/index.ts             MODIFIED — the aggregation surface
 app/src/lib/scoring/invariants.prop.ts   MODIFIED — a DomainSkillRow generator
 app/src/lib/scoring/invariants.test.ts   MODIFIED — §11.9 invariants 1–5, 6 (score), 7
+eslint.config.js                         MODIFIED — disjoint no-restricted-imports slice (root; serialize with T06/T11a)
 ```
 
 ## Interface contract
@@ -324,7 +327,8 @@ Two properties are **contractual** and are what the test suite asserts (§14.4):
 
 - [ ] `purity.test.ts` (T11a's, unmodified) still passes over the new files — no import of
       `svelte`, `$app`, `$lib/state`, or `$lib/content`, and no literal `archetype`.
-- [ ] `npx eslint app/src/lib/scoring` passes, and temporarily adding
+- [ ] `npx eslint app/src/lib/scoring` passes via the root `eslint.config.js` slice, and
+      temporarily adding
       `import { x } from '$lib/content'` to `domain.ts` makes it fail on
       `no-restricted-imports`.
 - [ ] A domain score recompute over 50 in-memory skills completes in under 1 ms (§17.3).

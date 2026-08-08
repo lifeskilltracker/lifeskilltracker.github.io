@@ -16,7 +16,10 @@
 step §6.1 marks as a gate. It reads already-validated tree and taxonomy YAML from
 `content/` and writes `app/static/content/manifest.json` plus one content-hashed JSON
 bundle per tree under `app/static/content/trees/`, applying every transformation in
-§7.3's table. After this task, `npm run build` (T01's root script,
+§7.3's table. It is **not** a second authored-input validator — that remains **T03**'s
+`lst validate` — but it **does** validate every emitted JSON artifact against T02's
+`schema/compiled-tree.schema.json` and `schema/manifest.schema.json` and fails the build on
+mismatch (T26/F9). After this task, `npm run build` (T01's root script,
 `compile --workspace tools && build --workspace app`) produces real artifacts the
 (not-yet-built) Content Loader can fetch, and those artifacts are provably free of any
 value the runtime would otherwise have to default, infer, or fall back on.
@@ -55,16 +58,18 @@ already passed `lst validate` (T03) — it is a transformer, not a second valida
 - Per-tree bundle generation: one JSON file per tree under `app/static/content/trees/`,
   filename carrying a content hash (§7.1).
 - All nine transformations in §7.3's table, applied to every compiled tree.
+- **Output validation:** after emission, validate every compiled tree bundle against
+  `schema/compiled-tree.schema.json` (T02) and `manifest.json` against
+  `schema/manifest.schema.json` (T02); fail the build on mismatch (T26/F9). This is
+  compiler-output validation only — the 16 authored semantic rules remain **T03**'s.
 - Writing output into `app/static/content/`, which T01 already gitignores as a build
   artifact (§4.3: "Compiled JSON is not committed").
 - Comment stripping (YAML comments are for authors, not the runtime — §7.3's last row).
 
 **Out of scope**
 
-- Validation of any kind — T03. `lst compile` does not re-check the 16 semantic rules or
-  the JSON Schema; it assumes clean input and its behaviour on invalid input is undefined
-  by this task (a reasonable implementation errors loudly, but that is not what this task
-  is graded on).
+- **Authored-input validation** — T03. `lst compile` does not re-check the 16 semantic
+  rules or the authored JSON Schemas; it assumes clean input from `lst validate`.
 - The Content Loader, fetch/cache behaviour, service worker, and the §7.5 shape-assertion
   performed *on parse* — all T07. This task produces the bytes; T07 consumes them.
 - Hex-region unioning into `taxonomy.map`'s domain paths (§10.3, §10.4, **D-08**) — T12.
@@ -196,13 +201,20 @@ The `lst` table row this task owns, copied verbatim from §6.1:
       map round-trip in the compiler is a correctness bug, not a style one.
 - [ ] Compiling the same unchanged tree twice in a row produces byte-identical bundle
       files (deterministic; no unstamped randomness or wall-clock value leaks into the
-      hashed content).
+      hashed content). The manifest's `generated` timestamp is a real ISO-8601 UTC build
+      stamp and may differ between compiles; only bundle bytes must be stable.
 - [ ] Changing one field in a source tree changes that tree's bundle filename hash and
       leaves every other tree's bundle filename unchanged.
 - [ ] Compiled bundle YAML comments are absent from the output.
-- [ ] `npm run compile --workspace tools` (T01's root `build` script's first half)
-      populates `app/static/content/manifest.json` and one bundle per tree in
-      `content/trees/`.
+- [ ] `npm run compile --workspace tools` builds the CLI and runs `lst compile`, populating
+      `app/static/content/manifest.json` and one bundle per authored tree under
+      `app/static/content/trees/`. An existing empty `content/trees/` directory is valid;
+      a missing `content/trees/` directory is a configuration error that fails without
+      deleting prior outputs.
+- [ ] A fixture compiled bundle that violates `schema/compiled-tree.schema.json` causes
+      `lst compile` to **fail**; a fixture manifest violating
+      `schema/manifest.schema.json` likewise. Authored YAML/schema validation remains T03's
+      job — this criterion is output-only.
 
 ## Verification
 
@@ -211,29 +223,25 @@ npm run --workspace tools test
 npm run compile --workspace tools
 ls app/static/content/trees
 node -e "const m = require('./app/static/content/manifest.json'); console.log(m.trees.every(t => !('milestones' in t)))"
+# output-schema validation (fail loudly on bad fixture):
+npm run --workspace tools test -- compile/schema-validation
 ```
 
 Passing looks like: all nine transformation tests green, the manifest excludes
-milestones, and re-running compile with no content changes produces no diff in
-`app/static/content/`.
+milestones, bundle files are byte-identical across recompiles of unchanged content, and
+re-running compile with no content changes produces no diff in bundle files (manifest may
+differ only in `generated`).
 
 ## Notes and hazards
 
 - **T26 resolutions landing here (2026-08-05).** **F8:** the manifest no longer carries a
-  global `contentVersion`; each tree entry carries its own (§7.2), copied from the authored
-  value, and `generated` is a human-facing build stamp that must never be used as a cache
-  key or migration trigger. `contentVersion` is retained verbatim into the bundle (§7.3's
-  table). **F9:** this task owns `schema/compiled-tree.schema.json` and
-  `schema/manifest.schema.json`, and `lst compile` **validates its own output against them
-  and fails the build on mismatch**. They are build-time and codegen artifacts only — the
-  app ships no validator (§7.5).
-
-- **`contentVersion`'s source is not specified.** §16.1 says it "increments on every
-  merge touching `content/`," but no mechanism is named for how `lst compile` — which runs
-  as a build step, not a merge hook — knows what number to write. A monotonic counter
-  derived from git history (e.g. commit count touching `content/`) is a reasonable
-  inference but is not stated in the architecture; implement something explicit and
-  testable rather than guessing silently, and flag the choice in the PR.
+  global `contentVersion`; each tree entry carries its own (§7.2), **copied verbatim from
+  the authored per-tree value** in `tree.yaml` (§5.3), and `generated` is a human-facing
+  build stamp that must never be used as a cache key or migration trigger. `contentVersion`
+  is retained verbatim into the bundle (§7.3's table). **T26/F9:** T02 authors
+  `schema/compiled-tree.schema.json` and `schema/manifest.schema.json`; this task's
+  `lst compile` **validates its own output against them and fails the build on mismatch**.
+  They are build-time and codegen artifacts only — the app ships no validator (§7.5).
 - **`taxonomy.map` cannot be fully populated by this task.** The manifest shape requires
   a `taxonomy.map` key holding unioned region paths, but the hex-tessellation and
   region-union logic (§10.3, §10.4, **D-08**) belongs to T12, which is a **phase 1** task
@@ -242,12 +250,11 @@ milestones, and re-running compile with no content changes produces no diff in
   geometry) so the manifest is well-formed; T12 is what makes the field's *content*
   correct. This ordering gap is inherent to the phase 0/phase 1 split in `_BREAKDOWN.yaml`
   and is not a mistake to fix here.
-- **`tools/` cannot import `app/`'s hand-written `compiled.ts` types** — T01's forbidden
-  edges (`tools/ → app/` is FORBIDDEN) mean the JSON this task emits and the
-  `CompiledTree`/`Manifest` TypeScript shapes T02 wrote by hand can drift with no compiler
-  catching it. Keep them in parity with fixture-based tests that assert the emitted JSON's
-  keys and shapes match what T02 documented, rather than relying on a shared import to
-  enforce it structurally.
+- **`tools/` cannot import `app/` types** — T01's forbidden edges (`tools/ → app/` is
+  FORBIDDEN) mean parity is enforced by **T02's JSON schemas**: this task validates emitted
+  JSON against `schema/compiled-tree.schema.json` and `schema/manifest.schema.json`, and
+  fixture tests assert the emitted keys match those contracts. Do not rely on a shared
+  TypeScript import across the workspace boundary.
 - The `yaml` package (T01's declared `tools/` dependency) must be used in a mode that
   preserves document order — the `order` and `track` file-position defaults in §7.3 are
   only correct if the parser gives compile the milestones in the order they were written.

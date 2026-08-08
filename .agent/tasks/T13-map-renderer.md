@@ -42,11 +42,9 @@ the architecture has already closed with evidence, not just style preference.
   (base, fill, recency, fog) per its channel table.
 - Fill rendered as a clip-path rectangle rising from the region base (§10.5), never
   opacity, never a raw percentage anywhere on the map (F34) — presented instead as a
-  **named band** over the continuous fill number, matching the band text §15.3 also
-  announces to screen readers (§11.6). **The band names do not exist yet** — the spec
-  requires the band in three places and defines the vocabulary nowhere, which is **T26/F18**
-  (which must also settle that §15.3 and §15.4 call it a "tier", colliding with F7's
-  per-skill tiers). Blocked on F18 for the words; the mapping itself is this component's.
+  **named band** over the continuous fill number, using the five F18 bands (**Quiet**,
+  **Emerging**, **Moderate**, **Active**, **Deep**) via T11b's shared resolver module
+  (§11.6, T26/F18 resolved 2026-08-06).
 - Recency rendered as **a date in the region's text/accessible name** — "Last activity —
   12 March", or "No activity yet" when `DomainScore.lastActivityAt` is null — and **nothing
   else**: no saturation channel, no shimmer, no fade constant, no tuning knob anywhere in
@@ -143,9 +141,8 @@ Component props are `(manifest: Manifest, domainScores: Map<DomainId, DomainScor
 unchanged by T26/F3 and F4. This component reads `fill`, `breadth` and `lastActivityAt`
 from `DomainScore`; the map is total over the taxonomy, so every domain has an entry and
 there is no `undefined` branch. **There is no `band` field.** The named band is a
-presentation mapping this component performs over `fill` — but its vocabulary does not
-exist yet and is **T26/F18**, which also has to settle that §15.3 and §15.4 call it a
-"tier", colliding with F7's per-skill tiers. Do not invent band names here.
+presentation mapping this component performs over `fill` via T11b's band resolver (§11.6,
+T26/F18). Do not invent band names or thresholds locally.
 
 ## Acceptance criteria
 

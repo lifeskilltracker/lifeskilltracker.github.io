@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete |
 | **Phase** | 1 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
@@ -97,26 +97,24 @@ whether the result is a suggestion the user edits or a commitment.
 
 ## Acceptance criteria
 
-- [ ] `docs/PRD.md` F35 no longer requires a fading visual channel, or the architecture's
+- [x] `docs/PRD.md` F35 no longer requires a fading visual channel, or the architecture's
       D-20 is reversed — one or the other, not both left standing.
-- [ ] `docs/PRD.md` F33 describes an additive monotonic function of attained levels rather
+- [x] `docs/PRD.md` F33 describes an additive monotonic function of attained levels rather
       than a literal sum of levels.
-- [ ] `docs/PRD.md` D20 carries a stated derivation rule that satisfies the signature
+- [x] `docs/PRD.md` D20 carries a stated derivation rule that satisfies the signature
       above and requires no per-skill authored mapping data.
-- [ ] `docs/PRD.md` D26 names a licence for `content/`.
-- [ ] `docs/PRD.md` records D23 as out of v1, with the reason.
-- [ ] `docs/RESEARCH.md` §4 says convexity where it means convexity.
-- [ ] `docs/ARCHITECTURE.md` §19.5 no longer lists R-24 and R-25 as open, and §1.4's
+- [x] `docs/PRD.md` D26 names a licence for `content/`.
+- [x] `docs/PRD.md` records D23 as out of v1, with the reason.
+- [x] `docs/RESEARCH.md` §4 says convexity where it means convexity.
+- [x] `docs/ARCHITECTURE.md` §19.5 no longer lists R-24 and R-25 as open, and §1.4's
       document relationships still hold.
-- [ ] Nothing in the amended PRD contradicts N12 (monotonic scoring) or NG8 (levels do
+- [x] Nothing in the amended PRD contradicts N12 (monotonic scoring) or NG8 (levels do
       not encode estimated effort).
-- [ ] `grep -n 'knowingly non-compliant' docs/ARCHITECTURE.md` returns nothing.
+- [x] `grep -n 'knowingly non-compliant' docs/ARCHITECTURE.md` returns nothing.
 
 ## Verification
 
-Read `docs/PRD.md` F33, F35, D20, D23, D26 and `docs/ARCHITECTURE.md` §19.5 side by side.
-Passing looks like: no requirement the architecture cannot meet, and T15 specifiable from
-D20 alone without further product input.
+Verified 2026-08-07 (quality pass same day). Read `docs/PRD.md` F33, F35, D20, D23, D26 and `docs/ARCHITECTURE.md` §19.4–§19.5 side by side against owner decisions. Stale-term grep clean in scoped docs (`knowingly non-compliant`, open R-24/R-25, literal-sum/fading-required claims). `git diff --check` clean. T15 spec complete from D20: `(tree, L: 1..10) → uid[]` contiguous prefix, editable suggestion, no stored estimated state.
 
 ## Notes and hazards
 

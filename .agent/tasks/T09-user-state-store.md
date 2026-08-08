@@ -56,14 +56,19 @@ and with no telemetry, correctness has to be structural rather than observed.
   transaction, including the `null` case that deletes the record.
 - Writing the frozen `slug` and `title` snapshots at completion time, and never refreshing
   them (§12.2).
-- `startSkill(treeId)`: create the `SKILL` record with `startedAt`, `attainedLevel: 0`,
-  `lastActivityAt`, `contentVersionSeen`.
+- `startSkill(treeId, contentVersion)`: create the `SKILL` record with `startedAt`,
+  `attainedLevel: 0`, `lastActivityAt`, and `contentVersionSeen` set to the supplied
+  `contentVersion`. **`lib/actions`** reads it from the manifest entry for that tree, or
+  from the loaded bundle when one is already present (§14.1); this store receives the value
+  and does **not** fetch content.
 - `SKILL.attainedLevel` maintenance: recomputed on every write to that tree, and
   **reconciled on tree open** against a from-first-principles recompute (§12.3).
 - `storageStatus()` returning `{ usage, quota, lastExportAt? }`, with `lastExportAt` read
   from `META` (§12.7).
-- Declaring the complete §14.5 `UserStateStore` interface as the module's exported type,
-  including the three methods other tasks implement (see below).
+- `refreshProgressMirror(): void` — shared helper that rebuilds §13.2's in-memory mirror
+  from IndexedDB after any mutator commit. Used by `setMilestoneState`, `startSkill`, and
+  `reconcileAttainedLevel` in this task; **T16** and **T17** must call the same helper after
+  wholesale writes (`import`, `applyLineage`, `applyMoves`).
 
 **Out of scope**
 
@@ -71,9 +76,11 @@ and with no telemetry, correctness has to be structural rather than observed.
   interface; T17 implements it. Note it is the one mutator that takes an argument derived
   from the manifest, handed in by the App Shell — `lib/state` still never reaches the
   loader (§14.1).
-- `applyLineage(tree)` and the `ORPHAN` **write** path — **T17** (§12.5). This task creates
-  the `ORPHAN` store, hydrates from it, and exposes it read-only; nothing in this task ever
-  puts a record into it.
+- `applyLineage(tree, evaluateAttainedLevel)` — **T17** (§12.5). This task declares the
+  signature; T17 implements it.
+- The `ORPHAN` **write** path — **T17** (§12.5). This task creates the `ORPHAN` store,
+  hydrates from it, and exposes it read-only; nothing in this task ever puts a record into
+  it.
 - `export()` and `import(file, mode)` — **T16** (§12.6). This task declares the signatures
   in the interface and leaves the implementations to T16.
 - `navigator.storage.persist()`, `navigator.storage.estimate()` polling, and the three
@@ -90,9 +97,10 @@ and with no telemetry, correctness has to be structural rather than observed.
 ## Deliverables
 
 ```
+app/src/lib/state/mirror.ts             refreshProgressMirror() — §13.2 mirror rebuild helper
 app/src/lib/state/db.ts                 idb open + upgrade; the five §12.2 stores
 app/src/lib/state/store.ts              the UserStateStore implementation — §14.5
-app/src/lib/state/progress.svelte.ts    §13.2 in-memory mirror, written via §12.4 only
+app/src/lib/state/progress.svelte.ts    §13.2 in-memory mirror; refreshed via mirror helper on every writer commit
 app/src/lib/state/types.ts              record shapes for META/SKILL/MILESTONE/ORPHAN
 app/src/lib/state/store.test.ts         transaction atomicity, writable latch, snapshots
 app/src/lib/state/db.test.ts            upgrade path, store + index existence
@@ -100,17 +108,21 @@ app/src/lib/state/db.test.ts            upgrade path, store + index existence
 
 ## Interface contract
 
-Copied from ARCHITECTURE §14.5. This task implements `hydrate`, `progressFor`,
-`setMilestoneState`, `startSkill`, `storageStatus`, `hydrated`, and `writable`; it declares
-the rest.
+Per ARCHITECTURE §14.5. This task implements `hydrate`, `progressFor`, `refreshProgressMirror`,
+`setMilestoneState`, `startSkill`, `reconcileAttainedLevel`, `storageStatus`, `hydrated`,
+and `writable`; it declares the rest.
 
 ```ts
 export interface UserStateStore {
   hydrate(): Promise<void>;
   progressFor(treeId: string): TreeProgress;    // §11.1's input — synchronous, total
   setMilestoneState(uid: string, state: MilestoneState, opts?: { note?: string }): Promise<void>;
-  startSkill(treeId: string): Promise<void>;
-  applyLineage(tree: CompiledTree): Promise<MigrationReport>;   // §12.5
+  startSkill(treeId: string, contentVersion: number): Promise<void>;
+  reconcileAttainedLevel(treeId: string, attainedLevel: number): Promise<boolean>;
+  applyLineage(
+    tree: CompiledTree,
+    evaluateAttainedLevel: (progress: TreeProgress) => number,
+  ): Promise<MigrationReport>;   // §12.5 — caller injects scoring; store imports none
   applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;   // §12.5, cold start
   export(): Promise<ExportFile>;
   import(file: ExportFile, mode: 'merge' | 'replace'): Promise<ImportReport>;
@@ -232,7 +244,7 @@ level's requirement groups (**R-17**).
       `setMilestoneState` and `startSkill` **both reject** and perform no IndexedDB write.
 - [ ] A test asserts `writable` stays `false` after a subsequent successful `hydrate()`
       call within the same session — the latch is per-session, not per-attempt (§13.3).
-- [ ] A test asserts `startSkill('x')` twice does not reset `startedAt`.
+- [ ] A test asserts `startSkill('x', 3)` twice does not reset `startedAt`.
 - [ ] `progressFor` is **total and synchronous**: called for a treeId with no `SKILL` row and
       no records it returns empty `milestones` and `grandfathered` maps — not `undefined`,
       not a throw — and its return type is `TreeProgress`, not `Promise<TreeProgress>`.
@@ -248,11 +260,15 @@ level's requirement groups (**R-17**).
       transaction**, not from the mirror: complete a milestone and assert
       `SKILL.attainedLevel` accounts for that write in the same transaction. Reading the
       mirror leaves the level one milestone behind on every mutation (T26/F23).
-- [ ] A test asserts reconciliation on tree open: seed `SKILL.attainedLevel` to a wrong
-      value, open the tree, and assert the stored value is corrected and written back
-      (§12.3). **Which call performs that write-back is T26/F26, open** — §14.5 exposes no
-      method for it and `applyLineage` is version-gated, so it does nothing on an ordinary
-      open. Do not invent one here; write the test against whatever F26 names.
+- [ ] A test asserts `startSkill('x', 3)` writes `contentVersionSeen: 3` matching the
+      supplied bundle version (§12.2, §12.5 trigger).
+- [ ] A test asserts reconciliation on tree open via `reconcileAttainedLevel`: seed
+      `SKILL.attainedLevel` to a wrong value, call `reconcileAttainedLevel(treeId, correct)`,
+      and assert the stored value is corrected, the mirror refreshed, and no other field
+      changed (§12.3, T26/F26 — caller is T14's tree route, not T17).
+- [ ] A test asserts `refreshProgressMirror()` is invoked on every mutator commit in this
+      task, and that T16/T17 import it from `lib/state/mirror.ts` rather than duplicating
+      mirror logic.
 - [ ] A test asserts `storageStatus()` returns `lastExportAt` from `META` and `undefined`
       when the key is absent.
 - [ ] `npx tsc --noEmit` passes and `app/src/lib/state/store.ts` exports a value typed as
@@ -260,7 +276,8 @@ level's requirement groups (**R-17**).
 - [ ] `grep -rn "indexedDB\|from 'idb'" app/src --include=*.ts --include=*.svelte` matches
       only under `app/src/lib/state/` — §3.2's rule that the store is the only writer.
 - [ ] The ESLint `no-restricted-imports` rule of §14.7 fails a fixture that imports
-      `lib/state` from `lib/components`, and the rule is present in the app's ESLint config.
+      `lib/state` from `lib/components`, and the rule is present in the root
+      `eslint.config.js` (T01; T06/T11a add slices to the same file).
 
 ## Verification
 
@@ -280,8 +297,10 @@ and the grep showing exactly one module touching IndexedDB.
   owning tree's own `contentVersion` (§5.3), never a library-wide counter, and the
   comparison is `>` rather than `!=` — §12.5 explains why, and it is a correctness matter.
   `SKILL.grandfathered[L].contentVersion` is likewise that tree's version.
-- **T26 F11 (2026-08-05): `startSkill` stays free of loader knowledge.** The pin sequence
-  lives in `lib/actions` (§14.1). Do not import `lib/content` here — §14.7 now gates it.
+- **T26 F11 (2026-08-05): `startSkill` stays free of loader/manifest knowledge.** The pin
+  sequence lives in `lib/actions` (§14.1), which reads `contentVersion` from the manifest
+  entry or an already-loaded bundle and passes it to `store.startSkill(treeId,
+  contentVersion)`. Do not import `lib/content` here — §14.7 now gates it.
 
 - **The dangerous failure is not "cannot read progress" but "read as empty, then wrote."**
   §13.3 is explicit that this is why the store refuses all writes for the session after a
@@ -310,9 +329,9 @@ and the grep showing exactly one module touching IndexedDB.
   performs no I/O, and is **total** — an unstarted tree returns empty maps, never `undefined`
   and never a throw. It reads §13.2's mirror, which is why it can sit inside the `$derived`
   layer the renderer uses. Two things fall out that are easy to miss:
-  - **Every writer refreshes the mirror on commit, not just §12.4.** `applyLineage`,
-    `applyMoves` and `import` rewrite `MILESTONE` rows wholesale (T17, T16), and a mirror
-    updated by the milestone write path alone is stale exactly when those have just run.
+  - **Every writer calls `refreshProgressMirror()` on commit, not just §12.4.**
+    `applyLineage`, `applyMoves` (T17) and `import` (T16) rewrite `MILESTONE` rows
+    wholesale; this task exports the shared helper they must reuse.
   - **`readonly hydrated: boolean`** joins `writable`. Empty maps are the right answer for an
     unstarted tree and a lie for an unhydrated store, and the caller cannot tell them apart:
     under §13.3's failure branch every tree would render as having no completions, which is
@@ -326,12 +345,10 @@ and the grep showing exactly one module touching IndexedDB.
   (T17) and §12.3's reconciliation.
 - **An import can lower `contentVersionSeen` — T26/F12.** §12.6 merges it as a minimum to
   force T17's pass to replay. The field is not monotonic; do not add an assertion that it is.
-- **`SKILL.lastActivityAt` has an unresolved gap this task will hit — T26/F19.** §12.2
-  types it non-optional, but §12.4 documents only `setMilestoneState` as a writer, so a
-  started-but-untouched skill has no value for a required field; and because step 3 runs
-  for `null` and `dismissed` too, un-checking currently counts as "activity". Neither is
-  settled. Do not decide it locally — the value reaches the user through the map's recency
-  channel. Raise F19 when the write path is built.
+- **`SKILL.lastActivityAt` — RESOLVED by T26/F19 (2026-08-06).** `startSkill` seeds it to
+  `startedAt`; `setMilestoneState` updates it on every mutation including un-complete.
+  Migration passes (`applyLineage`, `applyMoves`) and `reconcileAttainedLevel` never write
+  it. Never derive it as a `max` over `MILESTONE.at`.
 - **`MILESTONE.contentVersion` has no stated consumer.** §12.2 declares the field; §12.5's
   migration keys on `SKILL.contentVersionSeen` instead. Write it (the tree bundle's
   `contentVersion` at completion time) so the record is self-describing for §12.5 and for
@@ -369,9 +386,10 @@ and the grep showing exactly one module touching IndexedDB.
 
 **F19 — `SKILL.lastActivityAt` is total and forward-only.**
 
-- `startSkill` writes it, set to `startedAt`. Without that the field is absent on every
-  started-but-untouched skill and §12.2's non-optional type is a lie. The `?` came off
-  §14.4's `DomainSkillRow` and §14.5's `ExportFile` on the strength of this write.
+- `startSkill(treeId, contentVersion)` writes `lastActivityAt` set to `startedAt` and seeds
+  `contentVersionSeen` from the `contentVersion` argument (sourced by `lib/actions` from the
+  manifest entry or loaded bundle). Without that the field is absent on every
+  started-but-untouched skill and §12.2's non-optional type is a lie.
 - `setMilestoneState` writes it on **every** mutation, un-completing included. §11.9's
   invariant 1 and §14.4's monotonicity contract both argue from "every mutation".
 - **No migration writes it.** `applyLineage`, `applyMoves` and `reconcileAttainedLevel`
@@ -384,14 +402,11 @@ and the grep showing exactly one module touching IndexedDB.
   moves forward.
 
 **F26 — `reconcileAttainedLevel(treeId, attainedLevel): Promise<boolean>`.** §12.3's
-write-back finally has a method, and the existing acceptance criterion for the
-reconciliation becomes testable. It takes a **number**, not a `CompiledTree`: §14.1 gives
-`lib/state` no edge to the loader and none to `lib/scoring`, so the store cannot compute a
-level and must not be handed content it may not read. Writes only if the value differs,
-resolves `true` when it wrote, touches no other field, refreshes §13.2's mirror on commit.
-A tree with no `SKILL` row is a no-op resolving `false` — it **never creates a row**, since
-that would put an unstarted skill on the map with a rank. The caller is T14's tree route,
-after `applyLineage`.
+write-back. Writes only if the value differs, resolves `true` when it wrote, touches no
+other field, refreshes §13.2's mirror on commit. Caller is **T14's tree route** after
+`scoreSkill` on every open — typically a no-op immediately after migration because
+`applyLineage` already persisted the level via the injected evaluator. Takes a **number**,
+not a `CompiledTree`. A tree with no `SKILL` row is a no-op resolving `false`.
 
 **F22 — the retention rule is a store invariant.** A `SKILL` row whose `treeId` has no
 manifest entry is **retained, never deleted**. The store never prunes rows against the

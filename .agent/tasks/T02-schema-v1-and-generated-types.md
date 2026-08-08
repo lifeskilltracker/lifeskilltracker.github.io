@@ -12,10 +12,11 @@
 
 ## Goal
 
-`schema/` holds five JSON Schema documents that between them define every authored
+`schema/` holds seven JSON Schema documents that between them define every authored
 artifact in the project — trees, the three taxonomy files, and the user export format —
-and `app/src/lib/types/` holds TypeScript types generated from them plus the hand-written
-compiled-bundle types. After this task, a tree YAML file can be checked against a
+and `app/src/lib/types/` holds TypeScript types generated from them — authored shapes
+from the seven YAML/export schemas, compiled-bundle shapes from
+`compiled-tree.schema.json` and `manifest.schema.json`. After this task, a tree YAML file can be checked against a
 machine-readable contract, and both workspaces derive their understanding of content
 shape from the same source. Nothing yet reads or enforces these files; that is T03.
 
@@ -37,8 +38,9 @@ so a contributor cannot introduce effort-weighting by experiment.
 - `domains.schema.json`, `facets.schema.json`, `map.schema.json` per §5.9.
 - `export.schema.json` per §12.6 — authored now because §14.6 names it the one contract
   with a consumer the project can never update.
-- Generated TypeScript for authored shapes, plus hand-written `CompiledTree` / `Manifest`
-  types for the post-§7.3 shape.
+- `schema/compiled-tree.schema.json` and `schema/manifest.schema.json` per §7.2–§7.3
+  (T26/F9) — the post-compile bundle and manifest contracts.
+- Generated TypeScript for all seven schema documents (authored + compiled).
 - Seed `content/taxonomy/domains.yaml` with the eight locked domains, including Making's
   three subregions (Expression / Objects / Systems).
 - Seed `content/taxonomy/facets.yaml` with only the facets exemplar tree #1 needs.
@@ -63,10 +65,12 @@ schema/domains.schema.json       §5.9 domains.yaml
 schema/facets.schema.json        §5.9 facets.yaml
 schema/map.schema.json           §5.9 / §10.3 map.yaml — shape only, geometry is T12
 schema/export.schema.json        §12.6 export file, schemaVersion 1
+schema/compiled-tree.schema.json   §7.3 post-compile bundle contract (T26/F9)
+schema/manifest.schema.json        §7.2 manifest contract (T26/F9)
 content/taxonomy/domains.yaml    eight domains, Making carrying three subregions
 content/taxonomy/facets.yaml     minimal seed vocabulary
 app/src/lib/types/authored.d.ts  GENERATED — do not edit
-app/src/lib/types/compiled.ts    hand-written; the §7.3 post-compile shape
+app/src/lib/types/compiled.d.ts  GENERATED from compiled-tree + manifest schemas — do not edit
 app/src/lib/types/index.ts       re-exports
 tools/src/gen-types.ts           generation entry point
 ```
@@ -79,8 +83,11 @@ and references are slugs. **Compiled** types mirror what §7.3 emits, where ever
 is materialized and slug references are resolved to array indices with the slugs
 retained. The Layout and Scoring engines consume only the compiled types.
 
-Authored types are generated from `schema/*.json`. Compiled types are hand-written
-because the compiled bundle is internal (§14.6) and has no schema of its own.
+Authored types are generated from `tree.schema.json`, the three taxonomy schemas, and
+`export.schema.json`. **Compiled** types (`CompiledTree`, `Manifest`, and derived shapes
+such as `MovedIndex`) are generated from `compiled-tree.schema.json` and
+`manifest.schema.json` — not hand-written. Both workspaces import from `schema/` and
+`app/src/lib/types/` only.
 
 The compiled types must satisfy the consumers already fixed elsewhere in the spec:
 
@@ -121,7 +128,7 @@ opening the tree schema defeats §5.8.
 
 ## Acceptance criteria
 
-- [ ] All five schema files are valid JSON Schema and load without error under Ajv.
+- [ ] All seven schema files are valid JSON Schema and load without error under Ajv.
 - [ ] `content/taxonomy/domains.yaml` validates, contains eight domains, and only
       `making` declares `subregions`.
 - [ ] `content/taxonomy/facets.yaml` validates.
@@ -152,15 +159,16 @@ opening the tree schema defeats §5.8.
       bearing rather than informational: the first is how a moved record reaches its new
       tree without the source bundle, the second is what forces §12.5's replay after an
       import.
-- [ ] `npm run gen:types` regenerates `authored.d.ts` and produces no diff when run twice.
+- [ ] `npm run gen:types` regenerates `authored.d.ts` and `compiled.d.ts` and produces no
+      diff when run twice.
 - [ ] `tsc --noEmit` passes across both workspaces with `strict: true`.
-- [ ] `compiled.ts` defines `CompiledTree` and `Manifest` with the §7.3 transformations
-      applied, and a comment on each field that differs from its authored counterpart.
+- [ ] `compiled.d.ts` exports `CompiledTree` and `Manifest` matching §7.2–§7.3; no
+      hand-written parallel in `compiled.ts`.
 
 ## Verification
 
 ```bash
-npm run gen:types && git diff --exit-code app/src/lib/types/authored.d.ts
+npm run gen:types && git diff --exit-code app/src/lib/types/authored.d.ts app/src/lib/types/compiled.d.ts
 npm run --workspace tools test          # schema fixture suite
 npx tsc --noEmit
 ```
@@ -173,10 +181,10 @@ expected verdict, and a clean typecheck.
 - **T26 resolutions landing here (2026-08-05).** **F8:** `tree.yaml` gains a required
   `contentVersion` integer (§5.3) — per-tree, authored, starting at 1. Add it to
   `tree.schema.json` and to the generated types. **F9:** `schema/compiled-tree.schema.json`
-  and `schema/manifest.schema.json` now exist, and `CompiledTree` and `Manifest` are
-  **generated from them**, not hand-written in `app/`. That removes this task's original
-  reason for hand-maintaining those types across the §4.2 boundary the compiler cannot
-  cross. **F16:** this task now blocks T11a as well as T03/T04/T06/T09.
+  and `schema/manifest.schema.json` are **authored in this task**; `CompiledTree` and
+  `Manifest` are **generated from them**, not hand-maintained. T04 validates compiler
+  output against these schemas at build time; the app ships no validator (§7.5). **F16:**
+  this task blocks T11a as well as T03/T04/T06/T09.
 
 - **R-14 — the schema is being fixed before any content exists.** Expect at least one
   breaking bump between phase 0 and phase 1; T10 is the scheduled window for it. Do not
