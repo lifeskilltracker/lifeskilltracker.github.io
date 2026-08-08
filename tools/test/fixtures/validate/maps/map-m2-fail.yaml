@@ -1,0 +1,26 @@
+schemaVersion: 1
+hexSize: 40
+regions:
+  - domain: making
+    tiles: [[0, 0], [1, 0], [0, 0], [0, 1], [1, 1], [2, 1], [1, 2]]
+    subregions:
+      - id: expression
+        tiles: [[0, 0], [0, 1]]
+      - id: objects
+        tiles: [[1, 0], [1, 1], [1, 2]]
+      - id: systems
+        tiles: [[2, 0], [2, 1]]
+  - domain: mind
+    tiles: [[10, 0], [11, 0], [10, 1]]
+  - domain: body
+    tiles: [[12, 0], [13, 0], [12, 1]]
+  - domain: home
+    tiles: [[14, 0], [15, 0], [14, 1]]
+  - domain: people
+    tiles: [[16, 0], [17, 0], [16, 1]]
+  - domain: work-money
+    tiles: [[18, 0], [19, 0], [18, 1]]
+  - domain: play
+    tiles: [[20, 0], [21, 0], [20, 1]]
+  - domain: outdoors-nature
+    tiles: [[22, 0], [23, 0], [22, 1]]

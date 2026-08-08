@@ -1,0 +1,11 @@
+schemaVersion: 1
+facets:
+  - id: practical
+    title: Practical
+    note: Everyday hands-on competence rather than performance or theory.
+  - id: kitchen
+    title: Kitchen
+    note: Food preparation, cooking, and related home skills.
+  - id: teaching
+    title: Teachable
+    note: A mode of engagement orthogonal to level — the skill can be passed on.

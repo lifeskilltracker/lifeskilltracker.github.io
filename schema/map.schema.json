@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://life-skill-tracker/schema/map.schema.json",
+  "title": "MapFile",
+  "type": "object",
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "hexSize": { "type": "number", "exclusiveMinimum": 0 },
+    "regions": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/region" }
+    }
+  },
+  "required": ["schemaVersion", "hexSize", "regions"],
+  "additionalProperties": false,
+  "$defs": {
+    "region": {
+      "type": "object",
+      "properties": {
+        "domain": { "$ref": "./common.schema.json#/$defs/domainId" },
+        "tiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "./common.schema.json#/$defs/axialTile" }
+        },
+        "label": { "$ref": "./common.schema.json#/$defs/labelPosition" },
+        "subregions": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/subregionTiles" }
+        }
+      },
+      "required": ["domain", "tiles"],
+      "additionalProperties": false
+    },
+    "subregionTiles": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "./common.schema.json#/$defs/subregionId" },
+        "tiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "./common.schema.json#/$defs/axialTile" }
+        }
+      },
+      "required": ["id", "tiles"],
+      "additionalProperties": false
+    }
+  }
+}

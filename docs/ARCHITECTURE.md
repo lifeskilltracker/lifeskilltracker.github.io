@@ -1,9 +1,11 @@
 # Life XP Skill Tracker — Architecture Specification
 
-**Version:** 1.0
-**Date:** 2026-08-04
+**Version:** 1.1
+**Date:** 2026-08-07
 **Owner:** Ethan Morchy
-**Status:** Complete — ready for implementation, pending the two PRD amendments in §19.5
+**Status:** Complete — ready for implementation
+
+> **Changes since v1.0 (2026-08-04).** Document reconciliation with PRD v1.3–v1.4 only: R-24 and R-25 marked resolved (§19.5); D20, D23, and D26 traceability updated (§19.4, §11.8); stale non-compliance and literal-sum language removed. No change to normative technical content.
 
 ---
 
@@ -11,17 +13,17 @@
 
 ### 1.1 Purpose
 
-This document specifies *how* the Life XP Skill Tracker is built. `docs/PRD.md` v1.2 specifies *what* it does and *why*; this spec resolves the technical decisions that the PRD deliberately deferred, and defines the subsystems, contracts, and data formats concrete enough to build from without re-deciding.
+This document specifies *how* the Life XP Skill Tracker is built. `docs/PRD.md` v1.4 specifies *what* it does and *why*; this spec resolves the technical decisions that the PRD deliberately deferred, and defines the subsystems, contracts, and data formats concrete enough to build from without re-deciding.
 
 It is written as a buildable blueprint: named libraries, module boundaries, real schema fragments, and function signatures for the load-bearing engines. Where a choice has meaningful alternatives, the reasoning is recorded as an ADR in §18 rather than argued inline.
 
 ### 1.2 Scope
 
-**In scope.** The static web application, the tree content schema, the validation toolchain, the CI pipeline, the repository layout, and the deploy path. Concretely, this spec closes PRD deferred decisions **D1–D6**, **D8**, **D10–D11**, and **D13–D18**. **D5** is closed for phase 1 and deferred for photos (§12.8). **D7** is resolved by *declining* the mechanism it assumes — see §11.7 and D-20, which propose a PRD amendment rather than settling it here.
+**In scope.** The static web application, the tree content schema, the validation toolchain, the CI pipeline, the repository layout, and the deploy path. Concretely, this spec closes PRD deferred decisions **D1–D6**, **D8**, **D10–D11**, and **D13–D18**. **D5** is closed for phase 1 and deferred for photos (§12.8). **D7** is resolved by *declining* the decay mechanism it assumes — see §11.7 and D-20; PRD **F35** was amended in v1.3 to match.
 
-**Out of scope.** **D12** (the initial facet-tag vocabulary) is content work, not a technical choice: the architecture requires only that every tag a tree uses exists in the vocabulary file. Product and taxonomy decisions **D19–D27** likewise remain open in the PRD and are not settled here. Three of them (**D20** estimator derivation, **D23** user-level domain reassignment, **D24** tree families) have architectural consequences; those consequences are recorded in §19.4 and the design leaves room for each, but the decisions themselves belong to the PRD. **D9** is already resolved into F8.
+**Out of scope.** **D12** (the initial facet-tag vocabulary) is content work, not a technical choice: the architecture requires only that every tag a tree uses exists in the vocabulary file. Product and taxonomy decisions **D19, D21, D22** and **D24–D27** remain open in the PRD and are not settled here. **D23** (user-level domain reassignment) is explicitly out of v1. **D20**, **D24**, and **D26** have architectural consequences recorded in §19.4; **D20** and **D26** are resolved in PRD v1.4. **D9** is already resolved into F8.
 
-**This spec asks for two PRD changes**, both recorded in §19.5: F35's recency channel (**R-24**) and F33's arithmetic (**R-25**). Until they are made, the spec is knowingly divergent from those two requirements and says so at each point.
+**PRD amendments R-24 and R-25** (F35 recency representation, F33 arithmetic) were absorbed in PRD v1.3 and are recorded as resolved in §19.5.
 
 Tree *content* is out of scope. This spec defines the container and the rules; the trees themselves are authored against `docs/CONTRIBUTING.md` and the style rubric (F43).
 
@@ -35,7 +37,7 @@ Tree *content* is out of scope. This spec defines the container and the rules; t
 
 | Document | Relationship |
 |---|---|
-| `docs/PRD.md` v1.2 | Normative upstream. Requirement IDs (F#, N#, S#, NG#, C#, D#) cited throughout are that document's. Where this spec appears to contradict the PRD, the PRD wins and this spec is wrong. |
+| `docs/PRD.md` v1.4 | Normative upstream. Requirement IDs (F#, N#, S#, NG#, C#, D#) cited throughout are that document's. Where this spec appears to contradict the PRD, the PRD wins and this spec is wrong. |
 | `docs/RESEARCH.md` | Evidence base for the PRD's product decisions. Cited where an architectural choice inherits a researched constraint; not re-litigated. |
 | `docs/PRIOR-ART.md` | MakerSkillTree analysis. Bears on §5 (schema shape) and §6 (review pipeline). |
 | `docs/SKILL-CANDIDATES.md` | The 164-skill projection. Used here as sizing input for §17. |
@@ -108,7 +110,7 @@ Project-specific and overloaded terms only. Terms are grouped by what they belon
 | **Available** | A derived state, not stored: a milestone whose prerequisites are all satisfied and which is not yet complete (F36). |
 | **Placement** | The act of a user positioning themselves on a tree by checking off already-completed milestones (F29). The primary self-assessment mechanism. |
 | **Estimator** | The coarse "roughly where am I?" shortcut that pre-checks a plausible milestone set for the user to correct (F30). A convenience layer over placement, never a replacement. |
-| **Domain score** | The sum of levels attained across all skills whose *primary* domain is that domain (F33). Additive and monotonic. |
+| **Domain score** | The additive sum of per-level contributions from attained levels across all skills whose *primary* domain is that domain (F33). Higher levels contribute more; monotonic. |
 | **Attained level** | The highest level L for which every level 1..L is complete. Progression is contiguous: a satisfied level 5 with an unsatisfied level 4 does not attain 5 (§11). |
 
 ### 2.4 Pipeline and build terms
@@ -254,7 +256,7 @@ The load-bearing detail is the note: the world map must render before any tree b
 
 **Opening a skill.** Shell requests the tree bundle by id → Loader fetches (or serves from cache) → Layout Engine computes positions once and memoizes on tree id + viewport class → Scoring Engine derives per-level progress, attained level, and the available set from tree + user state → Tree Renderer draws. Layout and scoring are independent and can run in either order.
 
-**Completing a milestone.** Renderer emits an intent → Store writes the completion with a timestamp (F31) and persists → Scoring Engine recomputes for that tree only → derived level and availability update → if attained level changed, the denormalized per-skill level updates and the affected domain score changes. Because the score is a sum of levels (F33), nothing outside that one domain can move, and nothing can move downward (N12).
+**Completing a milestone.** Renderer emits an intent → Store writes the completion with a timestamp (F31) and persists → Scoring Engine recomputes for that tree only → derived level and availability update → if attained level changed, the denormalized per-skill level updates and the affected domain score changes. Because domain score is additive and monotonic in attained level (F33), nothing outside that one domain can move, and nothing can move downward (N12).
 
 **The inverse flow does not exist.** No subsystem pushes to a server, no state syncs, and no view depends on a network response after first load (N9). This is the whole benefit of the $0-hosting constraint (C2): there is no distributed system here, and the spec should never accidentally introduce one.
 
@@ -311,7 +313,7 @@ Single repository, npm workspaces (**D17**).
 ```
 life-skill-tracker/
 ├── package.json                 # workspace root; scripts only, no runtime deps
-├── content/                     # ─── authored, human-owned ───────────────
+├── content/                     # ─── authored, human-owned; CC BY 4.0 (PRD D26) ─
 │   ├── trees/
 │   │   ├── cooking.yaml
 │   │   ├── piano.yaml
@@ -721,7 +723,7 @@ Mastery achievements are excluded from every calculation: level attainment, F11 
 
 ### 5.8 No XP (D11)
 
-**Resolved: XP does not exist as a stored or authored quantity.** Level comes from requirement groups, progress from F11's `min(completed, n) / n`, and domain score from summed levels (F33). There is no `xp`, `points`, `weight`, or `difficulty` field, and the schema's `additionalProperties: false` means one cannot be added by a contributor experimenting.
+**Resolved: XP does not exist as a stored or authored quantity.** Level comes from requirement groups, progress from F11's `min(completed, n) / n`, and domain score from the weighted contribution table (F33). There is no `xp`, `points`, `weight`, or `difficulty` field, and the schema's `additionalProperties: false` means one cannot be added by a contributor experimenting.
 
 The reason is that any XP quantity immediately raises "how much is this milestone worth", which is effort-weighting under a different name — rejected on principle and against NG8. A uniform 1-XP-per-milestone counter would avoid the weighting question but invite it, and would be a number displayed for game feel that no calculation consumes.
 
@@ -827,7 +829,7 @@ Two layers, both hard gates.
 | 6 | Requirement groups name only milestones at their own level | §5.6 |
 | 7 | `1 ≤ n < len(milestones)` for every `n_of` group | §5.6 |
 | 8 | Every milestone appears in ≥1 requirement group at its level | §5.6 |
-| 9 | `track` and `module` references resolve to declared values | F41 |
+| 9 | `track` references resolve to declared `tracks[]` entries; `module` is a free-form label with no registry | F41 |
 | 10 | `domain` and every `secondaryDomains` entry exists in `domains.yaml`; primary not repeated in secondary | F18, F41 |
 | 11 | `subregion` present iff `domain: making`, and valid | F26, F41 |
 | 12 | Every facet exists in `facets.yaml` | F19, F41 |
@@ -1487,7 +1489,7 @@ The numbers driving fill, recency, and breadth are computed in §11 — this sec
 
 ## 11. Progress and Scoring Engine
 
-Resolves **D6**, and resolves **D7** by declining it — see §11.8, which raises a PRD change rather than settling F35 at the architecture level.
+Resolves **D6**, and resolves **D7** by declining the decay mechanism — see §11.7 and D-20; PRD **F35** was amended in v1.3 to require representation rather than a fading channel.
 
 **This section spans the phase boundary, and the seam is §11.5.** §11.1–§11.4 are *tree-local evaluation*: requirement groups, attained level, and the five node states, computed from one compiled tree plus that tree's progress. They ship in **phase 0**, because §16.4's walking skeleton must render a tree that is "completable", and `complete`, `available` and `locked` have no other producer — §9.3 reads them directly. §11.5–§11.8 are *grandfathering and cross-tree aggregation*: frozen satisfaction, domain score, fill, recency, breadth, and self-assessment. They ship in **phase 1**, and they are what §16.4 means when it says the skeleton has "no domain scoring". The split is not arbitrary: §11.5 is the first thing in this section that writes to persisted state (`SKILL.grandfathered`, §12.2), so it belongs after T10's schema gate rather than before it.
 
@@ -1543,7 +1545,7 @@ Three distinct outputs. Conflating them is the failure this design exists to avo
 
 **`attained: 0` is a real state and has no tier.** A started skill that has not yet satisfied level 1 reports `attainedLevel: 0` and `tier: null` (§14.4), and is displayed as *"Level 0 — not yet ranked"* rather than being promoted to Novice. F7's tiers are pairs of levels 1–10; there is no name below them, and inventing one would let an unranked skill read as ranked. It still contributes 0 to its domain (§11.6) and counts toward breadth (§11.7), which is §11.9 invariant 2.
 
-**The word "level," unqualified, always means `attained`** — in the UI, in the export format, and in this spec. Levels are unlock gates (F7, following CDDA), so a gap genuinely means not through, and `attained` is the only reading under which F33's sum means one thing rather than several. §18 **D-18**.
+**The word "level," unqualified, always means `attained`** — in the UI, in the export format, and in this spec. Levels are unlock gates (F7, following CDDA), so a gap genuinely means not through, and `attained` is the only reading under which F33's additive rollup means one thing rather than several. §18 **D-18**.
 
 The case this exists for is not an edge case; F29 makes it the normal case. A fifteen-year cook self-assessing will satisfy scattered levels and miss low ones they simply never happened to do. Concretely — satisfied {1, 3, 4, 6}, one milestone short at level 2:
 
@@ -1689,7 +1691,7 @@ The table ships as **data, not a formula** — auditable, testable, tunable with
 
 **Both rollups are computed by `domainScores` and land on `DomainScore` (§14.4)**, alongside score and fill. They are three reductions over one row set, and the two subsystems that might otherwise host them cannot: `lib/state` may not import the loader (§14.1), so it can never learn which domain a tree belongs to, and components may not import state at all. A domain with **no started skills** reports `lastActivityAt: null`, which renders as *"No activity yet"* — never as a fabricated date. There is no second null case: `SKILL.lastActivityAt` is total, seeded from `startedAt` when the skill is started (§12.2), so a started skill always contributes a date and a domain containing one never reads as untouched. Timestamps are ISO-8601 UTC with a `Z` suffix (§12.2), which is what lets the maximum be a plain string comparison inside a pure engine.
 
-This **does not satisfy F35 as written**, which asks for recency on a separate visual channel that may fade, and the deviation is deliberate rather than an oversight. The research is unambiguous: every shipped system that fades a user-visible value for inactivity was either withdrawn by its vendor (Overwatch SR decay, removed explicitly to relieve "fatigue and stress"; Duolingo's cracked skills, removed in three stages), or is universally named the worst part of its product (Rust upkeep, LoL high-elo decay, Habitica damage), or is justified by making a claim that inactivity genuinely invalidates (Anki retrievability, competitive MMR). A life-domain map makes no such claim — a decaying region would be a motivational device wearing the costume of a measurement, which is NG10's territory.
+This satisfies **F35 as amended in PRD v1.3**: recency must be *represented*, the channel is unspecified, and v1 ships a last-activity date. The research is unambiguous that every shipped system fading a user-visible value for inactivity was either withdrawn by its vendor (Overwatch SR decay, removed explicitly to relieve "fatigue and stress"; Duolingo's cracked skills, removed in three stages), or is universally named the worst part of its product (Rust upkeep, LoL high-elo decay, Habitica damage), or is justified by making a claim that inactivity genuinely invalidates (Anki retrievability, competitive MMR). A life-domain map makes no such claim — a decaying region would be a motivational device wearing the costume of a measurement, which is NG10's territory.
 
 FIDE settles the informational half: the most consequential rating system in the world represents inactivity with **a flag and a date, never a decrement**, and that is complete information. The graded channel is preserved as a deliberate phase-2 experiment (**R-20**) rather than a launch requirement, to be judged after the maintainer's own thirty days of use (S4).
 
@@ -1697,9 +1699,14 @@ The architecture keeps the option open at zero cost: `lastActivityAt` is already
 
 ### 11.8 Self-assessment (F29, F30)
 
-Placement (F29) is ordinary milestone completion in bulk — the engine has no special mode for it, which is what makes F29 "require no additional per-skill authored content." The estimator (F30) is a pure function `(tree, coarseLevel) → uid[]` producing a pre-checked set the user corrects. Its *rule* is PRD **D20** and stays open; architecturally it slots into this engine with no new subsystem and no authored data.
+Placement (F29) is ordinary milestone completion in bulk — the engine has no special mode for it, which is what makes F29 "require no additional per-skill authored content." The estimator (F30) is a pure function `(tree, coarseLevel) → uid[]` producing a pre-checked set the user corrects before commit. PRD **D20** (resolved v1.4) defines the rule:
 
-Two behaviours are architectural rather than product: the estimator pre-checks **downward** from the estimate (§11.3), and every pre-checked milestone is individually reversible and announced as pre-checked (§15.6).
+- **Coarse input:** integer level **L** ∈ {1..10}. The UI may present named bands mapped to **L** for presentation only.
+- **Output:** every milestone uid in levels 1..**L** — a full contiguous prefix. Mastery achievements are never included.
+- **Semantics:** an editable suggestion, not a commitment. No distinct stored "estimated" state and no per-tree mapping data. Accepting unchanged yields attained **L**.
+- **Guttman interaction:** F29 guarantees honest records will contain out-of-order satisfaction. The estimator will pre-check milestones the user has not actually done; un-checking them can move attained level downward under F32 and F47 (R-22).
+
+Architecturally the estimator slots into this engine with no new subsystem and no authored data. Two behaviours are architectural rather than product: the estimator pre-checks **downward** from the estimate (§11.3), and every pre-checked milestone is individually reversible and announced as pre-checked (§15.6).
 
 ### 11.9 Invariants
 
@@ -1797,7 +1804,10 @@ erDiagram
 
 `state` is `complete` or `dismissed`. **Incomplete is the absence of a record**, not a record with a state — writing a row for every untouched milestone would multiply the store by an order of magnitude to represent nothing.
 
-**`contentVersionSeen` and every `contentVersion` in this diagram are the owning tree's own version** (§5.3), never a library-wide counter. `MILESTONE.contentVersion` is the tree's version at the moment that milestone was completed.
+**`contentVersionSeen` is seeded at start.** `startSkill(treeId, contentVersion)` writes it
+to the tree's current authored `contentVersion` (§5.3), supplied by the caller because the
+store may not fetch bundles (§14.1). That makes a newly started skill aligned with the
+content it was begun against before any migration gate can fire.
 
 **`MILESTONE.contentVersion` is required, and it is provenance rather than an input.** Nothing branches on it: §12.5's migration is driven by `SKILL.contentVersionSeen`, and the scoring engine never sees it. It is written because it is the only record of *which version of the tree the user was looking at when they ticked this* — the same job as the frozen `slug` and `title` above, and the same justification: an export must be readable years later, and there is no telemetry to reconstruct it from. It is always available at write time, since a milestone cannot be completed without its bundle loaded, so it is non-optional in the store and in `ExportFile` alike, and §12.6 merges it with the record it belongs to.
 
@@ -1826,13 +1836,22 @@ It has exactly three writers, and the boundary matters more than the list:
 
 `SKILL.attainedLevel` duplicates something the Scoring Engine can derive from tree content plus milestone records. The duplication is deliberate and is the design's one accepted denormalization.
 
-§3.3 requires the world map to render before any tree bundle is fetched. Domain score is a sum over per-skill attained levels (F33), so deriving it honestly would mean fetching every started tree on cold load — which would defeat N4's incremental loading for exactly the view that must be fastest.
+§3.3 requires the world map to render before any tree bundle is fetched. Domain score is an additive rollup over per-skill attained levels (F33), so deriving it honestly would mean fetching every started tree on cold load — which would defeat N4's incremental loading for exactly the view that must be fastest.
 
 It is kept honest by recomputing on every write to that tree (§12.4) and by a **reconciliation on tree open**: when a tree bundle is loaded, the Scoring Engine recomputes attained level from first principles and writes it back if it differs. A discrepancy is expected and benign after a content update changed a level's requirement groups. The map may therefore be up to one session stale for a tree the user has not opened since a content release, which is an acceptable and bounded inaccuracy for an ambient display.
 
-**The tree route owns this, and it is not `applyLineage`.** The write-back is `store.reconcileAttainedLevel(treeId, level)` (§14.5), called by the tree route (§13.4) once the bundle has loaded and the engine has scored it. The route is the only place that can: the store may not import the loader and so cannot fetch the bundle, and §14.1 draws no edge from `lib/state` to `lib/scoring` either, so nothing inside the store can recompute a level from first principles. `applyLineage` is not the hook — it is gated on `contentVersion` advancing (§12.5) and therefore does nothing on the ordinary open, which is exactly the open this reconciliation exists for.
+**The tree route owns the ordinary-open write-back.** After the bundle loads, the route
+scores it and calls `store.reconcileAttainedLevel(treeId, level)` (§14.5). This is the
+honesty pass for §12.3: it catches requirement-group changes that bump `contentVersion`
+without a lineage entry (a reword-only release), and it clears source-tree staleness after
+`applyMoves`. It should be a **no-op immediately after a migration** — `applyLineage` has
+already persisted the correct level — but it must still run every open so non-lineage
+changes cannot slip through.
 
-**Ordering against the migration is fixed:** `applyLineage` first, then the reconcile. When the migration ran, its `MigrationReport.attainedLevel.after` has already been shown to the user (§12.5's summary), so a reconcile that then wrote a different number would contradict a statement on screen; running second, it finds the value the migration computed and writes nothing. `applyMoves` is the exception that stays an exception — §14.5 says it deliberately does not recompute the *source* tree's level, and that tree's staleness is cleared by this reconciliation whenever the user next opens it.
+**Ordering on tree open is fixed:** when the version gate fires, `applyLineage` runs first
+(with an injected evaluator — §12.5, §14.5); then `scoreSkill`; then `reconcileAttainedLevel`.
+When no migration ran, the sequence is score then reconcile only. `applyMoves` is separate:
+it runs at cold start (§13.3 step 3), not on every tree open.
 
 ### 12.4 The write path
 
@@ -1884,7 +1903,16 @@ Two dispositions deviate: on `retired` **and on `moved`**, the uid is **removed 
 
 One consequence is worth stating because it is invisible: §12.6 merges `grandfathered` per level as a whole entry with the earliest `contentVersion` winning, so an import from a device that never applied the split can **reintroduce the predecessor uid** into a set whose record is gone, un-satisfying the level. It repairs itself — the same import rewinds `contentVersionSeen`, and the next open of that tree folds the split over the set again — but the repair waits for a tree open, which is §12.3's existing staleness bound applied to a D-19 protection rather than to a displayed number.
 
-Then `contentVersionSeen` is updated and attained level is recomputed.
+Then, still inside the same transaction: read this tree's records back through the `by-tree`
+index, call the **`evaluateAttainedLevel` callback** the caller supplied with the resulting
+`TreeProgress`, persist `SKILL.attainedLevel` and populate `MigrationReport.attainedLevel`
+before/after, update `contentVersionSeen`, commit, and refresh §13.2's mirror.
+
+The callback exists because §14.1 forbids a static import from `lib/state` to `lib/scoring`.
+The store performs no scoring itself; the tree route injects
+`(progress) => scoreSkill(tree, progress).attainedLevel`. That preserves §12.5's requirement
+that migration recomputes and **persists** attained level in the same transaction as the
+dispositions, while keeping the forbidden edge absent.
 
 **Cross-tree moves run in a separate pass, at cold start, from the manifest.** The pass above is per-tree and bundle-triggered, which is the right shape for four of the five dispositions and the wrong shape for `moved`: the entry sits in the source tree's ledger while the record it re-homes is wanted by the destination tree, so a user who never reopens the source tree never applies it (§7.2). `store.applyMoves(manifest.moved)` therefore runs at cold start (§13.3), after hydration and the manifest both resolve, and does two things for each entry whose uid names a record on the source tree: rewrites the record's `treeId` to the destination, and **removes that uid from the source skill's frozen sets**, on the same reasoning as the fold's `moved` deviation above.
 
@@ -2259,9 +2287,12 @@ export interface UserStateStore {
   hydrate(): Promise<void>;
   progressFor(treeId: string): TreeProgress;    // §11.1's input — synchronous, total
   setMilestoneState(uid: string, state: MilestoneState, opts?: { note?: string }): Promise<void>;
-  startSkill(treeId: string): Promise<void>;
+  startSkill(treeId: string, contentVersion: number): Promise<void>;
   reconcileAttainedLevel(treeId: string, attainedLevel: number): Promise<boolean>;  // §12.3
-  applyLineage(tree: CompiledTree): Promise<MigrationReport>;   // §12.5
+  applyLineage(
+    tree: CompiledTree,
+    evaluateAttainedLevel: (progress: TreeProgress) => number,
+  ): Promise<MigrationReport>;   // §12.5
   applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;   // §12.5, cold start
   export(): Promise<ExportFile>;
   import(file: ExportFile, mode: 'merge' | 'replace'): Promise<ImportReport>;
@@ -2281,7 +2312,22 @@ Contract: every mutating call is a single transaction and resolves only after th
 
 It reads the mirror rather than the `by-tree` index because the index cannot serve a synchronous caller. §12.2 names its real consumers, all of them inside a transaction.
 
-**`reconcileAttainedLevel` is §12.3's write-back, and it is deliberately dumb.** It takes a number the caller computed and stores it; it does no scoring of its own, because it cannot — §14.1 gives `lib/state` no edge to `lib/scoring` and none to the loader that would fetch the bundle. It writes `SKILL.attainedLevel` only if the value differs, resolves `true` when it wrote and `false` when it did not, and touches **no other field** — in particular not `lastActivityAt`, since a content release is not user activity (§12.2). Like every other writer it refreshes §13.2's mirror on commit. Its caller is the tree route, after `applyLineage` (§12.3); it takes a `treeId` rather than a `CompiledTree` for the same reason it takes a number — the store must not be handed content it is forbidden to read.
+**`reconcileAttainedLevel` is §12.3's ordinary-open write-back, and it is deliberately dumb.**
+It takes a number the caller computed and stores it; it does no scoring of its own, because
+it cannot — §14.1 gives `lib/state` no edge to `lib/scoring` and none to the loader. It
+writes `SKILL.attainedLevel` only if the value differs, resolves `true` when it wrote and
+`false` when it did not, and touches **no other field** — in particular not
+`lastActivityAt`, since a content release is not user activity (§12.2). Like every other
+writer it refreshes §13.2's mirror on commit. Its caller is the tree route, **after**
+`scoreSkill` on every tree open; when a migration just ran, it should find the level
+`applyLineage` already persisted and resolve `false`.
+
+**`applyLineage` recomputes and persists attained level inside the migration transaction**
+via the injected `evaluateAttainedLevel` callback — the store imports no scoring code.
+The callback receives the post-disposition `TreeProgress` built from records read through
+the `by-tree` index inside that transaction; its return value becomes
+`MigrationReport.attainedLevel.after` and is written to `SKILL.attainedLevel` before commit.
+The route supplies `(progress) => scoreSkill(tree, progress).attainedLevel`.
 
 A tree with no `SKILL` row is not started, so there is nothing to reconcile and the call is a no-op resolving `false`. It never creates a row: a level computed for a tree the user never began would put an unstarted skill on the map with a rank.
 
@@ -2381,7 +2427,10 @@ export interface ImportReport {
 export function startSkill(treeId: string): Promise<{ pinned: boolean }>;
 ```
 
-Contract: the store write happens first and its failure propagates. The pin is **best-effort** — it is attempted only after the write succeeds, and a rejected pin resolves the call with `pinned: false` rather than throwing. A user near their storage quota (§12.7) must still be able to start a skill; refusing the start because the offline guarantee could not be met would deny the primary action to protect a secondary one.
+Contract: reads the tree's `contentVersion` from the manifest entry (or the loaded bundle
+if already present), calls `store.startSkill(treeId, contentVersion)` — seeding
+`contentVersionSeen` with that value (§12.2) — then attempts `loader.pin(treeId)`. The
+store write happens first and its failure propagates. The pin is **best-effort** — it is attempted only after the write succeeds, and a rejected pin resolves the call with `pinned: false` rather than throwing. A user near their storage quota (§12.7) must still be able to start a skill; refusing the start because the offline guarantee could not be met would deny the primary action to protect a secondary one.
 
 ### 14.6 Data contracts and their versioning
 
@@ -2488,7 +2537,7 @@ Glyphs are real `<use>` elements, not CSS backgrounds, so they survive forced-co
 
 ### 15.6 Self-assessment
 
-F29's placement flow is a long list of checkboxes, which is a genuine risk of being tedious in a screen reader. It is grouped by level with a running count announced per level, is fully operable by keyboard, and is interruptible and resumable — a user must be able to leave a forty-milestone placement halfway and come back. F30's estimator is a small radio group at the top that pre-checks a set, and every pre-checked item is announced as such and individually reversible; a shortcut that silently asserts things about the user would be worse than no shortcut.
+F29's placement flow is a long list of checkboxes, which is a genuine risk of being tedious in a screen reader. It is grouped by level with a running count announced per level, is fully operable by keyboard, and is interruptible and resumable — a user must be able to leave a forty-milestone placement halfway and come back. F30's estimator is a small control at the top (integer level 1–10, or named bands mapped to **L** for presentation) that pre-checks the contiguous prefix per D20, and every pre-checked item is announced as such and individually reversible; a shortcut that silently asserts things about the user would be worse than no shortcut.
 
 ### 15.7 Responsive behaviour
 
@@ -2766,9 +2815,9 @@ Note the collision hazard restated from §1.5: `D-NN` (hyphenated) are architect
 ### D-11: Single repository with npm workspaces
 - **Context.** PRD **D17**, **N10**.
 - **Decision.** One repository. `content/` (authored), `schema/` (contracts), `tools/` and `app/` as workspaces. `tools/` declares no application dependencies.
-- **Alternatives.** *Separate content repo* — cleaner separation of author PRs and an unambiguous home for the content licence (PRD **D26**), but schema changes and the content migrations they force stop being atomic, and it means two CI setups run part-time. *Published content package* — good for third-party reuse, but adds release overhead for a consumer that does not exist.
+- **Alternatives.** *Separate content repo* — cleaner separation of author PRs and an unambiguous home for the content licence (**Creative Commons Attribution 4.0 International (CC BY 4.0)**, PRD **D26**), but schema changes and the content migrations they force stop being atomic, and it means two CI setups run part-time. *Published content package* — good for third-party reuse, but adds release overhead for a consumer that does not exist.
 - **Consequences.** A Tree Author installs one workspace and never installs Svelte, which is how N6 is met concretely. `content/` and `schema/` are positioned so a later split is mechanical.
-- **Revisit if.** Content PR volume drowns application issues, or PRD **D26** resolves to a licence that is awkward to scope within one repository.
+- **Revisit if.** Content PR volume drowns application issues, or the chosen licence becomes awkward to scope within one repository.
 
 ### D-12: GitHub Pages, deploying on merge to `main`
 - **Context.** PRD **C2**, **N1**, **N10**.
@@ -2813,7 +2862,7 @@ Note the collision hazard restated from §1.5: `D-NN` (hyphenated) are architect
 - **Revisit if.** Never, without a PRD change to N2.
 
 ### D-18: Attained level is contiguous; cleared and blocker are separate outputs
-- **Context.** F29 self-assessment gives users random access to the whole ladder on day one, so satisfying level 3 while level 2 is unsatisfied is the normal case, not an edge case. F33 sums attained levels, so "attained" must mean one thing.
+- **Context.** F29 self-assessment gives users random access to the whole ladder on day one, so satisfying level 3 while level 2 is unsatisfied is the normal case, not an edge case. F33 rolls up attained levels through a weighted table, so "attained" must mean one thing.
 - **Decision.** `attained` = highest contiguous satisfied prefix, and it is the sole input to domain score and the sole meaning of the unqualified word "level". `cleared` (the satisfied set) and `blocker` (lowest unsatisfied level plus per-group shortfall) are computed and displayed but never summed.
 - **Alternatives.** *Count of satisfied levels* — kindest to the experienced self-assessor and the smallest un-check blast radius, but it breaks the gate model (F7's CDDA lineage) and is farmable: difficulty rises with level while score would not, so the optimal play becomes starting many skills and cherry-picking scattered easy levels. Domain score 40 would mean two unrelated things. *Strictly contiguous with gaps invisible* — same rank, but tells a sushi-maker they are Level 1 and shows nothing else; on un-check their visible history evaporates. *One-gap tolerance* — a magic constant with no principled value that moves the cliff rather than removing it.
 - **Consequences.** The gap's cost becomes pull: closing one milestone can move attained 1 → 4. Tree rows need three states rather than two (§11.3), un-check and blocking-dismissal need confirmation dialogs (§11.10), and D-19 becomes mandatory rather than optional. Scouting ranks, RPL gap-training, and FTB Quests' FLEXIBLE mode are the converging precedents.
@@ -2827,10 +2876,10 @@ Note the collision hazard restated from §1.5: `D-NN` (hyphenated) are architect
 - **Revisit if.** Never expected to; the alternative's failure mode is silent and unbounded.
 
 ### D-20: Recency ships as a date, not a decaying channel
-- **Context.** PRD **D7**, **F35**, **NG10**. F35 asks for recency on a separate visual channel that may fade over time, without reading as punishment.
+- **Context.** PRD **D7**, **F35**, **NG10**. F35 (amended v1.3) requires recency to be *represented*, leaves the channel unspecified, and names a graded fading channel as a future candidate.
 - **Decision.** Report `lastActivityAt` per domain as a date. No decay function, no fade, no constant. The graded channel is deferred to phase 2 as an experiment (**R-20**).
-- **Alternatives.** *Full graded channel* — exponential decay, τ ≈ 45 days, floor 0.55, chroma-only at fixed hue and lightness, silent, continuous, unqueued, reset only on milestone completion. Every documented anti-pattern designed out, and it satisfies F35 literally. Rejected because no shipped system occupies that cell: every real implementation has teeth and was either withdrawn (Overwatch SR decay, removed to relieve "fatigue and stress"; Duolingo cracked skills, removed in three stages) or is named the worst part of its product (Rust upkeep, LoL decay, Habitica damage). A channel calibrated quiet enough to be safe may be too quiet to be noticed, in which case it fails F35 anyway. *Three discrete states* — names are classifications applied to the user, and a state change is a legible loss event.
-- **Consequences.** Recency occupies **no colour or motion channel in v1** — §10.5's channel table, §15.4's redundancy table and §15.5's reduced-motion list all carry a date and nothing else, and §14.4's monotonicity contract needs no exemption because a maximum over timestamps never decreases. **This deviates from F35 and requires a PRD amendment**; it is escalated rather than decided quietly. Follows FIDE, which represents inactivity with a flag and a date and never a decrement. Costs nothing to reverse: `lastActivityAt` is already stored, so adding decay later touches one component and no data.
+- **Alternatives.** *Full graded channel* — exponential decay, τ ≈ 45 days, floor 0.55, chroma-only at fixed hue and lightness, silent, continuous, unqueued, reset only on milestone completion. Every documented anti-pattern designed out. Rejected because no shipped system occupies that cell: every real implementation has teeth and was either withdrawn (Overwatch SR decay, removed to relieve "fatigue and stress"; Duolingo cracked skills, removed in three stages) or is named the worst part of its product (Rust upkeep, LoL decay, Habitica damage). A channel calibrated quiet enough to be safe may be too quiet to be noticed. *Three discrete states* — names are classifications applied to the user, and a state change is a legible loss event.
+- **Consequences.** Recency occupies **no colour or motion channel in v1** — §10.5's channel table, §15.4's redundancy table and §15.5's reduced-motion list all carry a date and nothing else, and §14.4's monotonicity contract needs no exemption because a maximum over timestamps never decreases. PRD **F35** was amended in v1.3 to match; **R-24** is resolved. Follows FIDE, which represents inactivity with a flag and a date and never a decrement. Costs nothing to reverse: `lastActivityAt` is already stored, so adding decay later touches one component and no data.
 - **Revisit if.** Thirty days of the maintainer's own use (S4) shows the date alone does not answer "which part of my life have I neglected."
 
 ### D-21: Domain score is mildly super-linear in level
@@ -2899,16 +2948,19 @@ Known trade-offs the architecture accepts, recorded so they are not re-derived l
 
 Out of scope here, tracked because each has architectural consequences the design has left room for.
 
-- **PRD D20 — estimator derivation.** F30's "estimate my level" must pre-check a plausible milestone set with no per-skill authored mapping data. Architecturally it is a pure function `(tree, coarseLevel) → uid[]`, which slots into the Scoring Engine with no new subsystem. The *rule* it implements is a product decision.
-- **PRD D23 — user-level domain reassignment.** Flagged in the PRD as the highest-risk open item because moving a skill between domains would reduce a domain's additive score, violating N12. Architecturally the cleanest shape is a **display-only override** stored in user state, leaving scores computed from the authored primary domain — that preserves monotonicity by construction. Recorded as an observation, not a decision; it is the PRD's to make.
+- **PRD D23 — user-level domain reassignment.** **Out of v1** (PRD v1.4). Moving a skill between domains would reduce a domain's additive score, violating N12, and product semantics for frozen historical contribution remain unresolved. Architecturally the cleanest post-v1 shape is a **display-only override** stored in user state, leaving scores computed from the authored primary domain — that preserves monotonicity by construction. F33's weighted table makes the score impact of reassignment worse than under a flat table.
 - **PRD D24 — tree families.** Thirty near-identical language trees would motivate a template or inheritance mechanism. This would be a **compiler** feature — expansion at build time into ordinary standalone trees — so that the schema, validator, and runtime never learn about inheritance. Worth stating now because it constrains nothing today and would be expensive to retrofit if inheritance leaked into the runtime.
-- **PRD D26 — content licence.** Must be chosen before the first external contribution. Architecturally relevant only to D-11: a licence awkward to scope within one repository is one of the two triggers for splitting `content/` out.
 - **PRD D27 — user-authored milestone slots.** Would require user state to hold *content*, which nothing in §12 currently permits, and would collide with F2's enforceability. Not proposed for v1.
 - **PRD D28 — the domain view as a map rather than a list.** §13.1 routes `/d/<domainId>` to a skill *listing*, and §10.7 rules out pan and zoom, so drill-down is route-based: map → list → tree. The alternative raised by the owner (2026-08-05) is that selecting a domain opens **that domain's skills laid out as nodes with their own per-skill fill**, making the map two-level rather than one, with a *hide skills with no progress* filter and a search field. It is an appealing shape and this spec does not accommodate it. *Architectural cost, stated so the decision is priced:* a second layout engine — §8 lays out milestones within a tree, and nothing lays out trees within a domain; a new route and view; and authored or derived geometry for tree placement. Note that per-skill fill would be `attainedLevel / 10`, linear and bounded, and needs no `k` — §11.6's `k` is a domain-level constant and does not transfer. Region *size* remains unavailable as an encoding channel under §10.3 regardless. Not v1; recorded because retrofitting it after content geometry is authored would be materially more expensive than designing for it.
 
-### 19.5 Upstream changes this spec requires
+**Resolved in PRD v1.4 (recorded here for traceability):**
 
-Two items where the architecture work found something the PRD needs to absorb. Neither is the architecture's to decide.
+- **PRD D20 — estimator derivation.** Coarse input is integer **L** ∈ {1..10}. `(tree, L) → uid[]` returns every milestone uid in levels 1..**L** (contiguous prefix; never mastery). Editable suggestion before commit; no distinct stored estimated state; no per-tree mapping. Accepting unchanged yields attained **L**. Guttman errors and un-check blast radius acknowledged. Rule in §11.8; T15 implements.
+- **PRD D26 — content licence.** **Creative Commons Attribution 4.0 International (CC BY 4.0)** for `content/`. Attribution required; future relicence requires every contributor's consent. Architecturally relevant to D-11: a licence awkward to scope within one repository is one of the two triggers for splitting `content/` out.
 
-- **R-24 — F35 requires amendment.** D-20 ships recency as a date, which does not satisfy F35's "separate visual channel, which may fade over time." The evidence does not condemn recency *display*; it condemns every known *implementation* of it, and F35 as written asks for something no researched product has shipped successfully. Proposed amendment: F35 requires recency to be *represented*, leaves the channel unspecified, and names the graded version as a candidate rather than a requirement. Until amended, this spec is knowingly non-compliant with F35 and says so.
-- **R-25 — F33's arithmetic changed.** D-21 makes a skill's contribution `table[L]` rather than `L`, so F33's "sum of levels attained" is no longer literally accurate. Proposed amendment: F33 states that domain score is an additive, monotonic function of attained levels in which higher levels contribute more, with the table held in the architecture spec. `docs/RESEARCH.md` §4 also needs a terminology fix — it describes "later levels worth more" as *concavity*, which is **convexity**; the concavity is on the display side (F34), and conflating the two is precisely the confusion the coupling constraint in §11.6 exists to prevent.
+### 19.5 Upstream PRD amendments — resolved
+
+Two items where the architecture work found something the PRD needed to absorb. Both are now amended in PRD v1.3–v1.4; this spec aligns with the amended requirements.
+
+- **R-24 — F35 recency representation.** **Resolved (PRD v1.3).** F35 requires recency to be *represented*, leaves the channel unspecified, and names the graded fading version as a candidate rather than a requirement. v1 ships `lastActivityAt` as a date (D-20). See §11.7.
+- **R-25 — F33 arithmetic.** **Resolved (PRD v1.3).** F33 states that domain score is an additive, monotonic function of attained levels in which higher levels contribute more, with the table in §11.6. `docs/RESEARCH.md` §4 uses **convexity** for the contribution table and **concavity** for the display mapping (F34).

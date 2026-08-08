@@ -1,0 +1,31 @@
+{
+  "format": "life-xp-skill-tracker/progress",
+  "schemaVersion": 1,
+  "exportedAt": "2026-08-04T11:03:00Z",
+  "appVersion": "1.0.0",
+  "generated": "2026-09-14T00:00:00Z",
+  "skills": [
+    {
+      "treeId": "cooking",
+      "startedAt": "2026-05-01T09:00:00Z",
+      "attainedLevel": 1,
+      "lastActivityAt": "2026-08-04T10:00:00Z",
+      "grandfathered": {}
+    }
+  ],
+  "milestones": [
+    {
+      "uid": "k7m2qp9x",
+      "treeId": "cooking",
+      "slug": "boil-water",
+      "title": "Boil water",
+      "state": "complete",
+      "at": "2026-05-01T09:14:00Z",
+      "contentVersion": 1,
+      "photo": {
+        "bytes": "reserved-for-phase-2"
+      }
+    }
+  ],
+  "orphans": []
+}

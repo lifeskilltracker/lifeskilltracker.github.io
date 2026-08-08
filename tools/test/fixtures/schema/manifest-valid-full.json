@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "generated": "2026-09-02T12:00:00Z",
+  "taxonomy": {
+    "domains": [
+      {
+        "id": "making",
+        "title": "Making",
+        "blurb": "Craft and fabrication.",
+        "palette": {
+          "base": "#AABBCC",
+          "accent": "#DDEEFF"
+        },
+        "subregions": [
+          {
+            "id": "expression",
+            "title": "Expression"
+          },
+          {
+            "id": "objects",
+            "title": "Objects"
+          },
+          {
+            "id": "systems",
+            "title": "Systems"
+          }
+        ]
+      },
+      {
+        "id": "home",
+        "title": "Home",
+        "blurb": "Household life.",
+        "palette": {
+          "base": "#112233",
+          "accent": "#445566"
+        }
+      }
+    ],
+    "facets": [
+      {
+        "id": "practical",
+        "title": "Practical"
+      },
+      {
+        "id": "kitchen",
+        "title": "Kitchen",
+        "note": "Cooking and food prep."
+      }
+    ],
+    "map": {
+      "regions": [
+        {
+          "domain": "making",
+          "path": "M0,0 L10,0",
+          "label": {
+            "x": 5,
+            "y": 2
+          },
+          "bounds": {
+            "x": 0,
+            "y": 0,
+            "width": 10,
+            "height": 8
+          },
+          "subregions": [
+            {
+              "id": "objects",
+              "path": "M1,1 L4,1"
+            }
+          ]
+        },
+        {
+          "domain": "home",
+          "path": "M12,0 L20,0"
+        }
+      ]
+    }
+  },
+  "trees": [
+    {
+      "id": "fixture-full-feature",
+      "contentVersion": 1,
+      "title": "Fixture Full Feature Tree",
+      "summary": "Exercises every §5.3 field for schema validation.",
+      "domain": "making",
+      "secondaryDomains": [
+        "home"
+      ],
+      "subregion": "objects",
+      "facets": [
+        "physical",
+        "workshop"
+      ],
+      "archetype": "dual-track",
+      "milestoneCount": 40,
+      "authors": [
+        "Fixture Author"
+      ],
+      "bundle": "content/bundles/fixture-full-feature.json"
+    }
+  ],
+  "moved": {
+    "q4np8w2r": "fixture-full-feature"
+  }
+}

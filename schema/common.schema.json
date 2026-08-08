@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://life-skill-tracker/schema/common.schema.json",
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Mutable slug; unique within the tree. Immutable after merge (§5.3)."
+    },
+    "domainId": {
+      "type": "string",
+      "enum": [
+        "mind",
+        "body",
+        "making",
+        "home",
+        "people",
+        "work-money",
+        "play",
+        "outdoors-nature"
+      ],
+      "description": "Locked domain identifier from domains.yaml (§5.9, F20)."
+    },
+    "uid": {
+      "type": "string",
+      "pattern": "^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{8}$",
+      "description": "Immutable Crockford base32 identifier; optional at authoring time (§5.4)."
+    },
+    "subregionId": {
+      "type": "string",
+      "enum": ["expression", "objects", "systems"]
+    },
+    "archetype": {
+      "type": "string",
+      "enum": ["single-track", "dual-track", "modular"]
+    },
+    "adapted": {
+      "type": "string",
+      "enum": ["structure", "sequencing", "none"]
+    },
+    "lineageOp": {
+      "type": "string",
+      "enum": ["split", "merged", "retired", "moved"]
+    },
+    "axialTile": {
+      "title": "AxialTile",
+      "type": "array",
+      "prefixItems": [{ "type": "integer" }, { "type": "integer" }],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "labelPosition": {
+      "type": "object",
+      "properties": {
+        "q": { "type": "integer" },
+        "r": { "type": "integer" }
+      },
+      "required": ["q", "r"],
+      "additionalProperties": false
+    },
+    "palette": {
+      "type": "object",
+      "properties": {
+        "base": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "accent": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
+      },
+      "required": ["base", "accent"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "domains": [
+    {
+      "id": "home",
+      "title": "Home",
+      "blurb": "Home life skills.",
+      "palette": {
+        "base": "#112233",
+        "accent": "#445566"
+      },
+      "subregions": [
+        {
+          "id": "expression",
+          "title": "Invalid"
+        }
+      ]
+    }
+  ]
+}

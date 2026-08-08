@@ -1,0 +1,920 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": 1,
+  "id": "fixture-full-feature",
+  "title": "Fixture Full Feature Tree",
+  "summary": "Exercises every §5.3 field for schema validation.",
+  "domain": "making",
+  "secondaryDomains": [
+    "home"
+  ],
+  "subregion": "objects",
+  "facets": [
+    "physical",
+    "workshop"
+  ],
+  "archetype": "dual-track",
+  "tracks": [
+    {
+      "id": "forge",
+      "title": "Forge work"
+    },
+    {
+      "id": "finishing",
+      "title": "Heat treat and finish"
+    }
+  ],
+  "provenance": {
+    "authors": [
+      {
+        "name": "Fixture Author",
+        "github": "fixture"
+      }
+    ],
+    "reviews": [
+      {
+        "round": 1,
+        "reviewer": "Reviewer",
+        "date": "2026-09-02"
+      }
+    ],
+    "sources": [
+      {
+        "title": "Example source",
+        "url": "https://example.org",
+        "adapted": "sequencing"
+      }
+    ],
+    "copyleftDerived": false
+  },
+  "levels": [
+    {
+      "level": 1,
+      "milestones": [
+        {
+          "index": 0,
+          "slug": "light-the-forge"
+        },
+        {
+          "index": 1,
+          "slug": "draw-a-taper"
+        },
+        {
+          "index": 2,
+          "slug": "make-a-j-hook"
+        },
+        {
+          "index": 3,
+          "slug": "quench-safely"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "all",
+          "milestones": [
+            {
+              "index": 0,
+              "slug": "light-the-forge"
+            },
+            {
+              "index": 1,
+              "slug": "draw-a-taper"
+            },
+            {
+              "index": 2,
+              "slug": "make-a-j-hook"
+            },
+            {
+              "index": 3,
+              "slug": "quench-safely"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "milestones": [
+        {
+          "index": 4,
+          "slug": "forge-a-leaf"
+        },
+        {
+          "index": 5,
+          "slug": "punch-and-drift"
+        },
+        {
+          "index": 6,
+          "slug": "hot-cut"
+        },
+        {
+          "index": 7,
+          "slug": "wire-brush-finish"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "all",
+          "milestones": [
+            {
+              "index": 4,
+              "slug": "forge-a-leaf"
+            },
+            {
+              "index": 5,
+              "slug": "punch-and-drift"
+            },
+            {
+              "index": 6,
+              "slug": "hot-cut"
+            }
+          ]
+        },
+        {
+          "rule": "n_of",
+          "n": 1,
+          "milestones": [
+            {
+              "index": 7,
+              "slug": "wire-brush-finish"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "level": 3,
+      "milestones": [
+        {
+          "index": 8,
+          "slug": "l3-a"
+        },
+        {
+          "index": 9,
+          "slug": "l3-b"
+        },
+        {
+          "index": 10,
+          "slug": "l3-c"
+        },
+        {
+          "index": 11,
+          "slug": "l3-d"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "n_of",
+          "n": 2,
+          "milestones": [
+            {
+              "index": 8,
+              "slug": "l3-a"
+            },
+            {
+              "index": 9,
+              "slug": "l3-b"
+            },
+            {
+              "index": 10,
+              "slug": "l3-c"
+            },
+            {
+              "index": 11,
+              "slug": "l3-d"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "level": 4,
+      "milestones": [
+        {
+          "index": 12,
+          "slug": "l4-a"
+        },
+        {
+          "index": 13,
+          "slug": "l4-b"
+        },
+        {
+          "index": 14,
+          "slug": "l4-c"
+        },
+        {
+          "index": 15,
+          "slug": "l4-d"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "all",
+          "milestones": [
+            {
+              "index": 12,
+              "slug": "l4-a"
+            },
+            {
+              "index": 13,
+              "slug": "l4-b"
+            },
+            {
+              "index": 14,
+              "slug": "l4-c"
+            },
+            {
+              "index": 15,
+              "slug": "l4-d"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "level": 5,
+      "milestones": [
+        {
+          "index": 16,
+          "slug": "l5-a"
+        },
+        {
+          "index": 17,
+          "slug": "l5-b"
+        },
+        {
+          "index": 18,
+          "slug": "l5-c"
+        },
+        {
+          "index": 19,
+          "slug": "l5-d"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "all",
+          "milestones": [
+            {
+              "index": 16,
+              "slug": "l5-a"
+            },
+            {
+              "index": 17,
+              "slug": "l5-b"
+            },
+            {
+              "index": 18,
+              "slug": "l5-c"
+            },
+            {
+              "index": 19,
+              "slug": "l5-d"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "level": 6,
+      "milestones": [
+        {
+          "index": 20,
+          "slug": "l6-a"
+        },
+        {
+          "index": 21,
+          "slug": "l6-b"
+        },
+        {
+          "index": 22,
+          "slug": "l6-c"
+        },
+        {
+          "index": 23,
+          "slug": "l6-d"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "all",
+          "milestones": [
+            {
+              "index": 20,
+              "slug": "l6-a"
+            },
+            {
+              "index": 21,
+              "slug": "l6-b"
+            },
+            {
+              "index": 22,
+              "slug": "l6-c"
+            },
+            {
+              "index": 23,
+              "slug": "l6-d"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "level": 7,
+      "milestones": [
+        {
+          "index": 24,
+          "slug": "l7-a"
+        },
+        {
+          "index": 25,
+          "slug": "l7-b"
+        },
+        {
+          "index": 26,
+          "slug": "l7-c"
+        },
+        {
+          "index": 27,
+          "slug": "l7-d"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "all",
+          "milestones": [
+            {
+              "index": 24,
+              "slug": "l7-a"
+            },
+            {
+              "index": 25,
+              "slug": "l7-b"
+            },
+            {
+              "index": 26,
+              "slug": "l7-c"
+            },
+            {
+              "index": 27,
+              "slug": "l7-d"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "level": 8,
+      "milestones": [
+        {
+          "index": 28,
+          "slug": "l8-a"
+        },
+        {
+          "index": 29,
+          "slug": "l8-b"
+        },
+        {
+          "index": 30,
+          "slug": "l8-c"
+        },
+        {
+          "index": 31,
+          "slug": "l8-d"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "all",
+          "milestones": [
+            {
+              "index": 28,
+              "slug": "l8-a"
+            },
+            {
+              "index": 29,
+              "slug": "l8-b"
+            },
+            {
+              "index": 30,
+              "slug": "l8-c"
+            },
+            {
+              "index": 31,
+              "slug": "l8-d"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "level": 9,
+      "milestones": [
+        {
+          "index": 32,
+          "slug": "l9-a"
+        },
+        {
+          "index": 33,
+          "slug": "l9-b"
+        },
+        {
+          "index": 34,
+          "slug": "l9-c"
+        },
+        {
+          "index": 35,
+          "slug": "l9-d"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "all",
+          "milestones": [
+            {
+              "index": 32,
+              "slug": "l9-a"
+            },
+            {
+              "index": 33,
+              "slug": "l9-b"
+            },
+            {
+              "index": 34,
+              "slug": "l9-c"
+            },
+            {
+              "index": 35,
+              "slug": "l9-d"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "level": 10,
+      "milestones": [
+        {
+          "index": 36,
+          "slug": "l10-a"
+        },
+        {
+          "index": 37,
+          "slug": "l10-b"
+        },
+        {
+          "index": 38,
+          "slug": "l10-c"
+        },
+        {
+          "index": 39,
+          "slug": "l10-d"
+        }
+      ],
+      "requirements": [
+        {
+          "rule": "all",
+          "milestones": [
+            {
+              "index": 36,
+              "slug": "l10-a"
+            },
+            {
+              "index": 37,
+              "slug": "l10-b"
+            },
+            {
+              "index": 38,
+              "slug": "l10-c"
+            },
+            {
+              "index": 39,
+              "slug": "l10-d"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "mastery": [
+    {
+      "id": "damascus-billet",
+      "title": "Forge-weld a billet",
+      "detail": "Produce a pattern-welded billet."
+    },
+    {
+      "id": "teach-a-course",
+      "uid": "n4pz73gd",
+      "title": "Run a forging course",
+      "detail": "Lead a multi-session forging class.",
+      "requires": [
+        {
+          "kind": "milestone",
+          "index": 36,
+          "slug": "l10-a"
+        },
+        {
+          "kind": "achievement",
+          "index": 0,
+          "slug": "damascus-billet"
+        }
+      ]
+    }
+  ],
+  "lineage": [
+    {
+      "uid": "q4np8w2r",
+      "op": "split",
+      "into": [
+        "m3xk90ab",
+        "v8t2ncq5"
+      ],
+      "note": "example split"
+    }
+  ],
+  "milestones": [
+    {
+      "id": "light-the-forge",
+      "uid": "k7m2qp9x",
+      "aliases": [
+        "light-forge"
+      ],
+      "title": "Light the forge",
+      "detail": "Bring the forge to working heat safely.",
+      "level": 1,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "draw-a-taper",
+      "uid": "v8t2ncq5",
+      "title": "Draw a taper",
+      "detail": "Draw a consistent taper on round stock.",
+      "level": 1,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "make-a-j-hook",
+      "uid": "m3xk90ab",
+      "title": "Forge a J hook",
+      "level": 1,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0,
+      "requires": [
+        {
+          "index": 0,
+          "slug": "light-the-forge"
+        },
+        {
+          "index": 1,
+          "slug": "draw-a-taper"
+        }
+      ]
+    },
+    {
+      "id": "quench-safely",
+      "uid": "q4np8w2r",
+      "title": "Quench safely",
+      "level": 1,
+      "track": "finishing",
+      "trackIndex": 1,
+      "order": 0
+    },
+    {
+      "id": "forge-a-leaf",
+      "uid": "t9wm41xz",
+      "title": "Forge a leaf",
+      "level": 2,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0,
+      "requires": [
+        {
+          "index": 2,
+          "slug": "make-a-j-hook"
+        }
+      ]
+    },
+    {
+      "id": "punch-and-drift",
+      "uid": "b7hdk3fp",
+      "title": "Punch and drift",
+      "level": 2,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "hot-cut",
+      "uid": "z2vr65jm",
+      "title": "Hot cut",
+      "level": 2,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "wire-brush-finish",
+      "uid": "h8dq37nc",
+      "title": "Wire brush finish",
+      "level": 2,
+      "track": "finishing",
+      "trackIndex": 1,
+      "order": 0
+    },
+    {
+      "id": "l3-a",
+      "uid": "aaaaaaa1",
+      "title": "Level 3 a",
+      "level": 3,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 2,
+      "module": "basics"
+    },
+    {
+      "id": "l3-b",
+      "uid": "aaaaaaa2",
+      "title": "Level 3 b",
+      "level": 3,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 1,
+      "module": "basics"
+    },
+    {
+      "id": "l3-c",
+      "uid": "aaaaaaa3",
+      "title": "Level 3 c",
+      "level": 3,
+      "track": "finishing",
+      "trackIndex": 1,
+      "order": 0
+    },
+    {
+      "id": "l3-d",
+      "uid": "aaaaaaa4",
+      "title": "Level 3 d",
+      "level": 3,
+      "track": "finishing",
+      "trackIndex": 1,
+      "order": 0
+    },
+    {
+      "id": "l4-a",
+      "uid": "b0000012",
+      "title": "Level 4 a",
+      "level": 4,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l4-b",
+      "uid": "b0000013",
+      "title": "Level 4 b",
+      "level": 4,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l4-c",
+      "uid": "b0000014",
+      "title": "Level 4 c",
+      "level": 4,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l4-d",
+      "uid": "b0000015",
+      "title": "Level 4 d",
+      "level": 4,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l5-a",
+      "uid": "b0000016",
+      "title": "Level 5 a",
+      "level": 5,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l5-b",
+      "uid": "b0000017",
+      "title": "Level 5 b",
+      "level": 5,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l5-c",
+      "uid": "b0000018",
+      "title": "Level 5 c",
+      "level": 5,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l5-d",
+      "uid": "b0000019",
+      "title": "Level 5 d",
+      "level": 5,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l6-a",
+      "uid": "b0000020",
+      "title": "Level 6 a",
+      "level": 6,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l6-b",
+      "uid": "b0000021",
+      "title": "Level 6 b",
+      "level": 6,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l6-c",
+      "uid": "b0000022",
+      "title": "Level 6 c",
+      "level": 6,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l6-d",
+      "uid": "b0000023",
+      "title": "Level 6 d",
+      "level": 6,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l7-a",
+      "uid": "b0000024",
+      "title": "Level 7 a",
+      "level": 7,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l7-b",
+      "uid": "b0000025",
+      "title": "Level 7 b",
+      "level": 7,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l7-c",
+      "uid": "b0000026",
+      "title": "Level 7 c",
+      "level": 7,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l7-d",
+      "uid": "b0000027",
+      "title": "Level 7 d",
+      "level": 7,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l8-a",
+      "uid": "b0000028",
+      "title": "Level 8 a",
+      "level": 8,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l8-b",
+      "uid": "b0000029",
+      "title": "Level 8 b",
+      "level": 8,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l8-c",
+      "uid": "b0000030",
+      "title": "Level 8 c",
+      "level": 8,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l8-d",
+      "uid": "b0000031",
+      "title": "Level 8 d",
+      "level": 8,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l9-a",
+      "uid": "b0000032",
+      "title": "Level 9 a",
+      "level": 9,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l9-b",
+      "uid": "b0000033",
+      "title": "Level 9 b",
+      "level": 9,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l9-c",
+      "uid": "b0000034",
+      "title": "Level 9 c",
+      "level": 9,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l9-d",
+      "uid": "b0000035",
+      "title": "Level 9 d",
+      "level": 9,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l10-a",
+      "uid": "b0000036",
+      "title": "Level 10 a",
+      "level": 10,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l10-b",
+      "uid": "b0000037",
+      "title": "Level 10 b",
+      "level": 10,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l10-c",
+      "uid": "b0000038",
+      "title": "Level 10 c",
+      "level": 10,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    },
+    {
+      "id": "l10-d",
+      "uid": "b0000039",
+      "title": "Level 10 d",
+      "level": 10,
+      "track": "forge",
+      "trackIndex": 0,
+      "order": 0
+    }
+  ]
+}

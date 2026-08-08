@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "domains": [
+    {
+      "id": "not-a-domain",
+      "title": "Invalid",
+      "blurb": "Unknown domain id.",
+      "palette": { "base": "#112233", "accent": "#445566" }
+    }
+  ]
+}

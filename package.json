@@ -1,0 +1,24 @@
+{
+  "name": "life-skill-tracker",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "app",
+    "tools"
+  ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "test": "npm run test --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint .",
+    "build": "npm run compile --workspace tools && npm run build --workspace app",
+    "gen:types": "npm run build:cli --workspace tools && node tools/dist/gen-types.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.8.1",
+    "typescript-eslint": "8.66.0"
+  }
+}

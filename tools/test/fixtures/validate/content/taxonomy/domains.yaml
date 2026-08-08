@@ -1,0 +1,38 @@
+schemaVersion: 1
+domains:
+  - id: mind
+    title: Mind
+    blurb: Mind domain fixture.
+    palette: { base: "#4a5568", accent: "#90cdf4" }
+  - id: body
+    title: Body
+    blurb: Body domain fixture.
+    palette: { base: "#744210", accent: "#f6ad55" }
+  - id: making
+    title: Making
+    blurb: Making domain fixture.
+    palette: { base: "#8a5a3b", accent: "#d9a066" }
+    subregions:
+      - { id: expression, title: Expression }
+      - { id: objects, title: Objects }
+      - { id: systems, title: Systems }
+  - id: home
+    title: Home
+    blurb: Home domain fixture.
+    palette: { base: "#276749", accent: "#68d391" }
+  - id: people
+    title: People
+    blurb: People domain fixture.
+    palette: { base: "#702459", accent: "#f687b3" }
+  - id: work-money
+    title: Work & Money
+    blurb: Work domain fixture.
+    palette: { base: "#2c5282", accent: "#63b3ed" }
+  - id: play
+    title: Play
+    blurb: Play domain fixture.
+    palette: { base: "#553c9a", accent: "#b794f4" }
+  - id: outdoors-nature
+    title: Outdoors & Nature
+    blurb: Outdoors domain fixture.
+    palette: { base: "#22543d", accent: "#9ae6b4" }

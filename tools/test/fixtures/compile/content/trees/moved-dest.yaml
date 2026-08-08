@@ -1,0 +1,151 @@
+schemaVersion: 1
+contentVersion: 1
+title: Moved destination
+summary: Validate fixture tree.
+domain: home
+provenance:
+  authors:
+    - name: Fixture Author
+  copyleftDerived: false
+levels:
+  - level: 1
+    milestones:
+      - id: l1-m1
+        uid: aaa46500
+        title: Level 1 milestone 1
+      - id: l1-m2
+        uid: aaa46501
+        title: Level 1 milestone 2
+      - id: l1-m3
+        uid: aaa46502
+        title: Level 1 milestone 3
+      - id: l1-m4
+        uid: aaa46503
+        title: Level 1 milestone 4
+  - level: 2
+    milestones:
+      - id: l2-m1
+        uid: aaa46504
+        title: Level 2 milestone 1
+      - id: l2-m2
+        uid: aaa46505
+        title: Level 2 milestone 2
+      - id: l2-m3
+        uid: aaa46506
+        title: Level 2 milestone 3
+      - id: l2-m4
+        uid: aaa46507
+        title: Level 2 milestone 4
+  - level: 3
+    milestones:
+      - id: l3-m1
+        uid: aaa46508
+        title: Level 3 milestone 1
+      - id: l3-m2
+        uid: aaa46509
+        title: Level 3 milestone 2
+      - id: l3-m3
+        uid: aaa46510
+        title: Level 3 milestone 3
+      - id: l3-m4
+        uid: aaa46511
+        title: Level 3 milestone 4
+  - level: 4
+    milestones:
+      - id: l4-m1
+        uid: aaa46512
+        title: Level 4 milestone 1
+      - id: l4-m2
+        uid: aaa46513
+        title: Level 4 milestone 2
+      - id: l4-m3
+        uid: aaa46514
+        title: Level 4 milestone 3
+      - id: l4-m4
+        uid: aaa46515
+        title: Level 4 milestone 4
+  - level: 5
+    milestones:
+      - id: l5-m1
+        uid: aaa46516
+        title: Level 5 milestone 1
+      - id: l5-m2
+        uid: aaa46517
+        title: Level 5 milestone 2
+      - id: l5-m3
+        uid: aaa46518
+        title: Level 5 milestone 3
+      - id: l5-m4
+        uid: aaa46519
+        title: Level 5 milestone 4
+  - level: 6
+    milestones:
+      - id: l6-m1
+        uid: aaa46520
+        title: Level 6 milestone 1
+      - id: l6-m2
+        uid: aaa46521
+        title: Level 6 milestone 2
+      - id: l6-m3
+        uid: aaa46522
+        title: Level 6 milestone 3
+      - id: l6-m4
+        uid: aaa46523
+        title: Level 6 milestone 4
+  - level: 7
+    milestones:
+      - id: l7-m1
+        uid: aaa46524
+        title: Level 7 milestone 1
+      - id: l7-m2
+        uid: aaa46525
+        title: Level 7 milestone 2
+      - id: l7-m3
+        uid: aaa46526
+        title: Level 7 milestone 3
+      - id: l7-m4
+        uid: aaa46527
+        title: Level 7 milestone 4
+  - level: 8
+    milestones:
+      - id: l8-m1
+        uid: aaa46528
+        title: Level 8 milestone 1
+      - id: l8-m2
+        uid: aaa46529
+        title: Level 8 milestone 2
+      - id: l8-m3
+        uid: aaa46530
+        title: Level 8 milestone 3
+      - id: l8-m4
+        uid: aaa46531
+        title: Level 8 milestone 4
+  - level: 9
+    milestones:
+      - id: l9-m1
+        uid: aaa46532
+        title: Level 9 milestone 1
+      - id: l9-m2
+        uid: aaa46533
+        title: Level 9 milestone 2
+      - id: l9-m3
+        uid: aaa46534
+        title: Level 9 milestone 3
+      - id: l9-m4
+        uid: aaa46535
+        title: Level 9 milestone 4
+  - level: 10
+    milestones:
+      - id: l10-m1
+        uid: aaa46536
+        title: Level 10 milestone 1
+      - id: l10-m2
+        uid: aaa46537
+        title: Level 10 milestone 2
+      - id: l10-m3
+        uid: aaa46538
+        title: Level 10 milestone 3
+      - id: l10-m4
+        uid: aaa46539
+        title: Level 10 milestone 4
+id: moved-dest

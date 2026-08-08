@@ -1,0 +1,24 @@
+{
+  "name": "@life-skill-tracker/app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check": "npm run typecheck && npm run test"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "3.0.10",
+    "@sveltejs/kit": "2.70.2",
+    "@sveltejs/vite-plugin-svelte": "7.2.0",
+    "@types/node": "20.19.43",
+    "svelte": "5.56.8",
+    "svelte-check": "4.7.5",
+    "typescript": "5.9.3",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}

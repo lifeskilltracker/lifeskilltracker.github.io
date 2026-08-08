@@ -1,0 +1,151 @@
+schemaVersion: 1
+contentVersion: 1
+title: Fixture rule-05-pass
+summary: Validate fixture tree.
+domain: home
+provenance:
+  authors:
+    - name: Fixture Author
+  copyleftDerived: false
+levels:
+  - level: 1
+    milestones:
+      - id: l1-m1
+        uid: aaa00450
+        title: Level 1 milestone 1
+      - id: l1-m2
+        uid: aaa00451
+        title: Level 1 milestone 2
+      - id: l1-m3
+        uid: aaa00452
+        title: Level 1 milestone 3
+      - id: l1-m4
+        uid: aaa00453
+        title: Level 1 milestone 4
+  - level: 2
+    milestones:
+      - id: l2-m1
+        uid: aaa00454
+        title: Level 2 milestone 1
+      - id: l2-m2
+        uid: aaa00455
+        title: Level 2 milestone 2
+      - id: l2-m3
+        uid: aaa00456
+        title: Level 2 milestone 3
+      - id: l2-m4
+        uid: aaa00457
+        title: Level 2 milestone 4
+  - level: 3
+    milestones:
+      - id: l3-m1
+        uid: aaa00458
+        title: Level 3 milestone 1
+      - id: l3-m2
+        uid: aaa00459
+        title: Level 3 milestone 2
+      - id: l3-m3
+        uid: aaa00460
+        title: Level 3 milestone 3
+      - id: l3-m4
+        uid: aaa00461
+        title: Level 3 milestone 4
+  - level: 4
+    milestones:
+      - id: l4-m1
+        uid: aaa00462
+        title: Level 4 milestone 1
+      - id: l4-m2
+        uid: aaa00463
+        title: Level 4 milestone 2
+      - id: l4-m3
+        uid: aaa00464
+        title: Level 4 milestone 3
+      - id: l4-m4
+        uid: aaa00465
+        title: Level 4 milestone 4
+  - level: 5
+    milestones:
+      - id: l5-m1
+        uid: aaa00466
+        title: Level 5 milestone 1
+      - id: l5-m2
+        uid: aaa00467
+        title: Level 5 milestone 2
+      - id: l5-m3
+        uid: aaa00468
+        title: Level 5 milestone 3
+      - id: l5-m4
+        uid: aaa00469
+        title: Level 5 milestone 4
+  - level: 6
+    milestones:
+      - id: l6-m1
+        uid: aaa00470
+        title: Level 6 milestone 1
+      - id: l6-m2
+        uid: aaa00471
+        title: Level 6 milestone 2
+      - id: l6-m3
+        uid: aaa00472
+        title: Level 6 milestone 3
+      - id: l6-m4
+        uid: aaa00473
+        title: Level 6 milestone 4
+  - level: 7
+    milestones:
+      - id: l7-m1
+        uid: aaa00474
+        title: Level 7 milestone 1
+      - id: l7-m2
+        uid: aaa00475
+        title: Level 7 milestone 2
+      - id: l7-m3
+        uid: aaa00476
+        title: Level 7 milestone 3
+      - id: l7-m4
+        uid: aaa00477
+        title: Level 7 milestone 4
+  - level: 8
+    milestones:
+      - id: l8-m1
+        uid: aaa00478
+        title: Level 8 milestone 1
+      - id: l8-m2
+        uid: aaa00479
+        title: Level 8 milestone 2
+      - id: l8-m3
+        uid: aaa00480
+        title: Level 8 milestone 3
+      - id: l8-m4
+        uid: aaa00481
+        title: Level 8 milestone 4
+  - level: 9
+    milestones:
+      - id: l9-m1
+        uid: aaa00482
+        title: Level 9 milestone 1
+      - id: l9-m2
+        uid: aaa00483
+        title: Level 9 milestone 2
+      - id: l9-m3
+        uid: aaa00484
+        title: Level 9 milestone 3
+      - id: l9-m4
+        uid: aaa00485
+        title: Level 9 milestone 4
+  - level: 10
+    milestones:
+      - id: l10-m1
+        uid: aaa00486
+        title: Level 10 milestone 1
+      - id: l10-m2
+        uid: aaa00487
+        title: Level 10 milestone 2
+      - id: l10-m3
+        uid: aaa00488
+        title: Level 10 milestone 3
+      - id: l10-m4
+        uid: aaa00489
+        title: Level 10 milestone 4
+id: rule-05-pass

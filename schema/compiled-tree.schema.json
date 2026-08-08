@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://life-skill-tracker/schema/compiled-tree.schema.json",
+  "title": "CompiledTree",
+  "type": "object",
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "contentVersion": { "type": "integer", "minimum": 1 },
+    "id": { "$ref": "./common.schema.json#/$defs/slug" },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "domain": { "$ref": "./common.schema.json#/$defs/domainId" },
+    "secondaryDomains": {
+      "type": "array",
+      "items": { "$ref": "./common.schema.json#/$defs/domainId" },
+      "uniqueItems": true
+    },
+    "subregion": { "$ref": "./common.schema.json#/$defs/subregionId" },
+    "facets": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true
+    },
+    "archetype": { "$ref": "./common.schema.json#/$defs/archetype" },
+    "tracks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/track" }
+    },
+    "provenance": { "$ref": "#/$defs/provenance" },
+    "levels": { "$ref": "#/$defs/levels" },
+    "mastery": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/masteryEntry" }
+    },
+    "lineage": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/lineageEntry" }
+    },
+    "milestones": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/compiledMilestone" },
+      "description": "Flat milestone index used by compiled slug references."
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "contentVersion",
+    "id",
+    "title",
+    "summary",
+    "domain",
+    "provenance",
+    "levels",
+    "milestones"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": { "domain": { "const": "making" } },
+        "required": ["domain"]
+      },
+      "then": { "required": ["subregion"] }
+    },
+    {
+      "if": {
+        "properties": { "domain": { "not": { "const": "making" } } },
+        "required": ["domain"]
+      },
+      "then": { "properties": { "subregion": false } }
+    }
+  ],
+  "$defs": {
+    "milestoneRef": {
+      "type": "object",
+      "properties": {
+        "index": { "type": "integer", "minimum": 0 },
+        "slug": { "$ref": "./common.schema.json#/$defs/slug" }
+      },
+      "required": ["index", "slug"],
+      "additionalProperties": false
+    },
+    "masteryRequiresRef": {
+      "title": "MasteryRequiresRef",
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "enum": ["milestone", "achievement"] },
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Index into CompiledTree.milestones when kind is milestone, or CompiledTree.mastery when kind is achievement."
+        },
+        "slug": { "$ref": "./common.schema.json#/$defs/slug" }
+      },
+      "required": ["kind", "index", "slug"],
+      "additionalProperties": false,
+      "description": "Compiled prerequisite reference for mastery entries (§5.7: milestones or other achievements)."
+    },
+    "track": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "./common.schema.json#/$defs/slug" },
+        "title": { "type": "string", "minLength": 1 }
+      },
+      "required": ["id", "title"],
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "authors": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/author" }
+        },
+        "reviews": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/review" }
+        },
+        "sources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/source" }
+        },
+        "copyleftDerived": { "type": "boolean" }
+      },
+      "required": ["authors", "copyleftDerived"],
+      "additionalProperties": false
+    },
+    "author": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "github": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "enum": ["reviser"] },
+        "since": { "type": "string", "format": "date" }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "review": {
+      "type": "object",
+      "properties": {
+        "round": { "type": "integer", "minimum": 1 },
+        "reviewer": { "type": "string", "minLength": 1 },
+        "date": { "type": "string", "format": "date" }
+      },
+      "required": ["round", "reviewer", "date"],
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "url": { "type": "string", "format": "uri" },
+        "adapted": { "$ref": "./common.schema.json#/$defs/adapted" }
+      },
+      "required": ["title"],
+      "additionalProperties": false
+    },
+    "compiledMilestone": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "./common.schema.json#/$defs/slug" },
+        "uid": { "$ref": "./common.schema.json#/$defs/uid" },
+        "aliases": {
+          "type": "array",
+          "items": { "$ref": "./common.schema.json#/$defs/slug" },
+          "uniqueItems": true
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string" },
+        "level": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "track": {
+          "oneOf": [
+            { "type": "string", "const": "" },
+            { "$ref": "./common.schema.json#/$defs/slug" }
+          ]
+        },
+        "trackIndex": { "type": "integer", "minimum": 0 },
+        "order": { "type": "integer", "minimum": 0 },
+        "module": { "type": "string", "minLength": 1 },
+        "requires": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/milestoneRef" },
+          "uniqueItems": true
+        }
+      },
+      "required": ["id", "uid", "title", "level", "track", "trackIndex", "order"],
+      "additionalProperties": false
+    },
+    "levelBody": {
+      "title": "CompiledLevel",
+      "type": "object",
+      "properties": {
+        "level": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "milestones": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 8,
+          "items": { "$ref": "#/$defs/milestoneRef" }
+        },
+        "requirements": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/requirementGroup" }
+        }
+      },
+      "required": ["level", "milestones", "requirements"],
+      "additionalProperties": false
+    },
+    "levels": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 1 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 2 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 3 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 4 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 5 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 6 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 7 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 8 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 9 } } }] },
+        { "allOf": [{ "$ref": "#/$defs/levelBody" }, { "properties": { "level": { "const": 10 } } }] }
+      ],
+      "items": false
+    },
+    "requirementGroup": {
+      "type": "object",
+      "properties": {
+        "rule": { "type": "string", "enum": ["all", "n_of"] },
+        "n": { "type": "integer", "minimum": 1 },
+        "milestones": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/milestoneRef" },
+          "uniqueItems": true
+        }
+      },
+      "required": ["rule", "milestones"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": { "properties": { "rule": { "const": "n_of" } }, "required": ["rule"] },
+          "then": { "required": ["n"] }
+        },
+        {
+          "if": { "properties": { "rule": { "const": "all" } }, "required": ["rule"] },
+          "then": { "not": { "required": ["n"] } }
+        }
+      ]
+    },
+    "masteryEntry": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "./common.schema.json#/$defs/slug" },
+        "uid": { "$ref": "./common.schema.json#/$defs/uid" },
+        "title": { "type": "string", "minLength": 1 },
+        "detail": { "type": "string" },
+        "requires": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/masteryRequiresRef" },
+          "uniqueItems": true
+        }
+      },
+      "required": ["id", "uid", "title"],
+      "additionalProperties": false
+    },
+    "lineageEntry": {
+      "type": "object",
+      "properties": {
+        "uid": { "$ref": "./common.schema.json#/$defs/uid" },
+        "op": { "$ref": "./common.schema.json#/$defs/lineageOp" },
+        "into": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "note": { "type": "string" }
+      },
+      "required": ["uid", "op"],
+      "additionalProperties": false
+    }
+  }
+}

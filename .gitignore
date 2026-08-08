@@ -22,3 +22,10 @@ Thumbs.db
 # Navigator runtime state
 .agent/.nav-read-counter.json
 .agent/.nav-workflow-state.json
+
+# Dependencies and build artifacts
+node_modules/
+app/build/
+app/.svelte-kit/
+app/static/content/
+tools/dist/

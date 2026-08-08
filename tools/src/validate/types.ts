@@ -1,0 +1,131 @@
+export type DomainId =
+  | 'mind'
+  | 'body'
+  | 'making'
+  | 'home'
+  | 'people'
+  | 'work-money'
+  | 'play'
+  | 'outdoors-nature';
+
+export type SubregionId = 'expression' | 'objects' | 'systems';
+
+export type LineageOp = 'split' | 'merged' | 'retired' | 'moved';
+
+export interface Milestone {
+  id: string;
+  uid?: string;
+  title: string;
+  detail?: string;
+  aliases?: string[];
+  track?: string;
+  order?: number;
+  module?: string;
+  requires?: string[];
+}
+
+export interface RequirementGroup {
+  rule: 'all' | 'n_of' | 'any';
+  n?: number;
+  milestones: string[];
+}
+
+export interface AuthoredLevel {
+  level: number;
+  milestones: Milestone[];
+  requirements?: RequirementGroup[];
+}
+
+export interface MasteryEntry {
+  id: string;
+  uid?: string;
+  title: string;
+  detail?: string;
+  requires?: string[];
+}
+
+export interface LineageEntry {
+  uid: string;
+  op: LineageOp;
+  into?: string[];
+  note?: string;
+}
+
+export interface Track {
+  id: string;
+  title: string;
+}
+
+export interface Tree {
+  schemaVersion: number;
+  contentVersion: number;
+  id: string;
+  title: string;
+  summary: string;
+  domain: DomainId;
+  secondaryDomains?: DomainId[];
+  subregion?: SubregionId;
+  facets?: string[];
+  archetype?: string;
+  tracks?: Track[];
+  provenance: {
+    authors: Array<{ name: string; github?: string }>;
+    copyleftDerived?: boolean;
+    reviews?: unknown[];
+    sources?: unknown[];
+  };
+  levels: AuthoredLevel[];
+  mastery?: MasteryEntry[];
+  lineage?: LineageEntry[];
+}
+
+export interface DomainsFile {
+  schemaVersion: number;
+  domains: Array<{
+    id: DomainId;
+    title: string;
+    blurb?: string;
+    palette?: { base: string; accent: string };
+    subregions?: Array<{ id: SubregionId; title: string }>;
+  }>;
+}
+
+export interface FacetsFile {
+  schemaVersion: number;
+  facets: Array<{ id: string; title: string; note?: string }>;
+}
+
+export type AxialTile = [number, number];
+
+export interface MapRegion {
+  domain: DomainId;
+  tiles: AxialTile[];
+  label?: { q: number; r: number };
+  subregions?: Array<{ id: SubregionId; tiles: AxialTile[] }>;
+}
+
+export interface MapFile {
+  schemaVersion: number;
+  hexSize: number;
+  regions: MapRegion[];
+}
+
+export interface LoadedTree {
+  path: string;
+  tree: Tree;
+}
+
+export interface MilestoneRef {
+  treeId: string;
+  treePath: string;
+  level: number;
+  milestone: Milestone;
+  slug: string;
+}
+
+export interface MasteryRef {
+  treeId: string;
+  treePath: string;
+  entry: MasteryEntry;
+  slug: string;
+}

@@ -145,7 +145,7 @@ This moves complexity out of the renderer and into the author's head. The archet
 
 PRD **F13–F16**, **N11**. No layout algorithm runs. Contributors write `level` (required, the row), `track` (optional, the column, branching skills only), `order` (optional integer tiebreak), and `module` (optional, clustered skills). The renderer maps `(level, track index, order)` onto a grid cell — CSS grid on desktop, collapsing to one column per level on mobile, which yields the layout-free fallback for free. Edges are drawn between cells and may cross; crossings are accepted in exchange for stability. Adding a milestone shifts one lane, never the whole graph.
 
-CI validates level ∈ 1–10, that `requires` targets exist, that there are no cycles, that a prerequisite's level is at or below its dependent's, and that `track` and `module` references resolve.
+CI validates level ∈ 1–10, that `requires` targets exist, that there are no cycles, that a prerequisite's level is at or below its dependent's, and that `track` references resolve through the tree's declared tracks — `module` is a free-form presentational cluster label (lint may enforce style later).
 
 ### Strongest argument against
 
@@ -182,11 +182,11 @@ Duolingo's XP is additive; its *leagues* — relative and zero-sum — are what 
 | Grace period for new skills | Rejected. Arbitrary threshold; the cliff-edge drop still arrives, just later and more confusingly. |
 | Recency heat only | Abandons accumulated progress; a mastered-then-dormant domain goes cold, reading as loss. |
 | Depth and breadth as two numbers | Strong as a companion display, but does not answer what fills the map region. |
-| **Additive level-sum on a concave curve, plus separate recency and breadth channels** | **Adopted.** |
+| **Additive weighted sum with mild per-skill convexity, mapped through a concave display curve, plus separate recency and breadth channels** | **Adopted.** |
 
 ### Decision
 
-PRD **F33–F35**, **N12**. Domain score is the sum of levels attained across its skills — monotonic by construction, since starting a skill adds zero. Mapped to region fill through a concave curve so early levels visibly move the region and the display never saturates. Raw percentages are never shown for a domain. Recency of activity rides a separate visual channel that may fade; breadth appears as a count of skills started. Only the recency channel may decrease.
+PRD **F33–F35**, **N12**. Domain score is an additive, monotonic function of attained levels — the sum of per-level contributions from a mildly super-linear table (**convexity** on contribution; **concavity** on display via F34) — monotonic by construction, since starting a skill adds zero. Mapped to region fill through a concave curve so early levels visibly move the region and the display never saturates. Raw percentages are never shown for a domain. Recency of activity must be **represented** (v1 ships a last-activity date; a graded fading channel remains a future candidate); breadth appears as a count of skills started. Only a recency representation may decrease.
 
 This introduces no new comparability claim beyond what the 1–10 spine already commits to: it does not say level 7 piano equals level 7 knife skills, only that a level-up is a level-up.
 
@@ -317,7 +317,7 @@ A proposal to replace buckets entirely with per-skill scores on three axes (e.g.
 
 - **D14** — whether a linter can meaningfully validate requirement-group *coherence*, not just syntax.
 - **D21** — the exact promotion trigger for Making subregions; the proposed threshold is reasoned, not evidenced.
-- **D23** — user-level domain reassignment conflicts with N12 monotonic scoring; no researched precedent resolves it.
+- **D23** — **decided out of v1** (PRD v1.4). User-level domain reassignment conflicts with N12 monotonic scoring; product semantics for score on reassignment remain unresolved. A **display-only override** stored in local user state (scores computed from the authored primary domain) may be revisited after v1.
 - **D24** — tree families for languages, instruments and martial arts. Six languages appear in the candidate list against a plausible thirty; no precedent was researched for template or inheritance mechanisms in contributor-authored content.
 - Whether the eight-domain set holds at 500 skills rather than 164.
 

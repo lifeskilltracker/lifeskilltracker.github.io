@@ -1,0 +1,159 @@
+schemaVersion: 1
+contentVersion: 1
+title: Lineage order
+summary: Validate fixture tree.
+domain: home
+provenance:
+  authors:
+    - name: Fixture Author
+  copyleftDerived: false
+levels:
+  - level: 1
+    milestones:
+      - id: l1-m1
+        uid: aaa47500
+        title: Level 1 milestone 1
+      - id: l1-m2
+        uid: aaa47501
+        title: Level 1 milestone 2
+      - id: l1-m3
+        uid: aaa47502
+        title: Level 1 milestone 3
+      - id: l1-m4
+        uid: aaa47503
+        title: Level 1 milestone 4
+  - level: 2
+    milestones:
+      - id: l2-m1
+        uid: aaa47504
+        title: Level 2 milestone 1
+      - id: l2-m2
+        uid: aaa47505
+        title: Level 2 milestone 2
+      - id: l2-m3
+        uid: aaa47506
+        title: Level 2 milestone 3
+      - id: l2-m4
+        uid: aaa47507
+        title: Level 2 milestone 4
+  - level: 3
+    milestones:
+      - id: l3-m1
+        uid: aaa47508
+        title: Level 3 milestone 1
+      - id: l3-m2
+        uid: aaa47509
+        title: Level 3 milestone 2
+      - id: l3-m3
+        uid: aaa47510
+        title: Level 3 milestone 3
+      - id: l3-m4
+        uid: aaa47511
+        title: Level 3 milestone 4
+  - level: 4
+    milestones:
+      - id: l4-m1
+        uid: aaa47512
+        title: Level 4 milestone 1
+      - id: l4-m2
+        uid: aaa47513
+        title: Level 4 milestone 2
+      - id: l4-m3
+        uid: aaa47514
+        title: Level 4 milestone 3
+      - id: l4-m4
+        uid: aaa47515
+        title: Level 4 milestone 4
+  - level: 5
+    milestones:
+      - id: l5-m1
+        uid: aaa47516
+        title: Level 5 milestone 1
+      - id: l5-m2
+        uid: aaa47517
+        title: Level 5 milestone 2
+      - id: l5-m3
+        uid: aaa47518
+        title: Level 5 milestone 3
+      - id: l5-m4
+        uid: aaa47519
+        title: Level 5 milestone 4
+  - level: 6
+    milestones:
+      - id: l6-m1
+        uid: aaa47520
+        title: Level 6 milestone 1
+      - id: l6-m2
+        uid: aaa47521
+        title: Level 6 milestone 2
+      - id: l6-m3
+        uid: aaa47522
+        title: Level 6 milestone 3
+      - id: l6-m4
+        uid: aaa47523
+        title: Level 6 milestone 4
+  - level: 7
+    milestones:
+      - id: l7-m1
+        uid: aaa47524
+        title: Level 7 milestone 1
+      - id: l7-m2
+        uid: aaa47525
+        title: Level 7 milestone 2
+      - id: l7-m3
+        uid: aaa47526
+        title: Level 7 milestone 3
+      - id: l7-m4
+        uid: aaa47527
+        title: Level 7 milestone 4
+  - level: 8
+    milestones:
+      - id: l8-m1
+        uid: aaa47528
+        title: Level 8 milestone 1
+      - id: l8-m2
+        uid: aaa47529
+        title: Level 8 milestone 2
+      - id: l8-m3
+        uid: aaa47530
+        title: Level 8 milestone 3
+      - id: l8-m4
+        uid: aaa47531
+        title: Level 8 milestone 4
+  - level: 9
+    milestones:
+      - id: l9-m1
+        uid: aaa47532
+        title: Level 9 milestone 1
+      - id: l9-m2
+        uid: aaa47533
+        title: Level 9 milestone 2
+      - id: l9-m3
+        uid: aaa47534
+        title: Level 9 milestone 3
+      - id: l9-m4
+        uid: aaa47535
+        title: Level 9 milestone 4
+  - level: 10
+    milestones:
+      - id: l10-m1
+        uid: aaa47536
+        title: Level 10 milestone 1
+      - id: l10-m2
+        uid: aaa47537
+        title: Level 10 milestone 2
+      - id: l10-m3
+        uid: aaa47538
+        title: Level 10 milestone 3
+      - id: l10-m4
+        uid: aaa47539
+        title: Level 10 milestone 4
+id: lineage-order
+lineage:
+  - uid: aaa95001
+    op: retired
+  - uid: aaa95002
+    op: split
+    into:
+      - aaa47500
+      - aaa47501

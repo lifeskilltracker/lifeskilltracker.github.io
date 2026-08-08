@@ -1,0 +1,38 @@
+schemaVersion: 1
+domains:
+  - id: mind
+    title: Mind
+    blurb: Mental health, meditation, focus, memory, learning, and contemplative practice.
+    palette: { base: "#4a5568", accent: "#90cdf4" }
+  - id: body
+    title: Body
+    blurb: Fitness, sport, martial arts, movement, and nutrition.
+    palette: { base: "#744210", accent: "#f6ad55" }
+  - id: making
+    title: Making
+    blurb: Music, art, writing, craft, code, and technical creation.
+    palette: { base: "#8a5a3b", accent: "#d9a066" }
+    subregions:
+      - { id: expression, title: Expression }
+      - { id: objects, title: Objects }
+      - { id: systems, title: Systems }
+  - id: home
+    title: Home
+    blurb: Cooking, drink, cultivation, repair, maintenance, and pets.
+    palette: { base: "#276749", accent: "#68d391" }
+  - id: people
+    title: People
+    blurb: Conversation, conflict, teaching, parenting, languages, and community.
+    palette: { base: "#702459", accent: "#f687b3" }
+  - id: work-money
+    title: Work & Money
+    blurb: Career, budgeting, investing, negotiation, and productivity.
+    palette: { base: "#2c5282", accent: "#63b3ed" }
+  - id: play
+    title: Play
+    blurb: Chess, go, poker, competitive gaming, puzzles, and tabletop.
+    palette: { base: "#553c9a", accent: "#b794f4" }
+  - id: outdoors-nature
+    title: Outdoors & Nature
+    blurb: Hiking, bushcraft, navigation, foraging, water sports, and nature knowledge.
+    palette: { base: "#22543d", accent: "#9ae6b4" }

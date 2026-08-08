@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": 1,
+  "id": "fixture-full-feature",
+  "title": "Fixture Full Feature Tree",
+  "summary": "Exercises every §5.3 field for schema validation.",
+  "domain": "making",
+  "secondaryDomains": ["home"],
+  "subregion": "objects",
+  "facets": ["physical", "workshop"],
+  "archetype": "dual-track",
+  "tracks": [
+    { "id": "forge", "title": "Forge work" },
+    { "id": "finishing", "title": "Heat treat and finish" }
+  ],
+  "provenance": {
+    "authors": [{ "name": "Fixture Author", "github": "fixture" }],
+    "reviews": [{ "round": 1, "reviewer": "Reviewer", "date": "2026-09-02" }],
+    "sources": [{ "title": "Example source", "url": "https://example.org", "adapted": "sequencing" }],
+    "copyleftDerived": false
+  },
+  "levels": [
+    {
+      "level": 1,
+      "milestones": [
+        { "id": "light-the-forge", "uid": "k7m2qp9x", "title": "Light the forge", "detail": "Bring the forge to working heat safely.", "aliases": ["light-forge"], "track": "forge" },
+        { "id": "draw-a-taper", "uid": "v8t2ncq5", "title": "Draw a taper", "detail": "Draw a consistent taper on round stock.", "track": "forge" },
+        { "id": "make-a-j-hook", "uid": "m3xk90ab", "title": "Forge a J hook", "requires": ["light-the-forge", "draw-a-taper"], "track": "forge" },
+        { "id": "quench-safely", "uid": "q4np8w2r", "title": "Quench safely", "track": "finishing" }
+      ]
+    },
+    {
+      "level": 2,
+      "milestones": [
+        { "id": "forge-a-leaf", "uid": "t9wm41xz", "title": "Forge a leaf", "requires": ["make-a-j-hook"], "track": "forge" },
+        { "id": "punch-and-drift", "uid": "b7hdk3fp", "title": "Punch and drift", "track": "forge" },
+        { "id": "hot-cut", "uid": "z2vr65jm", "title": "Hot cut", "track": "forge" },
+        { "id": "wire-brush-finish", "uid": "h8dq37nc", "title": "Wire brush finish", "track": "finishing" }
+      ],
+      "requirements": [
+        { "rule": "all", "milestones": ["forge-a-leaf", "punch-and-drift", "hot-cut"] },
+        { "rule": "any", "milestones": ["wire-brush-finish"] }
+      ]
+    },
+    {
+      "level": 3,
+      "milestones": [
+        { "id": "l3-a", "uid": "aaaaaaa1", "title": "Level 3 a", "track": "forge", "order": 2, "module": "basics" },
+        { "id": "l3-b", "uid": "aaaaaaa2", "title": "Level 3 b", "track": "forge", "order": 1, "module": "basics" },
+        { "id": "l3-c", "uid": "aaaaaaa3", "title": "Level 3 c", "track": "finishing" },
+        { "id": "l3-d", "uid": "aaaaaaa4", "title": "Level 3 d", "track": "finishing" }
+      ],
+      "requirements": [{ "rule": "n_of", "n": 2, "milestones": ["l3-a", "l3-b", "l3-c", "l3-d"] }]
+    },
+    {
+      "level": 4,
+      "milestones": [
+        { "id": "l4-a", "title": "Level 4 a" },
+        { "id": "l4-b", "title": "Level 4 b" },
+        { "id": "l4-c", "title": "Level 4 c" },
+        { "id": "l4-d", "title": "Level 4 d" }
+      ]
+    },
+    {
+      "level": 5,
+      "milestones": [
+        { "id": "l5-a", "title": "Level 5 a" },
+        { "id": "l5-b", "title": "Level 5 b" },
+        { "id": "l5-c", "title": "Level 5 c" },
+        { "id": "l5-d", "title": "Level 5 d" }
+      ]
+    },
+    {
+      "level": 6,
+      "milestones": [
+        { "id": "l6-a", "title": "Level 6 a" },
+        { "id": "l6-b", "title": "Level 6 b" },
+        { "id": "l6-c", "title": "Level 6 c" },
+        { "id": "l6-d", "title": "Level 6 d" }
+      ]
+    },
+    {
+      "level": 7,
+      "milestones": [
+        { "id": "l7-a", "title": "Level 7 a" },
+        { "id": "l7-b", "title": "Level 7 b" },
+        { "id": "l7-c", "title": "Level 7 c" },
+        { "id": "l7-d", "title": "Level 7 d" }
+      ]
+    },
+    {
+      "level": 8,
+      "milestones": [
+        { "id": "l8-a", "title": "Level 8 a" },
+        { "id": "l8-b", "title": "Level 8 b" },
+        { "id": "l8-c", "title": "Level 8 c" },
+        { "id": "l8-d", "title": "Level 8 d" }
+      ]
+    },
+    {
+      "level": 9,
+      "milestones": [
+        { "id": "l9-a", "title": "Level 9 a" },
+        { "id": "l9-b", "title": "Level 9 b" },
+        { "id": "l9-c", "title": "Level 9 c" },
+        { "id": "l9-d", "title": "Level 9 d" }
+      ]
+    },
+    {
+      "level": 10,
+      "milestones": [
+        { "id": "l10-a", "title": "Level 10 a" },
+        { "id": "l10-b", "title": "Level 10 b" },
+        { "id": "l10-c", "title": "Level 10 c" },
+        { "id": "l10-d", "title": "Level 10 d" }
+      ]
+    }
+  ],
+  "mastery": [
+    { "id": "damascus-billet", "uid": "r6bk28vy", "title": "Forge-weld a billet", "detail": "Produce a pattern-welded billet." },
+    { "id": "teach-a-course", "uid": "n4pz73gd", "title": "Run a forging course", "detail": "Lead a multi-session forging class.", "requires": ["l10-a", "damascus-billet"] }
+  ],
+  "lineage": [
+    { "uid": "q4np8w2r", "op": "split", "into": ["m3xk90ab", "v8t2ncq5"], "note": "example split" }
+  ]
+}

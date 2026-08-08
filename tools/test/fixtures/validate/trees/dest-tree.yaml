@@ -1,0 +1,151 @@
+schemaVersion: 1
+contentVersion: 1
+title: Fixture dest-tree
+summary: Validate fixture tree.
+domain: home
+provenance:
+  authors:
+    - name: Fixture Author
+  copyleftDerived: false
+levels:
+  - level: 1
+    milestones:
+      - id: l1-m1
+        uid: aaa01600
+        title: Level 1 milestone 1
+      - id: l1-m2
+        uid: aaa01601
+        title: Level 1 milestone 2
+      - id: l1-m3
+        uid: aaa01602
+        title: Level 1 milestone 3
+      - id: l1-m4
+        uid: aaa01603
+        title: Level 1 milestone 4
+  - level: 2
+    milestones:
+      - id: l2-m1
+        uid: aaa01604
+        title: Level 2 milestone 1
+      - id: l2-m2
+        uid: aaa01605
+        title: Level 2 milestone 2
+      - id: l2-m3
+        uid: aaa01606
+        title: Level 2 milestone 3
+      - id: l2-m4
+        uid: aaa01607
+        title: Level 2 milestone 4
+  - level: 3
+    milestones:
+      - id: l3-m1
+        uid: aaa01608
+        title: Level 3 milestone 1
+      - id: l3-m2
+        uid: aaa01609
+        title: Level 3 milestone 2
+      - id: l3-m3
+        uid: aaa01610
+        title: Level 3 milestone 3
+      - id: l3-m4
+        uid: aaa01611
+        title: Level 3 milestone 4
+  - level: 4
+    milestones:
+      - id: l4-m1
+        uid: aaa01612
+        title: Level 4 milestone 1
+      - id: l4-m2
+        uid: aaa01613
+        title: Level 4 milestone 2
+      - id: l4-m3
+        uid: aaa01614
+        title: Level 4 milestone 3
+      - id: l4-m4
+        uid: aaa01615
+        title: Level 4 milestone 4
+  - level: 5
+    milestones:
+      - id: l5-m1
+        uid: aaa01616
+        title: Level 5 milestone 1
+      - id: l5-m2
+        uid: aaa01617
+        title: Level 5 milestone 2
+      - id: l5-m3
+        uid: aaa01618
+        title: Level 5 milestone 3
+      - id: l5-m4
+        uid: aaa01619
+        title: Level 5 milestone 4
+  - level: 6
+    milestones:
+      - id: l6-m1
+        uid: aaa01620
+        title: Level 6 milestone 1
+      - id: l6-m2
+        uid: aaa01621
+        title: Level 6 milestone 2
+      - id: l6-m3
+        uid: aaa01622
+        title: Level 6 milestone 3
+      - id: l6-m4
+        uid: aaa01623
+        title: Level 6 milestone 4
+  - level: 7
+    milestones:
+      - id: l7-m1
+        uid: aaa01624
+        title: Level 7 milestone 1
+      - id: l7-m2
+        uid: aaa01625
+        title: Level 7 milestone 2
+      - id: l7-m3
+        uid: aaa01626
+        title: Level 7 milestone 3
+      - id: l7-m4
+        uid: aaa01627
+        title: Level 7 milestone 4
+  - level: 8
+    milestones:
+      - id: l8-m1
+        uid: aaa01628
+        title: Level 8 milestone 1
+      - id: l8-m2
+        uid: aaa01629
+        title: Level 8 milestone 2
+      - id: l8-m3
+        uid: aaa01630
+        title: Level 8 milestone 3
+      - id: l8-m4
+        uid: aaa01631
+        title: Level 8 milestone 4
+  - level: 9
+    milestones:
+      - id: l9-m1
+        uid: aaa01632
+        title: Level 9 milestone 1
+      - id: l9-m2
+        uid: aaa01633
+        title: Level 9 milestone 2
+      - id: l9-m3
+        uid: aaa01634
+        title: Level 9 milestone 3
+      - id: l9-m4
+        uid: aaa01635
+        title: Level 9 milestone 4
+  - level: 10
+    milestones:
+      - id: l10-m1
+        uid: aaa01636
+        title: Level 10 milestone 1
+      - id: l10-m2
+        uid: aaa01637
+        title: Level 10 milestone 2
+      - id: l10-m3
+        uid: aaa01638
+        title: Level 10 milestone 3
+      - id: l10-m4
+        uid: aaa01639
+        title: Level 10 milestone 4
+id: dest-tree

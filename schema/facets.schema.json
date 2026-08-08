@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://life-skill-tracker/schema/facets.schema.json",
+  "title": "FacetsFile",
+  "type": "object",
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "facets": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/facet" }
+    }
+  },
+  "required": ["schemaVersion", "facets"],
+  "additionalProperties": false,
+  "$defs": {
+    "facet": {
+      "type": "object",
+      "properties": {
+        "id": { "$ref": "./common.schema.json#/$defs/slug" },
+        "title": { "type": "string", "minLength": 1 },
+        "note": { "type": "string" }
+      },
+      "required": ["id", "title"],
+      "additionalProperties": false
+    }
+  }
+}

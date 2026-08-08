@@ -1,0 +1,6 @@
+schemaVersion: 1
+facets:
+  - id: practical
+    title: Practical
+  - id: teaching
+    title: Teachable

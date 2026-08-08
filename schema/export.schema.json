@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://life-skill-tracker/schema/export.schema.json",
+  "title": "ExportFileDocument",
+  "type": "object",
+  "properties": {
+    "format": { "type": "string", "const": "life-xp-skill-tracker/progress" },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "exportedAt": { "type": "string", "format": "date-time" },
+    "appVersion": { "type": "string", "minLength": 1 },
+    "generated": { "type": "string", "format": "date-time" },
+    "skills": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/skillRow" }
+    },
+    "milestones": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/milestoneRow" }
+    },
+    "orphans": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/orphanRow" }
+    }
+  },
+  "required": ["format", "schemaVersion", "exportedAt", "appVersion", "generated", "skills", "milestones", "orphans"],
+  "additionalProperties": false,
+  "$defs": {
+    "frozenSatisfaction": {
+      "type": "object",
+      "properties": {
+        "uids": {
+          "type": "array",
+          "items": { "$ref": "./common.schema.json#/$defs/uid" }
+        },
+        "contentVersion": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["uids", "contentVersion"],
+      "additionalProperties": false
+    },
+    "skillRow": {
+      "type": "object",
+      "properties": {
+        "treeId": { "type": "string", "minLength": 1 },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "attainedLevel": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "lastActivityAt": { "type": "string", "format": "date-time" },
+        "contentVersionSeen": { "type": "integer", "minimum": 1 },
+        "grandfathered": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/frozenSatisfaction" }
+        }
+      },
+      "required": ["treeId", "startedAt", "attainedLevel", "lastActivityAt", "contentVersionSeen", "grandfathered"],
+      "additionalProperties": false
+    },
+    "milestoneRow": {
+      "type": "object",
+      "properties": {
+        "uid": { "$ref": "./common.schema.json#/$defs/uid" },
+        "treeId": { "type": "string", "minLength": 1 },
+        "slug": { "$ref": "./common.schema.json#/$defs/slug" },
+        "title": { "type": "string", "minLength": 1 },
+        "state": { "type": "string", "enum": ["complete", "dismissed"] },
+        "at": { "type": "string", "format": "date-time" },
+        "note": { "type": "string" },
+        "contentVersion": { "type": "integer", "minimum": 1 }
+      },
+      "required": ["uid", "treeId", "slug", "title", "state", "at", "contentVersion"],
+      "additionalProperties": true
+    },
+    "orphanRow": {
+      "type": "object",
+      "properties": {
+        "uid": { "$ref": "./common.schema.json#/$defs/uid" },
+        "treeId": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "state": { "type": "string", "enum": ["complete", "dismissed"] },
+        "at": { "type": "string", "format": "date-time" },
+        "note": { "type": "string" },
+        "reason": { "type": "string", "enum": ["retired", "merged", "unknown"] }
+      },
+      "required": ["uid", "treeId", "title", "state", "at", "reason"],
+      "additionalProperties": false
+    }
+  }
+}

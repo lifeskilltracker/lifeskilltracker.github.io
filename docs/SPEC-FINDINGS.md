@@ -1,13 +1,13 @@
 # Spec Findings — Architecture Reconciliation
 
-Decision record for T26. Twenty-seven findings have been raised against
+Decision record for T26. Twenty-eight findings have been raised against
 `docs/ARCHITECTURE.md` during the v1 task breakdown — seventeen from the breakdown itself,
 F18 and F19 found while resolving F3 and F4, F20–F23 found while resolving F12–F14,
 F24–F25 found while resolving F17 and F7, F26 found while resolving F23, and F27 filed last
 to give a verdict to five §8 silences `T06-layout-engine.md` had been carrying. Each gets a
 verdict of **amend**, **tolerate**, or **not a defect**, with a reason and a date.
 
-**All twenty-seven are resolved.** The 2026-08-06 session resolved F19, F22, F24, F25 and
+**All twenty-eight are resolved.** The 2026-08-06 session resolved F19, F22, F24, F25 and
 F26, then F15, F18 and F27, and folded eight further defects into those resolutions rather
 than appending them as new findings — three into F24 and five into F22, at the owner's
 direction, on the ground that each was a cause or a consequence of the finding it landed
@@ -49,6 +49,7 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F25 | amend | 2026-08-06 | §6.2 rule 16 is the missing-uid gate; `lst ids` stops gating; it cannot be a layer-1 `required` |
 | F26 | amend | 2026-08-06 | `store.reconcileAttainedLevel(treeId, level)`, called by the tree route after `applyLineage` |
 | F27 | amend | 2026-08-06 | §8's five layout silences — narrow is level 1 at top, synthetic column, tunable unit constants, side-gutter geometry, mastery edges dropped |
+| F28 | amend | 2026-08-07 | Rule 9's module half had no registry; T03 validate enforces `track` only; `module` stays a free-form label (T22 lint if desired) |
 
 ---
 
@@ -149,9 +150,7 @@ per-skill continuous fill exists anywhere in the system.
 
 ### Downstream
 
-**T11** implements the table and invariant 4 against it. **T00** should fold the
-corrected numbers into R-25's proposed F33 amendment — the PRD text quotes the old
-`[2,5,…,36]` figures. `docs/level_weighting.md` retains the original `k = 8` analysis
+**T11** implements the table and invariant 4 against it. **T00** (complete 2026-08-07) folded the corrected constants into PRD **F33** via **R-25**; the PRD no longer quotes the old `[2,5,…,36]` figures. `docs/level_weighting.md` retains the original `k = 8` analysis
 and is now superseded on the constants while remaining correct on the constraint
 itself; its line 174 "identical curve" claim is the error that produced this finding.
 
@@ -350,10 +349,10 @@ the same JSON, on opposite sides of an import boundary, with nothing to catch th
 
 ### Resolution
 
-Add `schema/compiled-tree.schema.json` and `schema/manifest.schema.json`. `lst compile`
-validates what it emits against them and fails the build on mismatch; `app/` generates
-`CompiledTree` and `Manifest` types from them, exactly as it already generates authored
-types from `tree.schema.json`. This invents nothing — §4.2 already makes `schema/` the
+Add `schema/compiled-tree.schema.json` and `schema/manifest.schema.json`. **T02** authors
+them and generates types; **T04**'s `lst compile` validates what it emits against them and
+fails the build on mismatch; `app/` generates `CompiledTree` and `Manifest` types from
+them, exactly as it already generates authored types from `tree.schema.json`. This invents nothing — §4.2 already makes `schema/` the
 one thing both workspaces read, and §14.7 already gates type generation.
 
 §14.6's "internal" survives, restated: **internal means unversioned, not unspecified.**
@@ -380,9 +379,10 @@ rather than reusing a codegen step that already runs.
 
 ### Downstream
 
-**T02** generates from the new schemas instead of hand-writing `CompiledTree`. **T04**
-validates compiler output and owns both schema files. **T25** picks up the enforcement
-line in CI.
+**T02** authors `schema/compiled-tree.schema.json` and `schema/manifest.schema.json` and
+generates `CompiledTree`/`Manifest` from them — it precedes every consumer. **T04**
+validates compiler output against those schemas at build time; it does not author them.
+**T25** picks up the enforcement line in CI.
 
 ---
 
@@ -779,16 +779,9 @@ and carries it in the form that makes it unnecessary: if the graded channel ever
 decayed value is derived **in the Map Renderer** from `DomainScore.lastActivityAt` and is not
 a `DomainScore` field, so §14.4's contract and T11b's property tests are untouched.
 
-### What R-24 would change: nothing here
+### What R-24 changed: nothing here
 
-**This resolution does not depend on R-24 and does not pre-empt it.** T00's proposed
-amendment relaxes PRD F35 to require recency to be *represented* and leaves the channel
-unspecified. If it lands, the spec stops being knowingly non-compliant with F35 (§1, §19.5)
-and D-20 becomes compliant rather than deviant — but nothing in §14.4, §10.5, §11.9 or §15.4
-changes, because all four now describe what v1 ships rather than what F35 asked for. If T00
-instead rejects the amendment and holds F35 as written, the response is to build R-20's
-graded channel, and the paragraph above says exactly where it goes. Either way this is a
-rendering decision reached later, not a contract that has to be kept ajar now.
+**This resolution does not depend on R-24 and did not pre-empt it.** **T00** (complete 2026-08-07) amended PRD **F35** to require recency to be *represented* and left the channel unspecified; **R-24** is resolved (PRD v1.3, ARCHITECTURE §19.5). D-20 is compliant with the amended requirement — nothing in §14.4, §10.5, §11.9 or §15.4 changed, because all four already described what v1 ships. If a graded fading channel is ever wanted, build **R-20** in the Map Renderer as documented above. Either way this is a rendering decision reached later, not a contract that has to be kept ajar now.
 
 ### Files touched
 
@@ -798,8 +791,7 @@ rendering decision reached later, not a contract that has to be kept ajar now.
 
 **T11b** asserts monotonicity over all four fields with no exemption. **T13** replaces the
 copied §10.5 row and its contradiction disappears. **T20** drops the recency shimmer from its
-reduced-motion criteria and the saturation row from its never-colour-alone table. **T00** is
-unblocked either way; R-24 remains open.
+reduced-motion criteria and the saturation row from its never-colour-alone table. **R-24** is resolved; **T15** specification is complete (implementation remains blocked by **T11b**).
 
 ---
 
@@ -1752,10 +1744,16 @@ One method, one call site. No new module, no §14.1 edge.
 
 ### Downstream
 
-**T09** implements it and its existing reconciliation acceptance criterion becomes
-testable. **T14** calls it from the tree route, after `applyLineage`. **T07**'s tree route
-is where the load-score-reconcile sequence lands. **T17** must not reconcile inside either
-migration pass.
+**T09** implements `reconcileAttainedLevel` and the `applyLineage(tree,
+evaluateAttainedLevel)` signature; its reconciliation acceptance criterion becomes
+testable. **T14** owns the full tree-open orchestration: when the version gate fires,
+`applyLineage(tree, (p) => scoreSkill(tree, p).attainedLevel)` — the store imports no
+scoring code; the route injects the evaluator — then `scoreSkill`, then
+`reconcileAttainedLevel` as the ordinary-open honesty pass (typically a no-op immediately
+after migration, but required to catch non-lineage content changes). **T17** implements the
+migration fold and, inside the same transaction, calls the injected evaluator, persists
+`SKILL.attainedLevel`, and populates truthful `MigrationReport.attainedLevel` before/after.
+**T07** defers orchestration to T14; **`lib/actions`** is unchanged (no engine import).
 
 ---
 
@@ -2250,6 +2248,38 @@ and its guesses on items 1 and 2 are now spec — one confirmed, one overruled o
 **T08** may rely on `columns[node.col]` resolving in both modes, and draws no header for a
 synthetic column. **T20** gets the reading-order guarantee it needs: narrow is level 1 first,
 at every viewport. Nothing else moves, and no task gains or loses scope.
+
+---
+
+## F28 — Rule 9's `module` half had no registry
+
+**Verdict: amend.** 2026-08-07.
+
+### The finding as raised
+
+During T03 implementation, rule 9 was extended to treat `module` like `track` — requiring
+modular-archetype trees to cluster milestones under declared module ids. The schema has no
+`modules[]` registry (only `tracks[]`), and `archetype` is a presentational hint, not a
+behavior switch. §6.2's table row and PRD F41 still read "track and module references
+resolve to declared values," which implied a registry that does not exist.
+
+### Resolution
+
+**`track` is a reference; `module` is a free-form label at point of use.** Rule 9 validates
+only that milestone `track` values appear in the tree's declared `tracks[]`. Any
+cross-milestone module naming consistency belongs in `lst lint` (T22), not validate.
+§6.2 rule 9 and T03's task doc are amended to say so. The post-T03 modular-cluster check
+is removed from `tools/src/validate/`.
+
+### Files touched
+
+`docs/ARCHITECTURE.md` §6.2 rule 9; `.agent/tasks/T03-lst-validate-and-ids.md` rule 9 row;
+`tools/src/validate/rules/references.ts`; validate fixtures and tests.
+
+### Downstream
+
+**T22** may add advisory lint for module label consistency if authors want it. No T26
+reopen; no new blocker.
 
 ---
 
