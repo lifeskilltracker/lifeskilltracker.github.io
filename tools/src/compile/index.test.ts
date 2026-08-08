@@ -1,8 +1,6 @@
 import {
   cpSync,
   existsSync,
-  mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
@@ -10,7 +8,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -41,7 +38,8 @@ function loadFixtureTree(name: string): Tree {
 }
 
 function manifestWithoutGenerated(manifest: ReturnType<typeof runCompile>['manifest']) {
-  const { generated: _generated, ...rest } = manifest;
+  const rest = { ...manifest };
+  Reflect.deleteProperty(rest, 'generated');
   return rest;
 }
 
@@ -71,7 +69,11 @@ describe('lst compile', () => {
   });
 
   it('keeps explicit order values while defaulting siblings by file index', () => {
-    const tree = loadFixtureTree('order-mixed.yaml');
+    const tree = loadFixtureTree('transforms.yaml');
+    tree.levels[1].milestones = tree.levels[1].milestones.map((milestone, index) => ({
+      ...milestone,
+      order: [2, 1, 2, 0][index],
+    }));
     const bundle = compileTreeBundle(tree);
     const level2 = bundle.milestones.filter((milestone) => milestone.level === 2);
     expect(level2.map((milestone) => [milestone.id, milestone.order])).toEqual([
@@ -93,7 +95,15 @@ describe('lst compile', () => {
   });
 
   it('defaults omitted track to the first declared track and assigns track indices', () => {
-    const tree = loadFixtureTree('dual-track.yaml');
+    const tree = loadFixtureTree('transforms.yaml');
+    tree.tracks = [
+      { id: 'forge', title: 'Forge' },
+      { id: 'finish', title: 'Finish' },
+    ];
+    tree.levels[0].milestones = tree.levels[0].milestones.map((milestone, index) => ({
+      ...milestone,
+      ...(index % 2 === 1 ? { track: 'finish' } : {}),
+    }));
     const bundle = compileTreeBundle(tree);
     const level1 = bundle.milestones.filter((milestone) => milestone.level === 1);
     expect(level1.map((milestone) => [milestone.id, milestone.track, milestone.trackIndex])).toEqual([
