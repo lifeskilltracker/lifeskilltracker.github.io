@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-07 |
 | **Phase** | 0 |
 | **Cluster** | cli-toolchain |
 | **Blocked by** | T02, T03 |
@@ -231,6 +231,10 @@ Passing looks like: all nine transformation tests green, the manifest excludes
 milestones, bundle files are byte-identical across recompiles of unchanged content, and
 re-running compile with no content changes produces no diff in bundle files (manifest may
 differ only in `generated`).
+
+**Verified 2026-08-07.** All 31 compile tests pass, including transformation, deterministic
+hashing, manifest, lineage, stale-output, and output-schema validation coverage. The root
+`npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` commands pass.
 
 ## Notes and hazards
 

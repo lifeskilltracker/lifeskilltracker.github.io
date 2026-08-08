@@ -147,7 +147,8 @@ npm exec --no lst -- --help | grep -F 'Life Skill Tracker content toolchain'
 ```
 
 **Verified 2026-08-07 under Node 20.20.2** (Session 9, worktree
-`navigator-task-kickoff`, branch `agent/navigator-task-kickoff`; no commit yet):
+`navigator-task-kickoff`, branch `agent/navigator-task-kickoff`; implementation committed as
+`8a8399e`):
 
 | Check | Result |
 |---|---|
@@ -162,6 +163,9 @@ npm exec --no lst -- --help | grep -F 'Life Skill Tracker content toolchain'
 | `node_modules/.bin/lst` | resolves to `tools/dist/cli.js`; `--help` shows *Life Skill Tracker content toolchain* |
 | `git diff --check` | pass |
 | Grok T01 review | SPEC COMPLIANCE APPROVED, CODE QUALITY APPROVED |
+
+Verification was rerun after the implementation and fixture fixes on 2026-08-07:
+`npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` all pass.
 
 ## Notes and hazards
 

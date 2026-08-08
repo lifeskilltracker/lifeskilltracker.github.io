@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-07 |
 | **Phase** | 0 |
 | **Cluster** | substrate-schema |
 | **Blocked by** | T01 |
@@ -175,6 +175,9 @@ npx tsc --noEmit
 
 Passing looks like: no diff after regeneration, every fixture in the suite landing on its
 expected verdict, and a clean typecheck.
+
+**Verified 2026-08-07.** Schema, code-generation, and fixture suites pass; generated types
+are deterministic and `npm run typecheck` passes across both workspaces.
 
 ## Notes and hazards
 

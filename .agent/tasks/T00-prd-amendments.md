@@ -116,6 +116,9 @@ whether the result is a suggestion the user edits or a commitment.
 
 Verified 2026-08-07 (quality pass same day). Read `docs/PRD.md` F33, F35, D20, D23, D26 and `docs/ARCHITECTURE.md` §19.4–§19.5 side by side against owner decisions. Stale-term grep clean in scoped docs (`knowingly non-compliant`, open R-24/R-25, literal-sum/fading-required claims). `git diff --check` clean. T15 spec complete from D20: `(tree, L: 1..10) → uid[]` contiguous prefix, editable suggestion, no stored estimated state.
 
+Reconfirmed 2026-08-07 while completing T01–T04. The amended PRD, architecture, and
+research documents remain consistent; full repository verification passes.
+
 ## Notes and hazards
 
 - **R-19 is the live tension under R-25.** D-21's super-linear weighting is arguably a

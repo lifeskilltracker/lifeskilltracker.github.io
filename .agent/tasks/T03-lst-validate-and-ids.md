@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-07 |
 | **Phase** | 0 |
 | **Cluster** | cli-toolchain |
 | **Blocked by** | T02 |
@@ -227,6 +227,10 @@ npx lst ids tools/test/fixtures/ids/draft-no-uids.yaml && cat tools/test/fixture
 Passing looks like: every fixture in the suite landing on its expected verdict, all 16
 semantic rules and all five taxonomy rules independently exercised, and a re-run of
 `lst ids` on an already-id'd file producing no diff.
+
+**Verified 2026-08-07.** The tools suite passes with 72 validation tests and 5 identifier
+tests. Rules 1–16, M1–M5, repository-wide UID checks, taxonomy scope, and idempotent
+`lst ids` behavior are covered. `npm run typecheck` and `npm run lint` pass.
 
 ## Notes and hazards
 

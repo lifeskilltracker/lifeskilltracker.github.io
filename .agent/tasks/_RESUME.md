@@ -1,8 +1,18 @@
 # RESUME — T26 spec reconciliation, wave 2
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-07 after Session 9 T01 verification and T00 PRD amendments. Read this, then
-`_BREAKDOWN.yaml`, then the next task doc on the critical path (`T02-schema-v1-and-generated-types.md`).
+Updated 2026-08-07 after T00–T04 completion and full verification. Read this, then
+`_BREAKDOWN.yaml`, then T05/T06 as the next implementation tasks.
+
+# SESSION 10 — T00–T04 COMPLETE. Foundation and CLI toolchain verified.
+
+T00 (PRD amendments), T01 (repository scaffold), T02 (schema v1 and generated types),
+T03 (`lst validate` and `lst ids`), and T04 (`lst compile`) are complete as of 2026-08-07.
+The implementation is committed on `agent/navigator-task-kickoff` in `8a8399e`, with
+follow-up test fixes in `b3a7c5a` and session documentation in `0dd264a`.
+
+`npm test`, `npm run typecheck`, `npm run lint`, and `npm run build` all pass. The next
+critical-path implementation tasks are T05 and T06; T04 unblocks T07 and T23.
 
 # SESSION 9 — T01 COMPLETE; T00 COMPLETE
 
