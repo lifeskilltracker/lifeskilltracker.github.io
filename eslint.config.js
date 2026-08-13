@@ -53,6 +53,33 @@ const layoutRestrictions = {
   },
 };
 
+/**
+ * T07 — §14.7's second `no-restricted-imports` rule, confining cross-subsystem
+ * orchestration to `lib/actions`. The two I/O owners may not import each other:
+ * that is what keeps "the only content reader" and "the only user-data writer"
+ * true statements rather than aspirations. Without this the newest forbidden
+ * pair in §14.1 is a diagram rather than a constraint.
+ */
+/** @type {import('eslint').Linter.Config} */
+const contentRestrictions = {
+  files: ['app/src/lib/content/**/*.ts'],
+  rules: {
+    'no-restricted-imports': [
+      'error',
+      {
+        paths: [],
+        patterns: [
+          {
+            group: ['$lib/state', '$lib/state/*', '../state', '../state/*'],
+            message:
+              '§14.1: lib/content may not import lib/state — the startSkill → pin sequence belongs to lib/actions.',
+          },
+        ],
+      },
+    ],
+  },
+};
+
 /** T11a — scoring purity (§14.1 forbidden edges for lib/scoring) */
 /** @type {import('eslint').Linter.Config} */
 const scoringRestrictions = {
@@ -104,5 +131,6 @@ export default tseslint.config(
   nodeConfigFiles,
   baseRestrictions,
   layoutRestrictions,
+  contentRestrictions,
   scoringRestrictions,
 );

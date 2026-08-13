@@ -130,6 +130,7 @@ tasks:
     prd: [N4, N9]
     status: written
     doc: T07-content-loader.md
+    note: Implemented and verified complete 2026-08-13; task-doc status remains lifecycle metadata.
     note: Service-worker and PWA hardening are Phase 2, not this task.
 
   - id: T08

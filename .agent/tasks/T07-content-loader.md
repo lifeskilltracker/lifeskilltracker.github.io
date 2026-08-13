@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-13 |
 | **Phase** | 0 |
 | **Cluster** | runtime-io |
 | **Blocked by** | T04 |
@@ -234,6 +234,77 @@ npm run build && npx serve app/build   # then open /s/<exemplar-tree-id>
 Passing looks like: every fixture landing on its expected verdict, the identity assertion
 green, the three greps silent, and `/s/<exemplar>` showing the tree's title and ten level
 headings served from `app/static/content/` with no route-level fetch.
+
+**Verified 2026-08-13.** 25 tests (22 loader, 3 route); root `npm test` (94 app + 171
+tools), `npm run typecheck` (0 errors, 341 files), `npm run lint`, and `npm run build` all
+clean. All three greps are silent — the service-worker grep against `app/src` rather than
+`app/`, since `app/node_modules/typescript/lib/lib.dom.d.ts` documents
+`Navigator.serviceWorker` and the build output embeds SvelteKit's own runtime. The two
+contracts most worth doubting were checked by breaking them: returning a clone instead of
+the memoized tree fails the identity test, and removing the evict-on-stale call fails the
+self-healing test. `npm run build` ships `content/manifest.json` and
+`content/trees/cooking.dee91fe4.json`, both reachable over HTTP at the URLs the loader
+builds.
+
+### Files beyond the deliverables list
+
+- **`environment.ts`** — the loader takes its `fetch`, `CacheStorage`, and content base as
+  an injected object rather than reaching for globals. This is what lets `loader.test.ts`
+  mock **nothing**: it passes a real `Response`, a fetch that routes URLs to bodies, and a
+  Cache Storage over `Map`s, so every assertion is about the loader's own control flow
+  rather than about a mock's call log. `loader()` binds the real globals lazily, so
+  importing the module during a prerender pass does not touch `caches`.
+- **`buckets.ts`** — the two Cache Storage names, in one place because `manifest.ts` and
+  `bundle.ts` both need them and §7.4 requires them to be stable and documented so the
+  phase-2 workbox config **adopts** them rather than shadowing them.
+- **`fixtures/bundles.ts`** rather than four `.json` files. The truncated fixture cannot be
+  a `.json` file — it is deliberately unparseable — and a valid bundle literal is ten levels
+  of four-to-eight milestones, which buries the one detail each fixture exists to show. A
+  fifth fixture was added: a bundle at `schemaVersion` current − 1, which the criteria call
+  for but the deliverables list omits.
+- **`routes/s/[tree]/page.test.ts`** — see the extraction below.
+
+### Decisions taken during implementation
+
+- **`resolveSkillPage(loader, treeId)` was extracted from `load`.** As first written the
+  load function reached for the `loader()` singleton, which binds `globalThis.caches` and so
+  cannot run outside a browser — making the criterion "visiting `/s/<id>` for an absent id
+  renders tree-unavailable, not an unhandled rejection" untestable except by hand. The
+  resolution is now a pure function over the §14.2 interface and is tested directly.
+- **`export const ssr = false;` on the skill route,** alongside the required
+  `prerender = false`. The loader is a browser-side subsystem by construction — Cache
+  Storage does not exist on the server — and §13.1 already establishes these routes are
+  resolved at runtime from the manifest. `adapter-static`'s `404.html` fallback (§4.4) is
+  what serves them.
+- **`isOffline()` is `true` while a revalidation is in flight behind a cached manifest,**
+  not only after one fails. §7.4's requirement is honesty: until revalidation succeeds we do
+  not know we are online, and claiming otherwise for the duration of a fetch is the same
+  false statement the branch exists to prevent. It flips to `false` the moment revalidation
+  succeeds.
+- **`loadTree` memoizes successes only.** §14.2 requires a second call to return the same
+  object; it says nothing about failures, and caching them would make a tree that failed
+  once unavailable for the session — the opposite of §16.3's self-healing intent. In-flight
+  calls are shared, so concurrent callers still issue one fetch.
+- **A truncated response is routed through the shape assertion's error type.** §7.5 names
+  "a truncated or corrupted response" as what the hash detects, but that failure arrives as
+  a JSON parse error rather than a shape error. Both now produce `TreeUnavailableError` and
+  both evict a cached entry, so a corrupt cache entry self-heals exactly as a stale one does.
+- **`whenIdle()` is a test seam on the implementation, not on the §14.2 interface.**
+  Background revalidation is unobservable otherwise, and the offline criteria are about its
+  outcome. `ContentLoader` is unchanged; `TestableContentLoader` extends it.
+- **One prose mention of the forbidden module path was reworded.** §14.7's grep gate is
+  literal (`grep -rn "lib/state" app/src/lib/content` must be silent), and a doc comment
+  explaining *why* the import is forbidden would have failed it. The comment now names the
+  module descriptively and points at `eslint.config.js`, which carries the enforcing rule —
+  added here as the `contentRestrictions` slice, §14.7's second `no-restricted-imports`.
+
+### Known gap
+
+**The rendered page has no automated coverage.** `resolveSkillPage` is tested, the loader is
+tested, and the built artifacts are verified reachable over HTTP — but nothing asserts that
+`+page.svelte` puts ten level headings on screen, because the app has no browser or
+component test harness yet. T08 replaces this page with `TreeView` and is where that harness
+belongs.
 
 ## Notes and hazards
 
