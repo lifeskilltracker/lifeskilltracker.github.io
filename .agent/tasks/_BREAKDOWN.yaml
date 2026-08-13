@@ -106,6 +106,7 @@ tasks:
     prd: [F2, F8, S1]
     status: written
     doc: T05-exemplar-tree-1.md
+    note: Implemented and verified complete 2026-08-13; task-doc status remains lifecycle metadata.
 
   - id: T06
     title: Layout Engine

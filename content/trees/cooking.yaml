@@ -1,0 +1,261 @@
+schemaVersion: 1
+contentVersion: 1
+id: cooking
+title: Cooking
+summary: >-
+  Feeding yourself and other people well, from a first fried egg to a menu you
+  designed, costed, tested, and can teach to someone else. Ten levels of
+  everyday kitchen competence — knife work, heat control, baking, preservation,
+  butchery, and the planning that turns separate dishes into a meal that lands
+  on the table at the same time.
+domain: home
+facets:
+  - practical
+  - kitchen
+provenance:
+  authors:
+    - name: Ethan Morchy
+  copyleftDerived: false
+lineage: []
+
+levels:
+  - level: 1
+    milestones:
+      - id: knife-grip
+        title: Dice an onion evenly with a pinch grip
+        detail: >-
+          Hold the chef's knife by pinching the blade, not the handle, and
+          produce a dice from one onion in which the pieces are visibly the same
+          size.
+        uid: E5CJB3R1
+      - id: boil-pasta
+        title: Cook dried pasta to al dente and drain it
+        detail: >-
+          Salt the water, taste a strand before the package time is up, and stop
+          the cooking at bite rather than at the timer.
+        uid: Z77TSTX6
+      - id: fried-egg
+        title: Fry an egg with an unbroken yolk and no browned white
+        uid: HTAXVQFS
+      - id: season-to-taste
+        title: Salt a pot of soup in stages until you can say it is seasoned
+        detail: >-
+          Add salt in at least three increments, tasting between each, and state
+          when it is correct rather than emptying a measured spoon.
+        uid: ZRT4QN66
+      - id: clean-as-you-go
+        title: Finish a meal with an empty sink and a wiped board
+        uid: B800KG9K
+
+  - level: 2
+    milestones:
+      - id: rice-absorption
+        title: Cook rice by absorption with separate, unburnt grains
+        requires: [ boil-pasta ]
+        uid: ETSMSR9C
+      - id: sear-chicken-thigh
+        title: Sear a chicken thigh skin-side down to a crisp skin, cooked through
+        requires: [ knife-grip ]
+        uid: PDGE2TQW
+      - id: roast-vegetables
+        title: Roast a sheet pan of vegetables browned at the edges, not steamed
+        requires: [ season-to-taste ]
+        uid: K6HNY0G7
+      - id: simple-vinaigrette
+        title: Mix a vinaigrette that tastes balanced rather than sharp
+        uid: N2QQ055G
+      - id: soft-scramble
+        title: Scramble eggs to a soft curd over low heat
+        requires: [ fried-egg ]
+        uid: 5G9FNB7S
+      - id: stock-from-scraps
+        title: Simmer a stock from bones or vegetable trimmings and strain it clear
+        uid: JCAHD49Y
+
+  - level: 3
+    milestones:
+      - id: sear-steak-temp
+        title: Sear a steak to a target internal temperature and rest it
+        detail: >-
+          Name the target before cooking, verify it with a probe rather than by
+          touch, and rest the meat before slicing.
+        requires: [ sear-chicken-thigh ]
+        uid: GHC7G9SN
+      - id: pan-sauce
+        title: Build a pan sauce from the fond left by a sear
+        requires: [ sear-chicken-thigh, stock-from-scraps ]
+        uid: 5XQQGFQX
+      - id: braise-tough-cut
+        title: Braise a tough cut until it yields to a fork
+        requires: [ stock-from-scraps ]
+        uid: ZAGZM4HJ
+      - id: knife-julienne
+        title: Cut a vegetable into even julienne without a mandoline
+        requires: [ knife-grip ]
+        uid: XSTM4Y4B
+      - id: emulsified-dressing
+        title: Emulsify a dressing that does not separate within an hour
+        requires: [ simple-vinaigrette ]
+        uid: 1TE21BZJ
+      - id: blanch-and-shock
+        title: Blanch a green vegetable and shock it so it stays green
+        requires: [ boil-pasta ]
+        uid: MCZAWWRF
+
+  - level: 4
+    milestones:
+      - id: oven-calibration
+        title: Measure your oven's real temperature and correct for the error
+        uid: 90FTYKZ3
+      - id: yeast-bread
+        title: Bake a yeasted loaf with an open crumb and a set crust
+        requires: [ oven-calibration ]
+        uid: A574KXJ0
+      - id: shortcrust-pastry
+        title: Make a shortcrust that stays tender and does not shrink in the tin
+        requires: [ oven-calibration ]
+        uid: 52H06Q59
+      - id: pancake-batter
+        title: Mix a batter by weight and cook pancakes of consistent thickness
+        uid: RMGNADFG
+      - id: cookie-creaming
+        title: Cream butter and sugar to the stage a recipe calls for and name it
+        requires: [ oven-calibration ]
+        uid: 3WRDR437
+
+  - level: 5
+    milestones:
+      - id: mise-en-place
+        title: Set out every prepped component before the first pan gets hot
+        requires: [ knife-julienne ]
+        uid: A65RBKB4
+      - id: three-dish-timing
+        title: Serve three dishes hot at the same moment
+        requires: [ sear-steak-temp, roast-vegetables, mise-en-place ]
+        uid: 6RRG2GTS
+      - id: taste-adjust-acid
+        title: Fix a flat dish with acid, salt, or fat and say which one you used
+        requires: [ season-to-taste ]
+        uid: 6ENP3VAF
+      - id: menu-for-six
+        title: Plan and shop a three-course menu for six from one written list
+        uid: RCH5ZWEK
+      - id: plate-hot-food
+        title: Plate a course on warmed plates without it going cold or smeared
+        uid: C5W3656V
+
+  - level: 6
+    milestones:
+      - id: pickle-quick
+        title: Make a quick pickle that is crisp and correctly sour after a day
+        uid: R12KY0BG
+      - id: ferment-sauerkraut
+        title: Ferment cabbage to a safe, sour kraut without mould
+        requires: [ pickle-quick ]
+        uid: Z46WXJ48
+      - id: freeze-portion
+        title: Portion, label, and freeze cooked food that reheats without damage
+        uid: BW7CGF51
+      - id: stock-clarify
+        title: Reduce and clarify a stock to a clean-tasting glace
+        requires: [ stock-from-scraps ]
+        uid: 1KFSCV7H
+      - id: preserve-in-fat
+        title: Confit a cut in fat and store it under a sealed layer
+        requires: [ braise-tough-cut ]
+        uid: GZQMZ7H2
+
+  - level: 7
+    milestones:
+      - id: wok-stir-fry
+        title: Stir-fry over high heat without crowding or steaming the pan
+        requires: [ sear-chicken-thigh ]
+        uid: Y0V8DZCP
+      - id: whole-spice-curry
+        title: Build a curry from whole spices you toasted and ground yourself
+        requires: [ taste-adjust-acid ]
+        uid: 7VE7DQ4G
+      - id: fresh-pasta-dough
+        title: Roll and cut fresh pasta that holds its shape when boiled
+        requires: [ shortcrust-pastry ]
+        uid: H25J1J64
+      - id: sushi-rice
+        title: Season sushi rice to the right gloss, temperature, and stickiness
+        requires: [ rice-absorption ]
+        uid: QZEFE2QX
+      - id: corn-tortillas
+        title: Press and griddle corn tortillas that puff and stay pliable
+        requires: [ pancake-batter ]
+        uid: V16R1X38
+
+  - level: 8
+    milestones:
+      - id: break-down-chicken
+        title: Break down a whole chicken into eight pieces plus a carcass
+        requires: [ knife-julienne ]
+        uid: EMSAV0B8
+      - id: fillet-round-fish
+        title: Fillet a round fish leaving no flesh on the bone
+        requires: [ break-down-chicken ]
+        uid: VM1QVYCS
+      - id: live-fire-cooking
+        title: Cook a full meal over live fire with heat zones you built
+        requires: [ sear-steak-temp ]
+        uid: KFG53621
+      - id: charcuterie-cure
+        title: Cure and dry a piece of meat safely to a measured weight loss
+        requires: [ ferment-sauerkraut, preserve-in-fat ]
+        uid: KP78K85J
+      - id: bone-and-roll-joint
+        title: Bone, roll, and tie a joint that cooks evenly
+        requires: [ break-down-chicken ]
+        uid: GP1GQ74P
+
+  - level: 9
+    milestones:
+      - id: recipe-development
+        title: Develop a dish over repeated tests until the result is repeatable
+        detail: >-
+          Change one variable per test, write down what changed, and stop when
+          two consecutive cooks give the same result.
+        requires: [ taste-adjust-acid, three-dish-timing ]
+        uid: 1QGQ67D5
+      - id: scale-recipe-by-weight
+        title: Rewrite a recipe in weights and bakers' percentages and scale it
+        requires: [ menu-for-six, yeast-bread ]
+        uid: 8W8K3REG
+      - id: substitute-under-constraint
+        title: Cook a planned dish with a missing key ingredient and no shopping trip
+        requires: [ taste-adjust-acid ]
+        uid: YEB0VDEP
+      - id: dinner-party-twelve
+        title: Cook and serve a seated dinner for twelve
+        requires: [ three-dish-timing, menu-for-six ]
+        uid: AXJW3BE9
+      - id: cost-a-menu
+        title: Cost a menu per head against real receipts
+        requires: [ menu-for-six ]
+        uid: JG2JJG1A
+
+  - level: 10
+    milestones:
+      - id: teach-a-beginner
+        title: Teach a beginner a dish they can then cook unsupervised
+        requires: [ recipe-development ]
+        uid: XP5X65PD
+      - id: market-basket-meal
+        title: Cook a full meal from an unplanned market basket
+        requires: [ substitute-under-constraint, wok-stir-fry ]
+        uid: CGD6J4KN
+      - id: publish-tested-recipes
+        title: Publish recipes another cook can follow to the same result
+        requires: [ recipe-development, scale-recipe-by-weight ]
+        uid: DHZJCGFR
+      - id: seasonal-menu-year
+        title: Run a menu that changes with the seasons across a full year
+        requires: [ cost-a-menu, dinner-party-twelve ]
+        uid: X42VDNZG
+      - id: cook-for-a-crowd
+        title: Cook a single service for fifty people to time and to budget
+        requires: [ dinner-party-twelve, live-fire-cooking, cost-a-menu ]
+        uid: 0R4Q58YP

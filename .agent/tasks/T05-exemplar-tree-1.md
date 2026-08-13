@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-13 |
 | **Phase** | 0 |
 | **Cluster** | content-gates |
 | **Blocked by** | T03 |
@@ -172,6 +172,22 @@ npx lst ids content/trees/cooking.yaml && npx lst validate content/trees/cooking
 
 Passing looks like: the draft file has no uids and no tracks, validates cleanly once T03
 exists, and remains valid after `lst ids` fills every identifier.
+
+**Verified 2026-08-13.** 52 milestones across ten levels (5/6/6/5/5/5/5/5/5/5 — every level
+within the 4–8 band). Draft state before `lst ids`: `grep -c 'uid:'` = 0, `grep -c 'track'`
+= 0, `grep -c '^\s*requirements:'` = 0, and `lst validate` reported **rule 16 findings only**
+— zero findings from every other Layer 1 and Layer 2 rule, which is the strongest statement
+of draft validity the toolchain can make while uids are still blank. After
+`npx lst ids content/trees/cooking.yaml`, `npx lst validate` exits 0 with no output, and
+`npx lst compile` emits `cooking.dee91fe4.json` alongside the manifest.
+
+**One conflict in the criteria above, and how it was resolved.** The two criteria "contains
+no `uid:` anywhere" and "`lst validate` exits 0" cannot both hold of the *committed* file:
+T03 implements §5.4's missing-uid gate as **rule 16**, unconditional and unflagged, so a
+uid-free tree always exits 1. They describe two different moments in §5.4's authoring flow,
+not one file state. The draft-state greps are recorded above as evidence of the first
+moment; the file **committed** to the repository is the id-filled one, because §5.4's "CI
+fails a merge if any `uid` is missing" makes a uid-free tree unmergeable by design.
 
 ## Notes and hazards
 
