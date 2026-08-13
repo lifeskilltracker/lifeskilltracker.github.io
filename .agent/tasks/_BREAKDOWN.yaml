@@ -118,6 +118,7 @@ tasks:
     prd: [F13, F14, F15, F16, N11]
     status: written
     doc: T06-layout-engine.md
+    note: Implemented and verified complete 2026-08-13; task-doc status remains lifecycle metadata.
 
   - id: T07
     title: Content Loader and minimal tree route

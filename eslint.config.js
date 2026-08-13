@@ -19,7 +19,15 @@ const baseRestrictions = {
   },
 };
 
-/** T06 — layout purity (§14.1 forbidden edges for lib/layout) */
+/**
+ * T06 — layout purity (§14.1 forbidden edges for lib/layout).
+ *
+ * The Layout Engine is a pure function with no framework, DOM, or I/O (§8), and
+ * §14.1 forbids `lib/layout ⇢ lib/state` outright: user state must not reach the
+ * signature, or completing a milestone could trigger a re-layout (§8.6, §9.3).
+ * `purity.test.ts` asserts the same thing over the file contents; this rule is
+ * the half that fires in the editor.
+ */
 /** @type {import('eslint').Linter.Config} */
 const layoutRestrictions = {
   files: ['app/src/lib/layout/**/*.ts'],
@@ -28,7 +36,18 @@ const layoutRestrictions = {
       'error',
       {
         paths: [],
-        patterns: [],
+        patterns: [
+          {
+            group: ['$lib/state', '$lib/state/*', '../state', '../state/*', './state/*'],
+            message:
+              '§14.1: lib/layout must not import lib/state — layout never depends on user state (§8.6).',
+          },
+          {
+            group: ['svelte', 'svelte/*', '$app', '$app/*', '$lib/content', '$lib/content/*'],
+            message:
+              '§14.3: lib/layout is a pure engine — no framework, no DOM, no I/O.',
+          },
+        ],
       },
     ],
   },
