@@ -11,6 +11,8 @@ export type {
   // (§8) walks the flat milestone index and its slug refs.
   CompiledLevel,
   CompiledMilestone,
+  // §9.6 renders mastery in its own panel, outside the grid (§5.7).
+  MasteryEntry,
   MilestoneRef,
   RequirementGroup,
   Manifest,

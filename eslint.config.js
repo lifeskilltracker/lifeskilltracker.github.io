@@ -1,4 +1,5 @@
 import eslint from '@eslint/js';
+import svelte from 'eslint-plugin-svelte';
 import tseslint from 'typescript-eslint';
 
 /**
@@ -172,12 +173,40 @@ const nodeConfigFiles = {
   },
 };
 
+/**
+ * T08 — components arrive as `.svelte` files, and the TypeScript parser cannot
+ * read one. Without the Svelte parser the `lib/components ⇢ lib/state` rule
+ * above applies to a set of files that does not include a single component,
+ * which is the same as not having it: §14.1's forbidden edge is only checkable
+ * where components actually live.
+ */
+/** @type {import('eslint').Linter.Config[]} */
+const svelteFiles = [
+  ...svelte.configs.recommended,
+  {
+    files: ['**/*.svelte', '**/*.svelte.ts'],
+    languageOptions: {
+      parserOptions: {
+        parser: tseslint.parser,
+      },
+    },
+    rules: {
+      // TypeScript already resolves DOM globals in a component, and
+      // `npm run typecheck` runs `svelte-check` over exactly these files.
+      // ESLint's own scope analysis has no lib.dom, so leaving it on reports
+      // `HTMLElement` as undefined — noise, not a finding.
+      'no-undef': 'off',
+    },
+  },
+];
+
 export default tseslint.config(
   {
     ignores: ['**/node_modules/**', '**/build/**', '**/.svelte-kit/**', '**/dist/**'],
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
+  ...svelteFiles,
   nodeConfigFiles,
   baseRestrictions,
   layoutRestrictions,

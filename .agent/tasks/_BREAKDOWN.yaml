@@ -143,6 +143,11 @@ tasks:
     prd: [F10, F31, S1]
     status: written
     doc: T08-tree-view.md
+    note: >
+      Implemented and verified complete 2026-08-13. Brought the repository its first
+      component test harness (jsdom + Svelte's own mount); the §14.7 S1 grep gate ships
+      as tools/ci/check-archetype-free.sh with `npm run check:s1`, and T25 wires it into
+      CI. Full §15 accessibility remains T20's.
 
   - id: T09
     title: User State Store — IndexedDB write path

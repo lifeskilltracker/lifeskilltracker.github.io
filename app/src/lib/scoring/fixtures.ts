@@ -44,7 +44,13 @@ export function makeScoringTree(spec: TreeSpec): CompiledTree {
     filled.push(declared ?? { level, milestones: [] });
   }
 
-  const flat = filled.flatMap((level) => level.milestones.map((slug) => ({ slug, level })));
+  // `level.level`, not `level`: the milestone's own field is the level *number*
+  // (§5.3). Carrying the spec object here made no difference to scoring, which
+  // reads levels through the requirement groups, and produced a tree the Layout
+  // Engine positioned as empty — found when T08 first rendered one of these.
+  const flat = filled.flatMap((level) =>
+    level.milestones.map((slug) => ({ slug, level: level.level })),
+  );
   const indexOf = new Map(flat.map((m, i) => [m.slug, i]));
   const ref = (slug: string) => {
     const index = indexOf.get(slug);

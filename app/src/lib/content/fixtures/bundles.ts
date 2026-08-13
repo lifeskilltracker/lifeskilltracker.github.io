@@ -39,7 +39,10 @@ export function bundleFixture(options: BundleFixtureOptions = {}): Record<string
     for (let i = 0; i < 4; i += 1) {
       milestones.push({
         id: `${id}-${level}-${i}`,
-        uid: `U${level}${i}`.padEnd(8, '0'),
+        // Zero-padded: `U${1}${0}` and `U${10}${0}` are the same string, and a
+        // bundle with two milestones sharing a uid is one §5.4 forbids — found
+        // when T08 first rendered this fixture and two nodes collided.
+        uid: `U${String(level).padStart(2, '0')}${i}`.padEnd(8, '0'),
         title: `Milestone ${level}.${i}`,
         level,
         track: '',

@@ -1,62 +1,59 @@
-# RESUME — T26 spec reconciliation, wave 2
+# RESUME — implementation, phase 0
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-13 after the T05/T06/T07/T09/T11a wave. Read this, then `_BREAKDOWN.yaml`,
-then `T08-tree-view.md` — the next task, and the last one before the Phase 0 gate.
+Updated 2026-08-13 after T08. Read this, then `_BREAKDOWN.yaml`, then
+`T10-phase-0-gate-schema-bump.md` — the Phase 0 gate, and a genuine stop for human
+judgment.
 
-# SESSION 12 — PHASE 0 IS ONE TASK FROM ITS GATE.
+# SESSION 13 — T08 IS DONE. PHASE 0 IS AT ITS GATE.
 
-**T05, T06, T07, T09 and T11a are complete and verified (2026-08-13).** With T00–T04
-already done, every Phase 0 task except **T08** has landed.
+**Every Phase 0 implementation task is complete.** T00–T09 and T11a have landed; the only
+thing left in phase 0 is **T10**, the gate, which is a written schema review plus a
+by-hand pass over the whole pipeline.
 
-| Task | What landed |
-|---|---|
-| T05 | `content/trees/cooking.yaml` — ten levels, 52 milestones, single-column |
-| T06 | `lib/layout` — §8 wide, narrow, side-gutter edge routing, memoized |
-| T07 | `lib/content` — manifest SWR, CacheFirst bundles, pinning, `/s/[tree]` |
-| T09 | `lib/state` — the §12.4 write path, the writable latch, `progressFor` |
-| T11a | `lib/scoring` — §11.2–§11.4 and the property suite T11b extends |
+Repository state after T08: **409 tests** (233 app + 176 tools), typecheck, lint, build,
+`npx tsc --noEmit --project app`, and the S1 gate all clean.
 
-Repository state: **343 tests** (172 app + 171 tools), typecheck, lint and build all clean.
+## What T08 added that later tasks will use
 
-**T08 is the only thing standing between here and T10**, the Phase 0 gate — it is
-`blocked_by: [T06, T07, T11a]`, all three of which are now done. T10 additionally needs T05
-and T09, also done. So the remaining Phase 0 path is exactly **T08 → T10**.
+- **A component test harness, the repository's first.** `lib/components/test-harness.svelte.ts`
+  mounts a real component with Svelte's own `mount`/`unmount` and hands back a `$state`
+  props object, so a test drives a re-render the way the app does — by changing a prop.
+  jsdom is opted into per file with `// @vitest-environment jsdom`; the default stays
+  `node`, since paying for jsdom in 170 engine tests to serve a handful is a poor trade.
+  `resolve.conditions: ['browser']` in `vitest.config.ts` (test runs only) is what makes
+  `mount` work at all.
+- **`lib/actions/tree-session.svelte.ts`** — the seam between a loaded bundle, the engine,
+  and the store. It calls `store.openTree`, derives `scoreSkill` off §13.2's mirror, and
+  maps `MilestoneIntent` onto `setMilestoneState`. **Any future route that renders a tree
+  should open a session rather than touching the store**, which is also what keeps
+  §14.1's "components never import lib/state" true.
+- **`eslint-plugin-svelte` is now wired in.** Before this, the `lib/components ⇢ lib/state`
+  rule matched `.svelte` files that ESLint could not parse — it fired the moment a real
+  component existed. That §14.1 edge is now checked where components live.
+- **`npm run check:s1`** runs the §14.7 grep gate. T25 owns turning it into a CI step.
 
-## What T08 must know, that is not in its task doc
+## Three fixture defects worth knowing about
 
-Five decisions were taken during this wave that land on the renderer:
+They were all silent in their own suites and only surfaced when something rendered them.
+The pattern is worth remembering when reviewing a fixture: a fixture is only exercised as
+hard as its consumer.
 
-1. **`store.openTree(tree)` must be called when a tree route opens**, or
-   `setMilestoneState` rejects with `TreeNotOpenError`. §14.5 gives that function no tree
-   argument while §12.4 step 2 needs the bundle, and §14.1 forbids the store from fetching
-   one — so the shell hands it over. See T09's doc.
-2. **`bonus` is order-independent, with a visible consequence**: in an `n_of` group holding
-   more completions than its threshold, *every* completion reads `bonus` and none reads
-   `complete`. If that reads badly, the fix is a presentation rule in §9 — not a selection
-   rule in the engine, which would reintroduce the iteration-order dependence §11.5 rejects.
-   See T11a's doc.
-3. **`blocker.shortfall` carries no group identity.** §9.6's per-group readout cannot
-   attribute a shortfall to a specific group. Anticipated by T11a's doc and still open — T08
-   is the task that finds out whether it matters.
-4. **A wide tree's synthetic column has `w` = the column area, not `TreeLayout.width`.**
-   §8.2's literal `w: width` holds in narrow, where there is no side channel. See T06's doc.
-5. **`app/src/routes/s/[tree]/+page.svelte` is T08's to replace.** It renders text only, and
-   `resolveSkillPage` in `+page.ts` is the seam its tests use.
+1. `lib/scoring/fixtures.ts` put a level *spec object* in `milestone.level`; scoring reads
+   levels through requirement groups, so every such tree laid out as empty.
+2. `lib/content/fixtures/bundles.ts` generated colliding uids (`U${level}${i}`, so 1/0 and
+   10/0 matched) — a §5.4 violation the renderer caught as a duplicate each-key.
+3. The route's `load` was untyped, so `npx tsc --noEmit --project app` — the command in
+   T08's own verification block — failed on a pre-existing error. It is typed as `PageLoad`
+   now and that command is clean.
 
-**The rendered page still has no automated coverage** — there is no browser or component
-test harness in the repo yet. T08 is where one belongs.
+## What T10 needs from a human
 
-## Wave conventions worth keeping
-
-- **Every gate was verified by breaking it**, not by observing it pass. Each task doc
-  records which mutation fails which test. Two tests were found to be toothless this way and
-  were strengthened; one was a genuine hole in a data-safety guarantee.
-- **Ambiguities are resolved in the task doc, not silently.** Where the spec was
-  underdetermined — §8.4's "four segments", §11.4's `bonus`, T05's uid criteria — the
-  reading taken and the reason are written down under the task's Verification section.
-- **`_BREAKDOWN.yaml` had duplicate `note:` keys** on T00–T02 and did not parse as YAML.
-  Fixed. It parses now; keep it that way.
+T10 is deliberately not automatable: §16.4 makes phase 0 exist to **falsify the schema**,
+and R-14 says to expect a bump and take it now while the corpus is one tree. Its exit
+criteria include a manual browser pass — complete a milestone, reload, un-complete,
+reload, no console errors — and a written verdict per finding in
+`docs/SCHEMA-REVIEW-P0.md`.
 
 # SESSION 10 — T00–T04 COMPLETE. Foundation and CLI toolchain verified.
 

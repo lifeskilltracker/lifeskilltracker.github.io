@@ -9,6 +9,7 @@
  * renders the difference.
  */
 
+import type { PageLoad } from './$types';
 import type { CompiledTree } from '$lib/types';
 import type { ContentLoader } from '$lib/content';
 import { loader } from '$lib/content';
@@ -47,6 +48,6 @@ export async function resolveSkillPage(
   }
 }
 
-export async function load({ params }): Promise<SkillPageData> {
+export const load: PageLoad<SkillPageData> = async ({ params }) => {
   return resolveSkillPage(loader(), params.tree);
-}
+};
