@@ -1,8 +1,62 @@
 # RESUME — T26 spec reconciliation, wave 2
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-07 after T00–T04 completion and full verification. Read this, then
-`_BREAKDOWN.yaml`, then T05/T06 as the next implementation tasks.
+Updated 2026-08-13 after the T05/T06/T07/T09/T11a wave. Read this, then `_BREAKDOWN.yaml`,
+then `T08-tree-view.md` — the next task, and the last one before the Phase 0 gate.
+
+# SESSION 12 — PHASE 0 IS ONE TASK FROM ITS GATE.
+
+**T05, T06, T07, T09 and T11a are complete and verified (2026-08-13).** With T00–T04
+already done, every Phase 0 task except **T08** has landed.
+
+| Task | What landed |
+|---|---|
+| T05 | `content/trees/cooking.yaml` — ten levels, 52 milestones, single-column |
+| T06 | `lib/layout` — §8 wide, narrow, side-gutter edge routing, memoized |
+| T07 | `lib/content` — manifest SWR, CacheFirst bundles, pinning, `/s/[tree]` |
+| T09 | `lib/state` — the §12.4 write path, the writable latch, `progressFor` |
+| T11a | `lib/scoring` — §11.2–§11.4 and the property suite T11b extends |
+
+Repository state: **343 tests** (172 app + 171 tools), typecheck, lint and build all clean.
+
+**T08 is the only thing standing between here and T10**, the Phase 0 gate — it is
+`blocked_by: [T06, T07, T11a]`, all three of which are now done. T10 additionally needs T05
+and T09, also done. So the remaining Phase 0 path is exactly **T08 → T10**.
+
+## What T08 must know, that is not in its task doc
+
+Five decisions were taken during this wave that land on the renderer:
+
+1. **`store.openTree(tree)` must be called when a tree route opens**, or
+   `setMilestoneState` rejects with `TreeNotOpenError`. §14.5 gives that function no tree
+   argument while §12.4 step 2 needs the bundle, and §14.1 forbids the store from fetching
+   one — so the shell hands it over. See T09's doc.
+2. **`bonus` is order-independent, with a visible consequence**: in an `n_of` group holding
+   more completions than its threshold, *every* completion reads `bonus` and none reads
+   `complete`. If that reads badly, the fix is a presentation rule in §9 — not a selection
+   rule in the engine, which would reintroduce the iteration-order dependence §11.5 rejects.
+   See T11a's doc.
+3. **`blocker.shortfall` carries no group identity.** §9.6's per-group readout cannot
+   attribute a shortfall to a specific group. Anticipated by T11a's doc and still open — T08
+   is the task that finds out whether it matters.
+4. **A wide tree's synthetic column has `w` = the column area, not `TreeLayout.width`.**
+   §8.2's literal `w: width` holds in narrow, where there is no side channel. See T06's doc.
+5. **`app/src/routes/s/[tree]/+page.svelte` is T08's to replace.** It renders text only, and
+   `resolveSkillPage` in `+page.ts` is the seam its tests use.
+
+**The rendered page still has no automated coverage** — there is no browser or component
+test harness in the repo yet. T08 is where one belongs.
+
+## Wave conventions worth keeping
+
+- **Every gate was verified by breaking it**, not by observing it pass. Each task doc
+  records which mutation fails which test. Two tests were found to be toothless this way and
+  were strengthened; one was a genuine hole in a data-safety guarantee.
+- **Ambiguities are resolved in the task doc, not silently.** Where the spec was
+  underdetermined — §8.4's "four segments", §11.4's `bonus`, T05's uid criteria — the
+  reading taken and the reason are written down under the task's Verification section.
+- **`_BREAKDOWN.yaml` had duplicate `note:` keys** on T00–T02 and did not parse as YAML.
+  Fixed. It parses now; keep it that way.
 
 # SESSION 10 — T00–T04 COMPLETE. Foundation and CLI toolchain verified.
 

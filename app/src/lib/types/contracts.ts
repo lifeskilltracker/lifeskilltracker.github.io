@@ -11,6 +11,9 @@ export type FrozenSatisfaction = GeneratedFrozenSatisfaction;
 /** §14.4 — the three states a milestone record can express. `null` is the absence of a record (§12.2). */
 export type MilestoneState = 'complete' | 'dismissed' | null;
 
+/** §14.4, §11.4 — the five states a tree node renders as. The engine emits all five. */
+export type NodeState = 'complete' | 'bonus' | 'available' | 'locked' | 'dismissed';
+
 /**
  * §14.4 — everything the Scoring Engine needs about one tree's user state.
  * Produced by `store.progressFor(treeId)` (§14.5): synchronous, and total for an

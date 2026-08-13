@@ -182,6 +182,7 @@ tasks:
     status: written
     doc: T11a-scoring-tree-local.md
     note: >
+      Implemented and verified complete 2026-08-13.
       Created 2026-08-05 by T26's F16 resolution; document written 2026-08-06 by
       splitting `T11-scoring-engine.md`, which is deleted. Requirement groups, attained
       level, the tier mapping, and the five node states — everything computable from one
@@ -438,10 +439,11 @@ tasks:
       which lands in T09/T14 territory and makes an existing T09 acceptance criterion
       untestable as the spec is drawn.
 
-# T26 COMPLETE (2026-08-06). T01 IMPLEMENTATION COMPLETE (2026-08-07). Actionable front: T02.
-# Critical path: T02 → T03 → T04 → T07 → T08 → T10 → T11b → T14 → T20
-#   T11a (§11.1–§11.4) joins T06/T07 as a T08 prerequisite (T26/F16).
-# Independent and ready now: T00 complete. T15 spec complete (implementation blocked by T11b).
-#   T12, T21, T22, T23 are NOT startable yet — T12 blocked by T03+T10; T21 by T10; T22 by T03; T23 by T03+T04.
+# T26 COMPLETE (2026-08-06). T00–T07, T09 and T11a COMPLETE (2026-08-13).
+# Actionable front: T08 — the only remaining Phase 0 task, and all three of its
+#   blockers (T06, T07, T11a) are done. Remaining Phase 0 path: T08 → T10 (gate).
+# Critical path: T08 → T10 → T11b → T14 → T20
+# Also startable now, off the critical path: T22 (needs T03), T23 (needs T03+T04).
+#   T12 and T21 remain blocked by T10; T15's implementation by T11b.
 # Cross-task invariant (no graph edge): T09 defines the §13.2 mirror refresh helper; T16 and
 #   T17 must call it on commit after wholesale mirror-affecting writes.

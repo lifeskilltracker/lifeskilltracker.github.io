@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-13 |
 | **Phase** | 0 |
 | **Cluster** | pure-engines |
 | **Blocked by** | T02 |
@@ -315,6 +315,73 @@ npx tsc --noEmit
 Passing looks like: the §11.3 worked example reproducing `attained 1 → 4`, ten tier
 assertions green, invariants 6 and 8 green over their generated corpora with the case
 count printed, ESLint clean, a clean typecheck.
+
+**Verified 2026-08-13.** 46 scoring tests across five files; root `npm test` (172 app + 171
+tools), `npm run typecheck` (0 errors, 369 files), `npm run lint`, and `npm run build` all
+clean. Invariants 6 and 8 each run 1,000 generated cases. The ESLint edge was verified by
+adding `import { x } from '$lib/content'` to `levels.ts` and watching it fail with the
+§14.1 message.
+
+**The §11.10 counter-test was run for real.** Changing `groups.ts` so a dismissed milestone
+shrinks its group's denominator — the exact "improvement" §11.10 forbids — fails **five**
+tests, including the property-based invariant 6 and the all-dismissed case that would
+otherwise let a user dismiss their way to Master. The suite has teeth, and it has them
+before any content is authored against the engine.
+
+### Two ambiguities resolved, both worth reading before T08
+
+- **`bonus` is order-independent, and that is visible.** §11.4 defines `complete` as
+  complete "*and it is within its group's threshold*" and `bonus` as complete "but its group
+  already had `completed >= n` without it". Those disagree once a group has more completions
+  than it needs: "within the threshold" implies *selecting* which `n` count, while the
+  `bonus` test is per-milestone and selects nothing. The per-milestone test is implemented,
+  because any selection rule would depend on iteration order — and §11.5 rejects exactly
+  that reasoning for `satisfiedBy`. It would be incoherent for the same surplus to be
+  order-independent when frozen and order-dependent when rendered. **The consequence: in an
+  `n_of` group with more completions than the threshold, every completion reads `bonus` and
+  none reads `complete`.** At exactly the threshold, all read `complete`. Flagged in
+  `nodes.ts` — if that reads badly, the fix is a presentation rule in §9, not a selection
+  rule in the engine.
+- **The multi-group `bonus` rule is "surplus in *every* group containing it."** §5.6 lets a
+  milestone appear in more than one group and §11.4 speaks of "its group" as though there
+  were one. Marking a milestone `bonus` when it is the sole reason another group is
+  satisfied would read as "you did not need this" about something the level genuinely needs.
+
+### A generator bug the property tests found on their first run
+
+The generators initially produced trees with **1–10 levels populated**, following this
+doc's own criterion. That is not a valid `CompiledTree`: §5.3 fixes `levels` at exactly ten
+entries of four to eight milestones each. The invalid trees exposed a consequence rather
+than a defect — an `all` group over zero milestones has `n = 0`, so `completed >= n` holds
+vacuously and every empty level reads as satisfied, giving `cleared: [2..10]` on an
+all-dismissed tree. **The engine is right to carry no defensive branch there**: §14.3 makes
+it total over *valid* bundles, and the group schema's `minItems: 1` is what guarantees
+`n >= 1`. The generator was corrected to populate all ten levels, and the reasoning is
+recorded in `invariants.prop.ts`.
+
+### Files and dependencies beyond the deliverables list
+
+- **`fixtures.ts`** — hand-built trees for the example tests. `lib/layout/fixtures.ts` could
+  not be reused: layout is happy with one default `all` group per level, while scoring is
+  mostly *about* the groups and needs `n_of`, mixed groups, and milestones shared across
+  groups.
+- **`fast-check@4.7.0`**, pinned, as an `app/` devDependency only — `tools/` declares no
+  application dependencies (§4.2). This task makes the choice; T11b inherits it.
+- **`NodeState` and `RequirementGroup` were surfaced through `lib/types`.** T09 had already
+  added `MilestoneState` and `TreeProgress` there. The remaining §14.4 output types
+  (`GroupProgress`, `LevelProgress`, `SkillProgress`) live in `lib/scoring`, matching how
+  T06 keeps `TreeLayout` in `lib/layout` — they are the engine's outputs, not a contract
+  shared with another owner.
+
+### Notes carried forward
+
+- **`blocker.shortfall` still carries no group identity**, as this doc anticipated.
+  `summarizeLevels` notes it in place for T08/T14 rather than adding a field unilaterally.
+- **§9.3 vs §11.4 on who owns `dismissed`:** §14.4 is followed — the engine emits all five
+  states — and the discrepancy is flagged in `nodes.ts` for T19.
+- **`LevelProgress.grandfathered` is `false` everywhere**, asserted explicitly on a fixture
+  whose `TreeProgress.grandfathered` map is non-empty. That test names T11b and is the
+  failing counterpart the phase-1 change has to flip.
 
 ## Notes and hazards
 

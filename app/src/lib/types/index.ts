@@ -12,6 +12,7 @@ export type {
   CompiledLevel,
   CompiledMilestone,
   MilestoneRef,
+  RequirementGroup,
   Manifest,
 } from './compiled.js';
 export type { Taxonomy, MovedIndex } from './aliases.js';
@@ -20,6 +21,7 @@ export type {
   TierName,
   FrozenSatisfaction,
   MilestoneState,
+  NodeState,
   TreeProgress,
   DomainSkillRow,
   DomainScore,

@@ -109,7 +109,13 @@ const componentRestrictions = {
   },
 };
 
-/** T11a — scoring purity (§14.1 forbidden edges for lib/scoring) */
+/**
+ * T11a — scoring purity (§14.1 forbidden edges for lib/scoring).
+ *
+ * `lib/scoring ⇢ lib/content` is forbidden outright: an engine that did I/O
+ * would stop being testable as arithmetic, and §11's invariants are only
+ * checkable because scoring is arithmetic over its two arguments.
+ */
 /** @type {import('eslint').Linter.Config} */
 const scoringRestrictions = {
   files: ['app/src/lib/scoring/**/*.ts'],
@@ -118,7 +124,22 @@ const scoringRestrictions = {
       'error',
       {
         paths: [],
-        patterns: [],
+        patterns: [
+          {
+            group: ['$lib/content', '$lib/content/*', '../content', '../content/*'],
+            message:
+              '§14.1: lib/scoring must not import lib/content — scoring does no I/O (§14.4).',
+          },
+          {
+            group: ['$lib/state', '$lib/state/*', '../state', '../state/*'],
+            message:
+              '§14.1: lib/scoring must not import lib/state — the store produces TreeProgress and passes it in.',
+          },
+          {
+            group: ['svelte', 'svelte/*', '$app', '$app/*'],
+            message: '§14.3: lib/scoring is a pure engine — no framework, no DOM.',
+          },
+        ],
       },
     ],
   },
