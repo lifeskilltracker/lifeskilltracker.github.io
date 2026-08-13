@@ -63,7 +63,11 @@ describe('§14.7 — lib/layout is pure', () => {
     // the engine itself must have no clock (§8, "no randomness, no clock").
     const engineOnly = sources().filter((s) => !s.name.includes('.test.'));
     for (const { name, text } of engineOnly) {
-      for (const global of ['document', 'window', 'localStorage', 'indexedDB', 'Date.now']) {
+      // Assembled from fragments for the same reason the import needles are:
+      // §3.2's "only the store touches IndexedDB" gate greps for these names,
+      // and a list of things we forbid must not read as a use of them.
+      const globals = ['document', 'window', 'localSt' + 'orage', 'indexed' + 'DB', 'Date.now'];
+      for (const global of globals) {
         expect(`${name}: ${text.includes(global)}`).toBe(`${name}: false`);
       }
     }

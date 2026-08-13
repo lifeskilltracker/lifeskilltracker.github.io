@@ -102,7 +102,10 @@ export function makeTree(spec: TreeSpec): CompiledTree {
     return {
       level,
       milestones: refs,
-      requirements: [{ rule: 'all', milestones: refs.map((r) => r.slug) }],
+      // Resolved refs, not slugs — §7.3 resolves every slug reference to an
+      // array index at compile time, and a fixture that carried slugs here
+      // would let a consumer type-check against a shape no bundle has.
+      requirements: [{ rule: 'all', milestones: refs }],
     } as unknown as CompiledLevel;
   });
 

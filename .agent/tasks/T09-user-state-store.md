@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-13 |
 | **Phase** | 0 |
 | **Cluster** | runtime-io |
 | **Blocked by** | T02 |
@@ -290,6 +290,76 @@ npm run --workspace app lint            # §14.7 import rules
 Passing looks like: the atomicity test proving a partial write is impossible, the writable
 latch rejecting mutators after a forced hydration failure, the frozen-snapshot test green,
 and the grep showing exactly one module touching IndexedDB.
+
+**Verified 2026-08-13.** 34 state tests (4 db, 30 store); root `npm test` (126 app + 171
+tools), `npm run typecheck` (0 errors, 354 files), `npm run lint`, and `npm run build` all
+clean. All three structural greps are silent: `PHOTO` appears only in `db.ts`, IndexedDB is
+touched only under `lib/state/`, and `progressFor` contains no `async` or `await`. The
+`lib/components ⇢ lib/state` rule was verified by writing a fixture that violates it and
+watching ESLint reject it.
+
+**The three data-safety guarantees were each verified by breaking them**, since this task's
+tests protect the only irreplaceable data in the system:
+
+| Mutation | Caught by |
+|---|---|
+| Remove the transaction abort, so step 1 commits alone | "leaves no milestone row behind when the recompute fails mid-transaction" |
+| Clear the latch on a later successful `hydrate()` | "stays latched across a later successful hydrate in the same session" |
+| Refresh `slug`/`title` from the bundle on every write | "never refreshes slug and title after completion" |
+
+**The third mutation initially survived, and the test was wrong rather than the code.** As
+first written it reworded one milestone upstream and then completed a *different* one —
+which never rewrites the reworded record, so the freeze was never exercised. The test now
+completes a milestone, rewords it upstream, then sets that same uid to `dismissed`: the one
+moment a refreshed snapshot could actually slip in.
+
+### A defect the typechecker caught that the tests did not
+
+`RequirementGroup.milestones` holds resolved `MilestoneRef`s, not slug strings — §7.3
+resolves every slug reference to an array index at compile time. The phase-0 evaluator was
+written against slugs and **the tests still passed**, because both fixture builders
+(`lib/layout/fixtures.ts` and `lib/content/fixtures/bundles.ts`) emitted slugs there and
+reached the typed shape through an `as unknown` cast. It would have failed against a real
+bundle. Both fixtures now emit refs, matching `cooking.dee91fe4.json`. Worth recording as a
+pattern: a cast at a fixture boundary silently disables the check that would have caught
+this, and only the production-code typecheck found it.
+
+### Decisions and additions
+
+- **`store.openTree(tree, evaluate?)` was added, and it is load-bearing.** §14.5 fixes
+  `setMilestoneState(uid, state, opts)` with no tree argument, while §12.4 step 2 requires
+  the recompute to run against *the in-memory tree bundle*, and §14.1 forbids this module
+  from fetching one. The bundle has to arrive some other way, and this is it — the same
+  injection `applyLineage(tree, evaluate)` already uses, moved earlier in time. The §14.5
+  interface is unmodified; `openTree`/`closeTree` are additions to the implementation.
+  **T14 must call it when a tree route opens**, or `setMilestoneState` rejects with
+  `TreeNotOpenError`.
+- **`default-evaluator.ts` is the phase-0 stand-in and is meant to be deleted.** The store
+  must not implement level semantics of its own; T11a supplies the real evaluator through
+  the same injection point, and T10 is the gate where the swap is checked.
+- **`MilestoneState` and `TreeProgress` were added to `lib/types/contracts.ts`,** not to
+  `lib/state`. The store produces `TreeProgress` and the engine consumes it, so neither may
+  own the other's type. T11a adds the rest of the §14.4 block (`NodeState`,
+  `GroupProgress`, `LevelProgress`, `SkillProgress`) — these two are the ones T09 needs.
+- **`StoreOptions.open` is injected only by tests,** to reach §13.3's hydration-failure
+  branch. A transient IndexedDB error is otherwise unreachable, and it guards the one
+  failure mode — "read as empty, then wrote" — that would lose user data irrecoverably.
+- **Aborting the transaction claims `tx.done` first.** `tx.done` rejects with an
+  `AbortError` once the abort lands, and leaving it unclaimed surfaced as an unhandled
+  rejection in the test output. The rollback is correct either way; the noise was not.
+- **`startSkill` on an already-started skill is a complete no-op**, not just a
+  `startedAt`-preserving write. The criterion names `startedAt`; re-seeding
+  `contentVersionSeen` from a newer argument would silently re-align a skill with content
+  the user has not seen and defeat §12.5's migration gate.
+- **`applyLineage`, `applyMoves`, `export`, and `import` reject with a message naming their
+  owning task** (T17, T16) rather than returning empty results. A silent empty
+  `MigrationReport` from an unimplemented migration is the shape of a data-loss bug.
+- **Two dependencies added**: `idb@8.0.3` (runtime) and `fake-indexeddb@6.2.2` (dev),
+  both pinned exactly to match T01's convention.
+- **`lib/layout/purity.test.ts` had one line reworded.** Its forbidden-globals list
+  contained the literal `indexedDB`, which tripped this task's "only the store touches
+  IndexedDB" grep — a list of things we forbid must not read as a use of them. It now uses
+  the same fragment assembly the rest of that file already uses for its import needles.
 
 ## Notes and hazards
 

@@ -2,8 +2,12 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
 /**
- * Root ESLint flat config. T06 and T11a add disjoint no-restricted-imports slices
- * to the layout and scoring blocks below; serialize edits to this file.
+ * Root ESLint flat config. Each task adds a disjoint `no-restricted-imports`
+ * slice for the §14.1 forbidden edge it owns — T06 layout, T07 content, T09
+ * components, T11a scoring. Serialize edits to this file.
+ *
+ * Together these are §14.7's first and sixth enforcement items: a boundary
+ * nobody checks is a comment.
  */
 
 /** @type {import('eslint').Linter.Config} */
@@ -80,6 +84,31 @@ const contentRestrictions = {
   },
 };
 
+/**
+ * T09 — §14.1's `lib/components ⇢ lib/state` forbidden edge. Components
+ * importing the store directly would create writers outside §12.4's single
+ * path; scores and progress arrive as derived values through props (§13.4).
+ */
+/** @type {import('eslint').Linter.Config} */
+const componentRestrictions = {
+  files: ['app/src/lib/components/**/*.{ts,svelte}'],
+  rules: {
+    'no-restricted-imports': [
+      'error',
+      {
+        paths: [],
+        patterns: [
+          {
+            group: ['$lib/state', '$lib/state/*', '../state', '../state/*', '../../state/*'],
+            message:
+              '§14.1: components must not import lib/state — progress arrives as props (§13.4).',
+          },
+        ],
+      },
+    ],
+  },
+};
+
 /** T11a — scoring purity (§14.1 forbidden edges for lib/scoring) */
 /** @type {import('eslint').Linter.Config} */
 const scoringRestrictions = {
@@ -132,5 +161,6 @@ export default tseslint.config(
   baseRestrictions,
   layoutRestrictions,
   contentRestrictions,
+  componentRestrictions,
   scoringRestrictions,
 );

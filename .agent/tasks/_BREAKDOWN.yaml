@@ -37,9 +37,8 @@ tasks:
     prd: [D20, D26, R-24, R-25]
     status: written
     doc: T00-prd-amendments.md
-    note: Implemented and verified complete 2026-08-07; task-doc status remains lifecycle metadata.
     note: >
-      Complete 2026-08-07. PRD v1.4: D20 estimator rule (L 1–10 contiguous prefix,
+      Implemented and verified complete 2026-08-07. PRD v1.4: D20 estimator rule (L 1–10 contiguous prefix,
       editable suggestion), D26 Creative Commons Attribution 4.0 International (CC BY 4.0),
       D23 out of v1; F33/F35 and RESEARCH §4 aligned with ARCHITECTURE §19.5. T15 spec complete.
 
@@ -53,9 +52,8 @@ tasks:
     prd: [D17, N10]
     status: written
     doc: T01-repository-scaffold.md
-    note: Implemented and verified complete 2026-08-07; task-doc status remains lifecycle metadata.
     note: >
-      IMPLEMENTATION COMPLETE 2026-08-07 (Session 9). All acceptance criteria verified under
+      Implemented and verified complete 2026-08-07 (Session 9). All acceptance criteria verified under
       Node 20.20.2; see task doc Verification table. Uncommitted on branch
       agent/navigator-task-kickoff in external worktree navigator-task-kickoff.
 
@@ -69,8 +67,9 @@ tasks:
     prd: [F5, F7, F8, F14, F18, F19, F26, D8, D10, D11, D13]
     status: written
     doc: T02-schema-v1-and-generated-types.md
-    note: Implemented and verified complete 2026-08-07; task-doc status remains lifecycle metadata.
-    note: Worked exemplar — the reference for document shape and depth.
+    note: >
+      Implemented and verified complete 2026-08-07. Worked exemplar — the reference
+      for document shape and depth.
 
   - id: T03
     title: lst validate and lst ids
@@ -130,8 +129,9 @@ tasks:
     prd: [N4, N9]
     status: written
     doc: T07-content-loader.md
-    note: Implemented and verified complete 2026-08-13; task-doc status remains lifecycle metadata.
-    note: Service-worker and PWA hardening are Phase 2, not this task.
+    note: >
+      Implemented and verified complete 2026-08-13. Service-worker and PWA hardening
+      are Phase 2, not this task.
 
   - id: T08
     title: TreeView renderer
@@ -154,6 +154,7 @@ tasks:
     prd: [D4, N2]
     status: written
     doc: T09-user-state-store.md
+    note: Implemented and verified complete 2026-08-13; task-doc status remains lifecycle metadata.
 
   - id: T10
     title: PHASE 0 GATE — schema review and breaking bump

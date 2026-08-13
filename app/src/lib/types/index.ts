@@ -19,6 +19,8 @@ export type {
   DomainId,
   TierName,
   FrozenSatisfaction,
+  MilestoneState,
+  TreeProgress,
   DomainSkillRow,
   DomainScore,
   ExportFile,

@@ -59,7 +59,8 @@ export function bundleFixture(options: BundleFixtureOptions = {}): Record<string
     return {
       level,
       milestones: refs,
-      requirements: [{ rule: 'all', milestones: refs.map((r) => r.slug) }],
+      // Refs, not slugs: §7.3 resolves slug references to indices at compile time.
+      requirements: [{ rule: 'all', milestones: refs }],
     };
   });
 
