@@ -248,6 +248,14 @@ tasks:
     prd: [F21, D-08, R-13]
     status: written
     doc: T12-map-geometry.md
+    note: >
+      Implemented and verified complete 2026-08-13. map.yaml authored as ONE connected
+      landmass of 59 tiles — the placeholder was eight disconnected triangles. The compiler
+      unions it to eight single-loop paths plus Making's three subregions, and the hole
+      warning is non-blocking (runCompile now returns warnings[]). M1-M5 and their fixtures
+      already existed from T03 (T26/F17), and neither map.schema.json nor
+      manifest.schema.json needed a change, so no app type regenerated. Per R-13 the layout
+      was drawn by a throwaway script that was deliberately not committed.
 
   - id: T13
     title: Map Renderer

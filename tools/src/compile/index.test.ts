@@ -286,6 +286,51 @@ describe('lst compile', () => {
     expect(stableBundle?.json.includes('author-only comment')).toBe(false);
   });
 
+  it('emits real unioned region geometry into manifest.taxonomy.map (§10.3, §10.4)', () => {
+    const repoRoot = makeRepoFromFixtures();
+    const { manifest } = runCompile({ repoRoot, write: false });
+
+    const regions = manifest.taxonomy.map.regions;
+    expect(regions).toHaveLength(8);
+    for (const region of regions) {
+      // Not T04's placeholder: an actual closed path, in pixels.
+      expect(region.path).toMatch(/^M -?[\d.]+,-?[\d.]+( L -?[\d.]+,-?[\d.]+)+ Z$/);
+      expect(region.bounds.width).toBeGreaterThan(0);
+      expect(region.bounds.height).toBeGreaterThan(0);
+    }
+
+    const making = regions.find((region) => region.domain === 'making');
+    expect(making?.subregions?.map((sub) => sub.id)).toEqual([
+      'expression',
+      'objects',
+      'systems',
+    ]);
+    // Every other domain is a plain region — subregions are Making's alone (F26).
+    for (const region of regions.filter((r) => r.domain !== 'making')) {
+      expect(region.subregions).toBeUndefined();
+    }
+  });
+
+  it('warns rather than fails when an authored region has a hole (§10.4)', () => {
+    const repoRoot = makeRepoFromFixtures();
+    const mapPath = path.join(repoRoot, 'content/taxonomy/map.yaml');
+    // A ring for mind: contiguous, so M3 would pass it, and two loops out.
+    writeFileSync(
+      mapPath,
+      readFileSync(mapPath, 'utf8').replace(
+        '  - domain: mind\n    tiles: [[10, 0], [11, 0], [10, 1]]',
+        '  - domain: mind\n    tiles: [[10, 0], [11, 0], [9, 1], [11, 1], [9, 2], [10, 2]]',
+      ),
+      'utf8',
+    );
+
+    const result = runCompile({ repoRoot, write: false });
+
+    expect(result.validationIssues).toHaveLength(0);
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain('mind');
+  });
+
   it('validates compiled output against T02 schemas', () => {
     const repoRoot = makeRepoFromFixtures();
     const result = runCompile({ repoRoot, write: false, now: fixedNow });

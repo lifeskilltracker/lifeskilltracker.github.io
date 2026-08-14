@@ -1,20 +1,43 @@
 # RESUME — implementation, phase 1
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-13 after T11b. Read this, then `_BREAKDOWN.yaml`.
+Updated 2026-08-13 after T11b and T12. Read this, then `_BREAKDOWN.yaml`.
 
-# SESSION 15 — T11b IS DONE. §11 IS COMPLETE.
+# SESSION 15 — T11b AND T12 ARE DONE.
+
+Repository state: **485 tests** (290 app + 195 tools), typecheck, lint, build, `gen:types`
+diff-free, `lst validate` and `lst compile` all clean.
+
+**T13 is fully unblocked** — it needed both of these and now has both: `domainScores`'
+three channels and eight real region paths in the manifest. Also unblocked: **T14, T17,
+T19**, and **T15** as soon as T00 lands D20. The critical path is **T13 → T14 → T20**.
+
+## T12 — the map has real geometry
+
+`content/taxonomy/map.yaml` is authored as **one connected landmass of 59 tiles**, not the
+eight disconnected three-tile triangles the placeholder shipped. `lst compile` unions it into
+eight single-loop SVG paths plus Making's three subregion paths, with `label` (tile centroid)
+and `bounds` per region, all inside `manifest.taxonomy.map`.
+
+- **Nothing about the schema moved.** T02's `map.schema.json` and `manifest.schema.json`'s
+  `compiledMapRegion` already carried the full shape, so no app type regenerated.
+- **M1–M5 already existed** from T03, fixtures included (T26/F17). Nothing was duplicated.
+- **§10.4's hole warning is non-blocking**: `runCompile` returns `warnings: string[]` and
+  `compileCommand` prints them without touching the exit code.
+- **Per R-13 the layout script was thrown away, deliberately.** If the eight regions ever
+  need redrawing, write another one — do not build an editor.
+
+**For T13**: region area encodes nothing (§10.3, NG9). The quantitative channels are T11b's
+`fill`, `breadth` and `lastActivityAt`, and band names come from `bandFor`, never a literal.
+
+# T11b — §11 IS COMPLETE.
 
 `lib/scoring` now ships both halves: `scoreSkill` honours §11.5's frozen records, and
 `domainScores(taxonomy, rows)` returns score, fill, breadth and recency per domain without
 reading a single byte of tree content. `table.ts` and `bands.ts` are dependency-free data.
 All eight §11.9 invariants are property tests over generated inputs, 1,000 cases each.
 
-Repository state: **467 tests** (290 app + 177 tools), typecheck, lint and the S1 purity
-gate clean.
-
-**Now unblocked: T13, T14, T15, T17, T19** — though T15 still waits on T00's D20, and T13
-also waits on T12. The critical path is **T14 → T20**.
+The S1 purity gate is clean and all eight §11.9 invariants are property tests.
 
 ## Two things T11b decided that its document did not
 

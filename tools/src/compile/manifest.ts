@@ -1,4 +1,5 @@
 import type { DomainsFile, FacetsFile, MapFile, Tree } from '../validate/types.js';
+import { compileMap, type CompiledMapRegion } from './map.js';
 import { bundleRelativePath } from './hash.js';
 import type { CompiledTree } from './bundle.js';
 import { collectMovedMap } from './bundle.js';
@@ -33,7 +34,7 @@ export interface Manifest {
   taxonomy: {
     domains: DomainsFile['domains'];
     facets: FacetsFile['facets'];
-    map: { regions: [] };
+    map: { regions: CompiledMapRegion[] };
   };
   trees: ManifestTreeEntry[];
   moved: Record<string, string>;
@@ -75,6 +76,12 @@ export function formatGeneratedTimestamp(now: Date): string {
   return now.toISOString();
 }
 
+export interface BuiltManifest {
+  manifest: Manifest;
+  /** §10.4's hole warnings. Non-blocking by design — see `map.ts`. */
+  warnings: string[];
+}
+
 export function buildManifest(options: {
   bundles: CompiledBundleOutput[];
   trees: Tree[];
@@ -82,23 +89,32 @@ export function buildManifest(options: {
   facets: FacetsFile;
   map: MapFile;
   now?: NowFn;
-}): Manifest {
+}): BuiltManifest {
   const now = (options.now ?? (() => new Date()))();
   const treeById = new Map(options.trees.map((tree) => [tree.id, tree]));
   const trees = sortByAsciiUtf8(options.bundles, (bundle) => bundle.treeId).map((bundle) =>
     manifestTreeEntry(treeById.get(bundle.treeId)!, bundle.relativePath),
   );
 
+  // §10.4: the manifest is the only place map geometry ships. The map renders
+  // "from the manifest alone with no further fetch", which is what §3.3's
+  // cold-load sequence requires — a per-region fetch would violate it however
+  // reasonable it looked in isolation.
+  const map = compileMap(options.map);
+
   return {
-    schemaVersion: 1,
-    generated: formatGeneratedTimestamp(now),
-    taxonomy: {
-      domains: options.domains.domains,
-      facets: options.facets.facets,
-      map: { regions: [] },
+    manifest: {
+      schemaVersion: 1,
+      generated: formatGeneratedTimestamp(now),
+      taxonomy: {
+        domains: options.domains.domains,
+        facets: options.facets.facets,
+        map: { regions: map.regions },
+      },
+      trees,
+      moved: collectMovedMap(options.trees),
     },
-    trees,
-    moved: collectMovedMap(options.trees),
+    warnings: map.warnings,
   };
 }
 

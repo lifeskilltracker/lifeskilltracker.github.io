@@ -1,26 +1,46 @@
+# The authored hex geometry (§10.3, D-08). One region per domain in domains.yaml.
+#
+# The grid exists ONLY here. `lst compile` unions each tile list into a single SVG
+# path per domain (§10.4) and the manifest ships those paths; there is no hex grid at
+# runtime and no per-hex element. Rendering the tiles individually — the alternative
+# §10.4 rejects — would give every region a visible internal honeycomb and no
+# silhouette, which is the opposite of F21's Lynch districts.
+#
+# REGION SIZE ENCODES NOTHING (§10.3, NG9). A domain with more skills does not get
+# more tiles and the schema offers no way to say it should. Area is visual identity;
+# the quantitative channels are fill, recency and breadth (§10.5).
+#
+# Validated by `lst validate` rules M1-M5 (T26/F17): every domain has a region, no
+# tile is claimed twice, every region is contiguous, Making's subregions partition
+# Making's own tiles exactly, and subregions appear under `making` alone.
+#
+# Authoring note (R-13): hand-writing these lists is the least ergonomic task in the
+# project, it happens once, and it is maintainer-only. The regions were laid out on an
+# offset grid and converted to axial; if this ever needs redoing at scale, the
+# sanctioned tool is a THROWAWAY local script, never a shipped editor.
 schemaVersion: 1
 hexSize: 40
 regions:
   - domain: making
-    tiles: [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1], [1, 2]]
+    tiles: [[2, 0], [3, 0], [4, 0], [1, 1], [2, 1], [3, 1], [4, 1], [1, 2], [2, 2], [3, 2]]
     subregions:
       - id: expression
-        tiles: [[0, 0], [0, 1]]
+        tiles: [[2, 0], [1, 1], [2, 1], [1, 2]]
       - id: objects
-        tiles: [[1, 0], [1, 1], [1, 2]]
+        tiles: [[3, 0], [3, 1], [2, 2]]
       - id: systems
-        tiles: [[2, 0], [2, 1]]
+        tiles: [[4, 0], [4, 1], [3, 2]]
   - domain: mind
-    tiles: [[10, 0], [11, 0], [10, 1]]
+    tiles: [[6, 0], [7, 0], [5, 1], [6, 1], [7, 1], [4, 2], [5, 2]]
   - domain: body
-    tiles: [[12, 0], [13, 0], [12, 1]]
+    tiles: [[-1, 2], [0, 2], [-1, 3], [0, 3], [1, 3], [-1, 4], [0, 4]]
   - domain: home
-    tiles: [[14, 0], [15, 0], [14, 1]]
+    tiles: [[-1, 5], [0, 5], [1, 5], [-1, 6], [0, 6], [1, 6], [0, 7]]
   - domain: people
-    tiles: [[16, 0], [17, 0], [16, 1]]
+    tiles: [[2, 3], [3, 3], [4, 3], [1, 4], [2, 4], [3, 4], [4, 4], [2, 5]]
   - domain: work-money
-    tiles: [[18, 0], [19, 0], [18, 1]]
+    tiles: [[3, 5], [4, 5], [5, 5], [2, 6], [3, 6], [4, 6]]
   - domain: play
-    tiles: [[20, 0], [21, 0], [20, 1]]
+    tiles: [[6, 2], [5, 3], [6, 3], [7, 3], [5, 4], [6, 4], [6, 5]]
   - domain: outdoors-nature
-    tiles: [[22, 0], [23, 0], [22, 1]]
+    tiles: [[5, 6], [6, 6], [1, 7], [2, 7], [3, 7], [4, 7], [5, 7]]

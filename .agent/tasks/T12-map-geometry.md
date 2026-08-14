@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-13 |
 | **Phase** | 1 |
 | **Cluster** | content-gates |
 | **Blocked by** | T03, T10 |
@@ -181,32 +181,32 @@ The manifest target shape this task populates, copied verbatim from §7.2:
 
 ## Acceptance criteria
 
-- [ ] `content/taxonomy/map.yaml` declares exactly one region per domain in
+- [x] `content/taxonomy/map.yaml` declares exactly one region per domain in
       `content/taxonomy/domains.yaml` (eight), and `making`'s region declares exactly
       three subregions: `expression`, `objects`, `systems`.
-- [ ] A fixture where a domain from `domains.yaml` has no matching region in `map.yaml`
+- [x] A fixture where a domain from `domains.yaml` has no matching region in `map.yaml`
       fails **validation** (`lst validate`, rules M1–M5).
-- [ ] A fixture where the same tile `(q, r)` appears in two different domains' `tiles`
+- [x] A fixture where the same tile `(q, r)` appears in two different domains' `tiles`
       lists fails **validation** (`lst validate`, rules M1–M5).
-- [ ] A fixture where a domain's tiles form two disconnected clusters (non-contiguous)
+- [x] A fixture where a domain's tiles form two disconnected clusters (non-contiguous)
       fails **validation** (`lst validate`, rules M1–M5).
-- [ ] A fixture where `making`'s subregion tiles omit one of `making`'s own tiles, or
+- [x] A fixture where `making`'s subregion tiles omit one of `making`'s own tiles, or
       claim a tile `making` does not have, fails **validation** — the exact-partition check.
-- [ ] A fixture declaring `subregions` under a non-`making` domain fails **validation** (`lst validate`, rules M1–M5).
-- [ ] `tools/src/compile/map.ts`'s axial-to-pixel conversion matches §10.2's formula
+- [x] A fixture declaring `subregions` under a non-`making` domain fails **validation** (`lst validate`, rules M1–M5).
+- [x] `tools/src/compile/map.ts`'s axial-to-pixel conversion matches §10.2's formula
       exactly for a hand-computed fixture set of `(q, r)` pairs.
-- [ ] The region-union algorithm run against a fixture of 3+ adjacent tiles for one domain
+- [x] The region-union algorithm run against a fixture of 3+ adjacent tiles for one domain
       produces a single closed SVG path with no interior edges present in the `d`
       attribute — verified by parsing the emitted path and confirming edge count matches
       the expected exterior-only boundary.
-- [ ] A fixture region shaped as a ring (a hole) passes M3 — a hole is contiguous — and
+- [x] A fixture region shaped as a ring (a hole) passes M3 — a hole is contiguous — and
       emits two sub-paths with a compiler warning, not a hard failure. Asserting this
       alongside the disconnected-region failure above is what proves contiguity was
       computed by adjacency rather than inferred from a loop count (T26/F17).
-- [ ] `npx lst compile` (T04) with this task's map compiler wired in produces a
+- [x] `npx lst compile` (T04) with this task's map compiler wired in produces a
       `manifest.json` whose `taxonomy.map` contains real path data (not T04's placeholder
       shape) for all eight domains.
-- [ ] `schema/map.schema.json` still validates the authored `content/taxonomy/map.yaml`
+- [x] `schema/map.schema.json` still validates the authored `content/taxonomy/map.yaml`
       under Ajv.
 
 ## Verification
@@ -265,3 +265,60 @@ its own input had the M1–M5 checks stayed in the compiler. They did not — F1
 `lst validate` — and F24 has now split `build` into `content: compile` (needs
 `content: validate` only, never skips) and `app: build`. Both jobs a `map.yaml` change
 depends on now run. No edit to this task's scope; strike any open note on F24.
+
+
+## Completion — 2026-08-13
+
+`content/taxonomy/map.yaml` is authored, `tools/src/compile/map.ts` unions it, and
+`manifest.taxonomy.map` now carries real geometry: **eight regions, one closed loop each,
+no warnings**, plus Making's three subregion paths. `npx lst validate` and `npx lst compile`
+both exit 0; the tools suite is 195 tests (16 of them new in `map.test.ts`), the repo is 485
+across both workspaces, with typecheck, lint, build, and a diff-free `gen:types` clean.
+
+### What the authored map is
+
+Eight irregular regions, 59 tiles, forming **one connected landmass** — not the eight
+disconnected three-tile triangles the placeholder shipped. Each region is contiguous, no tile
+is claimed twice, and Making's `expression` / `objects` / `systems` partition its ten tiles
+exactly.
+
+Per **R-13** the layout was drawn on an offset grid and converted to axial by a **throwaway
+script**, which was not committed and should not be. That is the sanctioned fallback and its
+whole point is that it is disposable — if the eight regions ever need redrawing, write
+another one. Nothing in the repo depends on it existing.
+
+### What did not need building
+
+- **M1–M5 already existed.** T03 shipped `tools/src/validate/map-rules.ts` and the fixtures
+  under `tools/test/fixtures/validate/maps/` (including `map-m3-ring-pass.yaml`), so this
+  task's fixture deliverable was already met — in T03's directory, which is the right one
+  now that the rules are validate's (T26/F17). Nothing was duplicated into
+  `tools/test/fixtures/map/`.
+- **`schema/map.schema.json` needed no change.** T02's shape-only version already carries
+  everything the authored structure needs, and `manifest.schema.json`'s `compiledMapRegion`
+  already declared `path` / `label` / `bounds` / `subregions` — so the compiled shape did not
+  move and no app type regenerated.
+
+### Implementation notes worth carrying forward
+
+- **Vertex snapping is what makes step 2 work at all.** Adjacent hexes reach their shared
+  corners through different arithmetic and land a few ULPs apart. Keys are built at six
+  decimals, and `-0` is normalized to `0` — without that a shared corner keys twice and the
+  interior edge survives into the outline. There is a test that asserts the three-tile
+  triangle's centre vertex appears nowhere in the emitted path.
+- **The hole warning is non-blocking and prints from `compileCommand`.** `runCompile` now
+  returns `warnings: string[]`; the exit code is untouched. A hole and a two-piece region
+  both produce two loops, so the compiler does not try to tell them apart — M3 has already
+  rejected disconnection at validate time (T26/F17).
+- **A tile listed twice inside one region still vanishes silently from the outline** — both
+  copies of all six of its edges are discarded by step 2. That is exactly why M2 is stated
+  over the multiset, and the union code carries a comment saying so at the point where it
+  would otherwise look like a bug.
+
+### For T13
+
+The manifest is the only place map geometry ships (§10.4), and it now really does ship it:
+`path` (one or more `M … Z` sub-paths), `label` as a pixel point defaulting to the tile
+centroid, and `bounds` for hit-testing and zoom. Regions come in authored order, which is
+paint order and nothing else. **Region area means nothing** (§10.3, NG9) — the quantitative
+channels are T11b's `fill`, `breadth`, and `lastActivityAt`.

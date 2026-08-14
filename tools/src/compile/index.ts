@@ -36,6 +36,9 @@ export interface CompileResult {
   manifest: Manifest;
   manifestPath: string;
   validationIssues: ReturnType<typeof assertValidCompiledOutput>;
+  /** §10.4's hole warnings. Reported, never blocking — a hole is an authoring
+   *  smell, and M3 has already rejected the disconnection case at validate time. */
+  warnings: string[];
 }
 
 function resolveRepoRoot(repoRoot?: string): string {
@@ -133,7 +136,7 @@ export function runCompile(options: CompileOptions = {}): CompileResult {
   const map = loadTaxonomy<MapFile>(path.join(taxonomyDir(repoRoot), 'map.yaml'));
 
   const bundles = compileBundles(trees);
-  const manifest = buildManifest({
+  const { manifest, warnings } = buildManifest({
     bundles,
     trees: trees.map((entry) => entry.tree),
     domains,
@@ -155,6 +158,7 @@ export function runCompile(options: CompileOptions = {}): CompileResult {
       manifest,
       manifestPath: path.join(staticContentDir(repoRoot), 'manifest.json'),
       validationIssues,
+      warnings,
     };
   }
 
@@ -169,6 +173,7 @@ export function runCompile(options: CompileOptions = {}): CompileResult {
     manifest,
     manifestPath: path.join(staticContentDir(repoRoot), 'manifest.json'),
     validationIssues,
+    warnings,
   };
 }
 
@@ -187,6 +192,12 @@ export function compileCommand(repoRoot?: string): number {
     if (result.validationIssues.length > 0) {
       printValidationIssues(result.validationIssues);
       return EXIT_VALIDATION_FAILED;
+    }
+    // §10.4's hole warning is printed and does not change the exit code: it is
+    // far more likely an authoring mistake than an intention, but the spec asks
+    // for a warning, and a gate here would be stricter than it asks for.
+    for (const warning of result.warnings) {
+      console.warn(warning);
     }
     return EXIT_OK;
   } catch (error) {
