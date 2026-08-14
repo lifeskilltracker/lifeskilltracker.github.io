@@ -193,6 +193,10 @@ export interface Milestone {
   uid?: string;
   aliases?: string[];
   title: string;
+  /**
+   * Short form for the tree node box (§9.2). Optional; the renderer falls back to title. Capped because the node is 100×44 layout units and cannot legibly show more — see docs/SCHEMA-REVIEW-P0.md finding 1.
+   */
+  label?: string;
   detail?: string;
   /**
    * Mutable slug; unique within the tree. Immutable after merge (§5.3).

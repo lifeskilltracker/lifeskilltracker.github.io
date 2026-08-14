@@ -128,6 +128,19 @@ describe('lst compile', () => {
     expect(bundle.milestones[0]?.detail).toBe('Author prose retained verbatim.');
   });
 
+  /**
+   * T10 finding 1: the node box cannot show a 57-character title, so a
+   * milestone may carry a short `label` beside it. It has to survive compile
+   * or the renderer never sees it, and the failure is silent — a bundle with
+   * every label dropped renders exactly as it did before the field existed.
+   */
+  it('carries the short label through, and omits the key when there is none', () => {
+    const tree = loadFixtureTree('transforms.yaml');
+    const bundle = compileTreeBundle(tree);
+    expect(bundle.milestones[0]?.label).toBe('L1 M1 short');
+    expect(bundle.milestones[1]).not.toHaveProperty('label');
+  });
+
   it('preserves lineage in authored file order', () => {
     const tree = loadFixtureTree('lineage-order.yaml');
     const bundle = compileTreeBundle(tree);

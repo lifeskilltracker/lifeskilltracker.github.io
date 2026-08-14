@@ -45,7 +45,18 @@
 	const milestoneOf = (uid: string): CompiledMilestone | undefined =>
 		tree.milestones.find((m) => m.uid === uid);
 
-	const titleOf = (uid: string): string => milestoneOf(uid)?.title ?? uid;
+	/**
+	 * What the **node box** shows (T10, §9.2). The box is 100×44 layout units and
+	 * holds roughly forty characters; the authored `title` is a full statement of
+	 * the achievement and ran to seventy in the first real tree, so it clipped —
+	 * and clipped titles that share an opening ("Cook a full meal…", "Cook a full
+	 * meal over live fire…") were indistinguishable in the primary view. The full
+	 * title still goes everywhere with room for it, §9.4's panel above all.
+	 */
+	const labelOf = (uid: string): string => {
+		const milestone = milestoneOf(uid);
+		return milestone?.label ?? milestone?.title ?? uid;
+	};
 
 	/**
 	 * The focused node drives §9.4's edge highlighting, which is the mitigation
@@ -233,19 +244,25 @@
 					{@const level = progress.levels.find((l) => l.level === row.level)}
 					<g class="row" data-level={row.level} class:is-satisfied={level?.satisfied}>
 						<rect class="row-band" x="0" y={row.y} width={positions.width} height={row.h} />
-						<text class="row-label" x="4" y={row.y + 14}>
-							Level {row.level} · {bandTier(row.level)}
-						</text>
 						<!--
 							One readout per requirement group, never averaged: a level with an
 							`all` group and an `n_of` group has two independent things to
 							report, and one bar would hide which of them is blocking (§9.6).
+
+							They are `tspan`s inside the label rather than `text` at a computed
+							x, because a computed x has to guess how wide the tier name is —
+							the first version parked them at 90 and "Level 6 · Journeyman"
+							overprinted its own readout (T10). `dx` measures from wherever the
+							text actually ended, so no tier name can be too long.
 						-->
-						{#each level?.groups ?? [] as group, index (index)}
-							<text class="group-progress" x={90 + index * 56} y={row.y + 14}>
-								{Math.min(group.completed, group.n)} / {group.n}
-							</text>
-						{/each}
+						<text class="row-label" x="4" y={row.y + 14}>
+							Level {row.level} · {bandTier(row.level)}
+							{#each level?.groups ?? [] as group, index (index)}
+								<tspan class="group-progress" dx="12"
+									>{Math.min(group.completed, group.n)} / {group.n}</tspan
+								>
+							{/each}
+						</text>
 					</g>
 				{/each}
 			</g>
@@ -288,9 +305,32 @@
 							width="16"
 							height="16"
 						/>
-						<text class="node-title" x="28" y={positioned.h / 2 + 4}>
-							{titleOf(positioned.uid)}
-						</text>
+						<!--
+							The label is HTML inside the SVG, and that is a fix rather than a
+							flourish. As `<text>`, a real milestone title ("Cook dried pasta
+							to al dente and drain it") is two and a half node-widths long, so
+							it overflowed its box, covered the two nodes to its right, and
+							swallowed clicks aimed at them — found by driving the built app
+							in a browser for T10's gate. Here it wraps, clips, and takes no
+							pointer events, leaving the box as the target §15.7 sizes.
+						-->
+						<foreignObject
+							class="node-label"
+							pointer-events="none"
+							x="24"
+							y="2"
+							width={positioned.w - 28}
+							height={positioned.h - 4}
+						>
+							<div class="node-label-inner" xmlns="http://www.w3.org/1999/xhtml">
+								<!--
+									Centred against the glyph, which sits at `h / 2`. Top-aligned,
+									a one-line label left the glyph alone on the line below it,
+									where it read as a bullet belonging to nothing.
+								-->
+								<span class="node-title">{labelOf(positioned.uid)}</span>
+							</div>
+						</foreignObject>
 					</g>
 				{/each}
 			</g>
@@ -340,7 +380,7 @@
 									<svg class="node-glyph" viewBox="0 0 16 16" aria-hidden="true">
 										<use class="state-glyph" href={look.glyph} width="16" height="16" />
 									</svg>
-									<span class="node-title">{titleOf(positioned.uid)}</span>
+									<span class="node-title">{labelOf(positioned.uid)}</span>
 									{#if prerequisitesOf(positioned.uid).length > 0}
 										<span class="requires">
 											Requires: {prerequisitesOf(positioned.uid)
@@ -530,8 +570,20 @@
 		fill: var(--surface-recessed, #f1f1f1);
 	}
 
+	.node-label-inner {
+		height: 100%;
+		display: flex;
+		align-items: center;
+	}
+
 	.node-title {
 		font-size: 11px;
+		line-height: 1.15;
+		overflow: hidden;
+		display: -webkit-box;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
 	}
 
 	.row-label,

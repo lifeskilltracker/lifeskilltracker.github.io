@@ -35,6 +35,8 @@ export interface CompiledMilestone {
   id: string;
   uid: string;
   title: string;
+  /** Short form for the node box; the renderer falls back to `title` (T10). */
+  label?: string;
   detail?: string;
   aliases?: string[];
   level: number;
@@ -219,6 +221,9 @@ export function compileTreeBundle(tree: Tree): CompiledTree {
         trackIndex,
         order: orderMap.get(milestone.id)!,
       };
+      if (milestone.label !== undefined) {
+        compiled.label = milestone.label;
+      }
       if (milestone.detail !== undefined) {
         compiled.detail = milestone.detail;
       }

@@ -1,9 +1,60 @@
-# RESUME — implementation, phase 0
+# RESUME — implementation, phase 1
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-13 after T08. Read this, then `_BREAKDOWN.yaml`, then
-`T10-phase-0-gate-schema-bump.md` — the Phase 0 gate, and a genuine stop for human
-judgment.
+Updated 2026-08-13 after T10. Read this, then `_BREAKDOWN.yaml`, then
+`docs/SCHEMA-REVIEW-P0.md` — the gate's verdict, and the reason three tasks just unblocked.
+
+# SESSION 14 — T10 PASSED. PHASE 0 IS CLOSED; PHASE 1 IS OPEN.
+
+**The gate is through and the schema held.** R-14 predicted a breaking bump and there was
+not one. What shipped is one new **optional** field — `milestone.label`, a short form for
+the node box, capped at 36 characters, read as `label ?? title` — which §5.10 classes as
+non-breaking: no `schemaVersion` change, no migration script, every existing tree still
+valid. All 52 cooking milestones were labelled, and that is the whole migration.
+
+Repository state after T10: **421 tests** (244 app + 177 tools), typecheck, lint, build,
+`gen:types` diff-free, the S1 gate, `lst validate` and `lst compile` all clean.
+
+**Now unblocked: T11b, T12, T21.** The critical path is **T11b → T14 → T20**.
+
+## The four defects the gate found, none of them the schema's
+
+This is what the gate was actually worth. Every one was invisible to a green suite, and
+three could not have surfaced outside a real browser.
+
+1. **Nothing called `store.hydrate()`.** The blocking one. `hydrate()` was correct and
+   covered; no code path invoked it, so a completion did not survive a reload — the exit
+   criterion the whole gate turns on. Fixed with `lib/actions/bootstrap.ts` (§13.3's first
+   step *only*) called from `+layout.svelte`, plus a test asserting **something calls it**.
+   The lesson generalizes: the gap was never in the sequence, it was in the wiring, and
+   only an end-to-end pass sees wiring.
+2. **The offline notice fires on every visit after the first.** `isOffline()` is read
+   synchronously right after `loadTree`, which is always before revalidation settles, so
+   the flag is read at the one moment it is guaranteed pessimistic. **Left for T14** — the
+   fix is a reactive notice off the content store, not an `await`, which would defeat the
+   instant paint stale-while-revalidate exists for. Until then every returning user is told
+   they are offline while online.
+3. **The level readout overprinted the tier name** — `Level 6 · Journeyman0 / 5`, from a
+   hardcoded `x=90`. Now `tspan`s offset by `dx`. **This matters for F18**: a band name
+   longer than "Journeyman" would have reopened it, and `dx` cannot be overrun.
+4. **No favicon**, so Chromium's `/favicon.png` probe logged a 404 on every load — the only
+   console error in the pass, and enough alone to fail an exit criterion.
+
+## What T10 leaves for whoever is next
+
+- **T21 carries this review's residue.** The exemplar is linear and single-track, so
+  `track`, `order` and `n_of` got the weakest test of anything reviewed. If v1 breaks
+  anywhere, the odds are strongly there. Read T21 as the second half of the schema
+  falsification, not as pure content work.
+- **§5.10's "current and one prior version" window is still unspent.** Nothing has been
+  bumped, so a bump during phase 1 is still affordable — but only one.
+- **T14 inherits two things at once**: §13.3's full cold start (`applyMoves`, the
+  version-gated `applyLineage`, the offline branch) *and* the notice host that defects 2
+  and 4 are both parked against. `+layout.svelte`'s degraded-session banner is a
+  placeholder and should be replaced, not extended.
+- **The browser harness was not committed.** Every criterion it checks is restated as a
+  committed test except the two that are inherently geometric — how wide rendered text is.
+  Whether that gap is worth a screenshot-diff suite is **T25's** call, not the gate's.
 
 # SESSION 13 — T08 IS DONE. PHASE 0 IS AT ITS GATE.
 

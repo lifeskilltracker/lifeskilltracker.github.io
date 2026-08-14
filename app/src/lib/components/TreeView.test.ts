@@ -623,3 +623,86 @@ describe('§9.5 — narrow is the linear list (F16, D-10)', () => {
 		expect(onintent).toHaveBeenCalledWith({ kind: 'complete', uid: uidOf(tree, 'open') });
 	});
 });
+
+describe('§9.2, §15.7 — a node’s label stays inside its node', () => {
+	it('confines the title to the node box, so it cannot cover its neighbours', () => {
+		const tree = fiveStateTree();
+		const positions = layoutTree(tree, 'wide');
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		const label = node(container, tree, 'a1').querySelector('foreignObject.node-label');
+		expect(label).not.toBeNull();
+
+		const box = positions.nodes.find((n) => n.uid === uidOf(tree, 'a1'))!;
+		expect(Number(label?.getAttribute('width'))).toBeLessThanOrEqual(box.w);
+		expect(Number(label?.getAttribute('height'))).toBeLessThanOrEqual(box.h);
+		expect(label?.textContent?.trim()).toBe('a1');
+	});
+
+	it('leaves hit-testing to the node box, whatever the title length', () => {
+		const tree = fiveStateTree();
+		tree.milestones.find((m) => m.id === 'a1')!.title =
+			'Cook dried pasta to al dente and drain it without rinsing';
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		const label = node(container, tree, 'a1').querySelector('.node-label');
+		// The label is decoration over the box; the box is the target (§15.7).
+		expect(label?.getAttribute('pointer-events')).toBe('none');
+	});
+});
+
+describe('§9.2 — the node box shows the short label when the author wrote one (T10)', () => {
+	it('prefers `label` over `title` on the node, in both viewports', () => {
+		const tree = fiveStateTree();
+		const target = tree.milestones.find((m) => m.id === 'a1')!;
+		target.title = 'Cook dried pasta to al dente and drain it without rinsing';
+		target.label = 'Cook pasta al dente';
+
+		for (const viewport of ['wide', 'narrow'] as const) {
+			const { container } = mountTree(tree, FIVE_STATE_MILESTONES, { viewport });
+			expect(node(container, tree, 'a1').querySelector('.node-title')?.textContent?.trim()).toBe(
+				'Cook pasta al dente'
+			);
+		}
+	});
+
+	it('falls back to the title, so a label is never required', () => {
+		const tree = fiveStateTree();
+		tree.milestones.find((m) => m.id === 'a1')!.title = 'No short form was written';
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		expect(node(container, tree, 'a1').querySelector('.node-title')?.textContent?.trim()).toBe(
+			'No short form was written'
+		);
+	});
+
+	it('keeps the full title in the panel, which has room for it', () => {
+		const tree = fiveStateTree();
+		const target = tree.milestones.find((m) => m.id === 'a1')!;
+		target.title = 'Cook dried pasta to al dente and drain it without rinsing';
+		target.label = 'Cook pasta al dente';
+
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+		click(node(container, tree, 'a1').querySelector('.node-box')!);
+
+		expect(container.querySelector('.milestone-panel')?.textContent).toContain(
+			'Cook dried pasta to al dente and drain it without rinsing'
+		);
+	});
+});
+
+describe('§9.6 — the level readouts cannot collide with the tier name (T10)', () => {
+	it('flows the group readouts after the label instead of at a fixed x', () => {
+		const tree = fiveStateTree();
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+		const row = container.querySelector('.row[data-level="1"]')!;
+
+		// "Level 6 · Journeyman" overran the readout parked at x=90. Anything
+		// positioned absolutely reintroduces that, so the readouts must live in
+		// the label's own <text> and be offset from where it ends.
+		for (const readout of row.querySelectorAll('.group-progress')) {
+			expect(readout.getAttribute('x')).toBeNull();
+			expect(readout.closest('text')).toBe(row.querySelector('text.row-label'));
+		}
+	});
+});

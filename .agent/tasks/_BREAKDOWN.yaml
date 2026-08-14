@@ -175,6 +175,14 @@ tasks:
       A real stop, not a checkpoint. One tree authored, validated, compiled, laid out,
       rendered and completable. R-14 expects at least one breaking schema bump here,
       while the corpus is one tree and migration is trivial.
+      PASSED 2026-08-13. R-14's bump did not arrive: schema v1 stands, with one new
+      OPTIONAL field, milestone.label (short form for the node box, capped at 36 chars,
+      label ?? title) — §5.10 classes that as non-breaking, so no schemaVersion change and
+      no migration script. All 52 cooking milestones were labelled. The gate's real yield
+      was four non-schema defects invisible to a green suite, the blocking one being that
+      NOTHING CALLED store.hydrate() — see docs/SCHEMA-REVIEW-P0.md. T11b, T12 and T21 are
+      unblocked; T21 carries this review's residue, since track/order/n_of got the weakest
+      test of anything here.
 
   - id: T11a
     title: Scoring Engine — tree-local evaluation

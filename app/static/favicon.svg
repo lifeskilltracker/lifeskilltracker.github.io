@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Life Skill Tracker">
+	<rect width="32" height="32" rx="6" fill="#1f2933" />
+	<!-- Three levels of a tree, the thing the whole app draws. -->
+	<circle cx="16" cy="7" r="3" fill="#f5f7fa" />
+	<circle cx="9" cy="18" r="3" fill="#f5f7fa" />
+	<circle cx="23" cy="18" r="3" fill="#f5f7fa" />
+	<circle cx="16" cy="27" r="3" fill="#8ea8c3" />
+	<g stroke="#8ea8c3" stroke-width="1.6" fill="none">
+		<path d="M16 24 L9 21" />
+		<path d="M16 24 L23 21" />
+		<path d="M9 15 L16 10" />
+		<path d="M23 15 L16 10" />
+	</g>
+</svg>

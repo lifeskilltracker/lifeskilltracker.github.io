@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete (2026-08-13) |
 | **Phase** | 0 |
 | **Cluster** | judgment |
 | **Blocked by** | T05, T08, T09 |
@@ -86,30 +86,35 @@ is that the validator and the renderer break together, loudly, rather than drift
 
 **Phase 0 exit — each verified by hand:**
 
-- [ ] `npx lst validate content/trees/<exemplar>.yaml` passes on a tree with no `uid`
-      lines, then `npx lst ids` fills them, then validation still passes.
-- [ ] `npx lst compile` emits `manifest.json` and a content-hashed bundle.
-- [ ] The app serves `/s/<treeId>` and renders the tree as SVG.
-- [ ] Node positions are identical across two consecutive loads, and identical after a
+- [x] `npx lst validate content/trees/<exemplar>.yaml` **rejects** a tree with no `uid`
+      lines (rule 16), `npx lst ids` fills them, and validation then passes.
+      **Amended 2026-08-13**: this criterion read "passes on a tree with no `uid` lines",
+      which T26/F25 and §6.7 overtook — rule 16 *is* the missing-uid gate, and `lst ids`
+      leads the authoring commands precisely because it cannot be one. See finding 2.
+- [x] `npx lst compile` emits `manifest.json` and a content-hashed bundle.
+- [x] The app serves `/s/<treeId>` and renders the tree as SVG.
+- [x] Node positions are identical across two consecutive loads, and identical after a
       milestone is completed — the F13/N11 stability guarantee holds in practice.
-- [ ] Completing a milestone updates the rendering, and the completion survives a full
+- [x] Completing a milestone updates the rendering, and the completion survives a full
       page reload.
-- [ ] Un-completing it removes the completion, and that also survives reload.
-- [ ] No console error at any point in the above.
+- [x] Un-completing it removes the completion, and that also survives reload.
+- [x] No console error at any point in the above.
 
 **Schema verdict:**
 
-- [ ] `docs/SCHEMA-REVIEW-P0.md` exists and records every finding with a verdict of
+- [x] `docs/SCHEMA-REVIEW-P0.md` exists and records every finding with a verdict of
       *bump*, *fix without bump*, or *tolerate*, each with a reason.
-- [ ] Every finding marked *tolerate* names the risk it accepts.
-- [ ] If bumped: `schemaVersion` is incremented in `schema/`, in every file under
+- [x] Every finding marked *tolerate* names the risk it accepts.
+- [x] If bumped: `schemaVersion` is incremented in `schema/`, in every file under
       `content/`, and in `export.schema.json` where §12.6 requires it.
-- [ ] If bumped: the migration script runs over the whole corpus in CI and is idempotent
-      — running it twice produces no second diff.
-- [ ] If bumped: an export file produced before the bump imports successfully after it.
+      **Not bumped** — vacuous, and the review says so explicitly rather than silently.
+- [x] If bumped: the migration script runs over the whole corpus in CI and is idempotent
+      — running it twice produces no second diff. **Not bumped**; no script exists.
+- [x] If bumped: an export file produced before the bump imports successfully after it.
       This is §16.2's manual per-schema-bump check and it is not optional.
-- [ ] `npm run gen:types` produces no diff after the change is committed.
-- [ ] `npm test && npm run typecheck` pass across both workspaces.
+      **Not bumped**; also unreachable, since `export`/`import` are T16's.
+- [x] `npm run gen:types` produces no diff after the change is committed.
+- [x] `npm test && npm run typecheck` pass across both workspaces.
 
 ## Verification
 
@@ -143,3 +148,63 @@ Then the manual pass: open the tree, complete a milestone, reload, un-complete, 
   on them.
 - This gate has no CI representation. It is a human judgment recorded in a document, and
   the only enforcement is that T11b, T12 and T21 are blocked on it.
+
+
+## Verification — 2026-08-13
+
+```
+npm test           24 app files / 244 tests, 10 tools files / 177 tests — all pass
+npm run typecheck  svelte-check 385 files, 0 errors, 0 warnings; tools tsc clean
+npm run lint       clean
+npm run build      clean
+npm run check:s1   "S1 holds: no shape branch under …"
+npm run gen:types  no diff
+npx lst validate content/trees/cooking.yaml   clean
+npx lst compile                               manifest.json + cooking.<hash>.json
+```
+
+The by-hand pass was driven in **headless Chromium against the production build**
+(`npm run build` + `vite preview`), not in jsdom, and every exit criterion above was
+asserted there — SVG render, transform-identical positions across two loads and across a
+completion, complete → reload → un-complete → reload, and a console/network listener over
+the whole session. Three of the six defects it found could not have surfaced in a test
+environment: two are about how wide text is, and one is a request the app never makes.
+
+### The verdict
+
+**Schema v1 stands.** R-14 predicted a breaking bump and there was not one. `milestone.label`
+was added — optional, capped at 36 characters, `label ?? title` in the node box — which §5.10
+classes as a non-breaking change: every existing tree stays valid and an unlabelled tree
+renders as before. All 52 cooking milestones were labelled, which is the entire migration and
+the reason to do this now rather than after T21 triples the corpus.
+
+Full reasoning, including why retuning §8.1's `SLOT_WIDTH` was rejected as the cheaper fix,
+is in `docs/SCHEMA-REVIEW-P0.md`.
+
+### Four defects found, none of them the schema's
+
+The gate's real yield. All four were invisible to a green suite.
+
+1. **Nothing called `store.hydrate()`.** The blocking one: `hydrate()` was correct, covered,
+   and never invoked, so a completion did not survive a reload. `lib/actions/bootstrap.ts`
+   plus a test that asserts *something calls it* — the gap was never in the sequence.
+2. **The offline notice fires on every visit after the first.** `isOffline()` is read
+   synchronously after `loadTree`, which is always before revalidation settles. Left for
+   **T14**, which owns §13.3's notice host; awaiting revalidation would defeat the instant
+   paint that stale-while-revalidate exists for.
+3. **The level readout overprinted the tier name** at the hardcoded `x=90`
+   ("Level 6 · Journeyman0 / 5"). Now `tspan`s offset by `dx`, which removes the guess
+   rather than re-tuning it — no tier or band name can be too long.
+4. **No favicon**, so Chromium's `/favicon.png` probe logged a 404 on every load — the only
+   console error in the pass, and enough on its own to fail an exit criterion.
+
+### Deliberately not done here
+
+- **§13.3's full cold start** — `applyMoves`, the version-gated `applyLineage`, the notice
+  host, the offline branch. T14's, and no exit criterion needs it.
+- **A committed browser harness.** The driving script is scratch. Every criterion it checks
+  is restated as a committed test except the two that are inherently geometric (how wide
+  rendered text is), and a screenshot-diff suite is a T25 decision, not a gate deliverable.
+- **`n_of` and multi-track content.** The exemplar is linear and single-track, so `track`,
+  `order` and `n_of` got the weakest test of anything reviewed. **T21 carries the residue of
+  this review**, and should be read that way rather than as pure content work.

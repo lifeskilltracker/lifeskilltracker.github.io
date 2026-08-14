@@ -16,6 +16,8 @@ export interface Milestone {
   id: string;
   uid?: string;
   title: string;
+  /** Short form for the node box; the renderer falls back to `title` (T10). */
+  label?: string;
   detail?: string;
   aliases?: string[];
   track?: string;
