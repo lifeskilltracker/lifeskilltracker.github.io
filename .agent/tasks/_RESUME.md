@@ -1,7 +1,58 @@
 # RESUME — implementation, phase 1
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-14 after T13. Read this, then `_BREAKDOWN.yaml`.
+Updated 2026-08-14 after T14. Read this, then `_BREAKDOWN.yaml`.
+
+# SESSION 17 — T14 IS DONE. THE APP HAS ALL OF ITS ROUTES.
+
+Repository state: **583 tests** (388 app + 195 tools), typecheck (431 files), lint, and the
+static build all clean. The build emits exactly §13.1's split — `/`, `/library`, `/data`,
+`/about`, `/contribute`, eight `/d/<domainId>`, the `404.html` fallback, and **nothing under
+`s/`**.
+
+**Read `T14-routes-and-cold-start.md`'s implementation notes before touching the shell.**
+Five decisions there are in no spec section, and three constrain later work:
+
+- **The `layoutTree` call moved out of the tree route into
+  `lib/actions/tree-session.svelte.ts`.** T14's criterion is that `TreeView` is the only
+  view-layer file naming `lib/layout`; T08 had already made `TreeView` take positions as a
+  *prop* so it structurally cannot re-run layout on a completion (§8.6). Both are only true
+  with the call in `lib/actions`. `eslint.config.js` and `routes/view-boundaries.test.ts`
+  both enforce it now. §12.3's write-back (T26/F26) went to the same seam.
+- **`routes/Shell.svelte` holds the cold-start sequence**; `+layout.svelte` is four lines
+  that render it. A SvelteKit route component may take only `data` and `children`, so
+  §13.3's three failure branches — unreachable against real browser capabilities — need a
+  component that is not a route in order to be injectable.
+- **`/s/[tree]` and `/s/[tree]/m/[slug]` share `routes/s/[tree]/SkillPage.svelte`**, a
+  non-route component in a route directory (it imports `lib/actions`, and §14.1 draws
+  `ACTIONS → ROUTES`, never `ACTIONS → COMP`). The open panel is a `$bindable` prop on
+  `TreeView` mirrored into the new `lib/state/ui.svelte.ts`, so the URL and the panel cannot
+  disagree.
+
+Two smaller things: `SkillPageData` gained `reason: 'missing' | 'unreachable'`, because
+§16.3 has two tree-unavailable rows with different sentences and T26/F22 requires the
+missing one to link to `/data` when a `SKILL` row survives; and **T13's `resolve()`
+suppression in `MapRenderer` is gone** now that `/d/[domain]` exists, as session 16 asked.
+
+## What T14 left for its dependents
+
+- **T16** — `/data` exists and says plainly that export and import are §12.6 and not wired
+  up. It already lists §16.3's started-skills-not-in-the-library, off
+  `worldScores().unmatched` (T26/F22); T16 adds the controls beside that. Note the
+  cold-start failure screen links to `/data` on the promise that an export is possible
+  during an outage, which is **not yet true** — that promise is T16's to keep.
+- **T17** — `store.applyMoves` still rejects with `NotImplementedHereError`, and cold start
+  treats *exactly* that error as "no migrations" while reporting any other failure. When
+  T17 lands: the notice in `Shell.svelte` becomes T17's migration summary, and
+  `applyLineage` goes into `Session#open()` **before** the `reconcileAttainedLevel` call
+  already there (§12.5's ordering, T26/F26).
+- **T20** — every route renders exactly one `<main>`; the shell adds a `<header>`, a
+  `<nav aria-label="Primary">`, and a notice host with `role="status"`. Nothing beyond that
+  structure has been checked — no axe run, no keyboard pass. Import `bandFor` from
+  `$lib/scoring` as `map-presentation.ts` does, and share §15.3's accessible-name builder
+  rather than writing a second one.
+
+**Next: T20 is the critical path.** T15, T16 and T17 are unblocked and independent.
 
 # SESSION 16 — T13 IS DONE. THE MAP DRAWS.
 

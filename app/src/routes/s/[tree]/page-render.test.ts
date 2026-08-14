@@ -27,7 +27,7 @@ function tree(): CompiledTree {
 }
 
 function pageData(bundle: CompiledTree): SkillPageData {
-	return { treeId: bundle.id, tree: bundle, unavailable: null, offline: false };
+	return { treeId: bundle.id, tree: bundle, unavailable: null, reason: null, offline: false };
 }
 
 beforeEach(async () => {
@@ -81,7 +81,13 @@ describe('/s/[tree] — the rendered page', () => {
 
 	it('still reports an unavailable tree rather than a blank page (§7.4, §16.3)', () => {
 		const { container } = render(SkillPage, {
-			data: { treeId: 'nope', tree: null, unavailable: 'not in the manifest', offline: false }
+			data: {
+				treeId: 'nope',
+				tree: null,
+				unavailable: 'not in the manifest',
+				reason: 'unreachable' as const,
+				offline: false
+			}
 		});
 
 		expect(container.textContent).toContain('Skill unavailable');

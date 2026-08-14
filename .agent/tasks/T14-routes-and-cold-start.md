@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete — 2026-08-14 |
 | **Phase** | 1 |
 | **Cluster** | views |
 | **Blocked by** | T11b |
@@ -203,60 +203,60 @@ export interface ContentLoader {
 
 ## Acceptance criteria
 
-- [ ] Each route in the §13.1 table exists under `app/src/routes/` and its `+page.ts` (or
+- [x] Each route in the §13.1 table exists under `app/src/routes/` and its `+page.ts` (or
       `+page.svelte`'s own `export const prerender`) matches the table's flag exactly — a
       build (`npm run --workspace app build`) produces static HTML for every "yes" route
       and none for the "no" routes.
-- [ ] `/s/<treeId>/m/<slug>` resolves the milestone panel via the milestone's current
+- [x] `/s/<treeId>/m/<slug>` resolves the milestone panel via the milestone's current
       slug; a fixture where a milestone's slug changed and the old slug is present in its
       `aliases` list still opens the correct milestone panel (§13.1, §5.4).
-- [ ] A fixture with an unresolvable slug (absent from both current slugs and `aliases`)
+- [x] A fixture with an unresolvable slug (absent from both current slugs and `aliases`)
       opens the tree view with a visible notice rather than a 404 or a blank panel
       (§13.1).
-- [ ] `lib/content/store.svelte.ts`, `lib/state/progress.svelte.ts`, and
+- [x] `lib/content/store.svelte.ts`, `lib/state/progress.svelte.ts`, and
       `lib/state/ui.svelte.ts` each exist as separate modules with no cross-imports beyond
       what §13.2 implies (content store is read by progress derivation, not the reverse).
-- [ ] A test simulating cold start with both `loadManifest()` and `hydrate()` succeeding
+- [x] A test simulating cold start with both `loadManifest()` and `hydrate()` succeeding
       renders the map after both resolve, with no full-page spinner rendered at any point
       (§13.3 step 1 and 3).
-- [ ] A test simulating `loadManifest()` failing with a cached manifest available renders
+- [x] A test simulating `loadManifest()` failing with a cached manifest available renders
       offline mode and a visible "offline" notice (§13.3, §16.3 row 1).
-- [ ] A test simulating `loadManifest()` failing with no cache renders the cold-start
+- [x] A test simulating `loadManifest()` failing with no cache renders the cold-start
       failure screen, including a retry action and a link to `/data` (§13.3, §16.3 row 2).
-- [ ] A test simulating `store.hydrate()` rejecting renders content **read-only**, surfaces
+- [x] A test simulating `store.hydrate()` rejecting renders content **read-only**, surfaces
       the error, and asserts that **no mutating call on the store succeeds afterward** for
       the remainder of the simulated session — i.e. `writable` is `false` and every
       mutator call in the test throws or rejects rather than silently no-opping (§13.3,
       §16.3 row 5, §14.5).
-- [ ] The same failing-hydration test asserts a tree route renders progress as **unknown**,
+- [x] The same failing-hydration test asserts a tree route renders progress as **unknown**,
       not as zero completions. `progressFor` is total and returns empty maps, so a view that
       does not branch on `store.hydrated` tells the user they have no progress rather than
       that it could not be read — the display-side twin of §13.3's "read as empty, then
       wrote" (T26/F23).
-- [ ] A test asserts a deep link to `/s/<treeId>` opened cold does not paint a zeroed tree
+- [x] A test asserts a deep link to `/s/<treeId>` opened cold does not paint a zeroed tree
       before `hydrate()` resolves: `hydrated` is false during first paint (§13.3 step 4
       loads route data after it), and the tree renders its unknown-progress state.
-- [ ] A test simulating one tree bundle fetch failing (while the manifest succeeds)
+- [x] A test simulating one tree bundle fetch failing (while the manifest succeeds)
       renders the map and every other tree normally, with only the failed tree marked
       unavailable (§16.3 row 3).
-- [ ] A test simulating a bundle that fails the §7.5 shape assertion asserts the bundle is
+- [x] A test simulating a bundle that fails the §7.5 shape assertion asserts the bundle is
       treated as unavailable and a cache-clear call is made for that bundle's Cache Storage
       entry (§16.3 row 4).
-- [ ] `TreeView` is the only component under `app/src/routes/` or `app/src/lib/components/`
+- [x] `TreeView` is the only component under `app/src/routes/` or `app/src/lib/components/`
       that imports from `lib/layout/` — an import-lint rule or grep asserts this (§13.4,
       §14.7).
-- [ ] No **presentational** component under `app/src/lib/components/` imports from
+- [x] No **presentational** component under `app/src/lib/components/` imports from
       `lib/scoring/` — scores arrive only as props (§13.4). **`app/src/routes/s/[tree]/`
       is explicitly permitted** to import `scoreSkill` for the `applyLineage` DI callback
       and the post-load reconcile sequence; grep/lint rules must not treat that as a
       violation.
-- [ ] A test on `/s/<treeId>` asserts the on-tree-open sequence when the bundle's
+- [x] A test on `/s/<treeId>` asserts the on-tree-open sequence when the bundle's
       `contentVersion` exceeds `contentVersionSeen`: `applyLineage` receives the scoring
       callback and runs first, then `scoreSkill`, then `reconcileAttainedLevel` — in that
       order. After a migration, reconcile should typically resolve `false` (no-op).
-- [ ] A test asserts cold-start step 3 calls `store.applyMoves(manifest.moved)` before
+- [x] A test asserts cold-start step 3 calls `store.applyMoves(manifest.moved)` before
       domain scores are derived when hydration succeeded (§13.3, T26/F13).
-- [ ] `npm run --workspace app build` succeeds and `npm run --workspace app test -- routes`
+- [x] `npm run --workspace app build` succeeds and `npm run --workspace app test -- routes`
       passes.
 
 ## Verification
@@ -319,3 +319,77 @@ non-lineage content changes (requirement edits with no ledger entry).
 - §6.4's new check 8 makes this unreachable from a content release, but §12.6's import can
   still produce it from an export written against a fork or a newer library. Both §16.3 rows
   are yours; needs a test each.
+
+
+## Implementation notes — 2026-08-14
+
+Complete. `npm run lint`, `npm run typecheck --workspace app` (431 files, 0 errors),
+`npm test --workspace app` (388 tests, 37 files) and `npm run build --workspace app` are
+all clean. The build emits exactly §13.1's split: `index.html`, `library.html`,
+`data.html`, `about.html`, `contribute.html`, eight `d/<domainId>.html`, and the
+`404.html` fallback — **nothing under `s/`**.
+
+### Five decisions this document did not make
+
+**1 — the shell is `routes/Shell.svelte`, not `+layout.svelte`.** A SvelteKit route
+component may take only `data` and `children` (`svelte/valid-prop-names-in-kit-pages`),
+and §13.3's three failure branches are unreachable against real browser capabilities. So
+the layout is four lines that render `Shell`, and `Shell` takes an optional
+`contentLoader` and `userStore` — the same injection seam as `StoreOptions.open`.
+`layout-bootstrap.test.ts` survives, narrowed to the one thing the injected tests cannot
+see: that the real layout is wired to the real store.
+
+**2 — the `layoutTree` call moved into `lib/actions/tree-session.svelte.ts`.** The
+acceptance criterion is that `TreeView` is the only view-layer file importing
+`lib/layout`, and T08 had already decided — correctly, per §8.6 — that `TreeView` takes
+positions as a *prop* so that it structurally cannot re-run layout on a completion. Both
+cannot be true with the call in the route. `lib/actions` is where §14.1 puts work that
+belongs to neither the renderer nor the page, and the session already owned "a tree
+opened, therefore register it and score it". §12.3's write-back (T26/F26) went to the
+same place and for the same reason, with T17's `applyLineage` marked as running before
+it.
+
+**3 — `/s/<treeId>` and `/s/<treeId>/m/<slug>` share `SkillPage.svelte`.** They differ in
+one prop. The shared body is a plain component **in the route directory**, not under
+`lib/components/`, because it imports `lib/actions` and §14.1 draws `ACTIONS → ROUTES`,
+never `ACTIONS → COMP`. `TreeView` gained a `$bindable openUid` and the route mirrors it
+into §13.2's `ui` store: the panel is addressable by URL, so a component holding that
+state privately would let the two disagree.
+
+**4 — `SkillPageData` gained `reason: 'missing' | 'unreachable'`.** §16.3 has two
+tree-unavailable rows and they are different failures: a manifest lookup miss (before any
+fetch) versus a bundle that would not load. T26/F22 requires the first to say so and link
+to `/data` when a `SKILL` row for that id survives — which the page now does, gated on
+the mirror. `resolveSkillPage` asks the loader for the manifest rather than matching on
+an error message; `loadManifest` is memoized, so it costs nothing.
+
+**5 — `MapRenderer` now uses `resolve('/d/[domain]')`.** T13 left an `eslint-disable` and
+a comment saying the line was worth revisiting once T14's route landed. It landed.
+
+### Smaller things worth knowing
+
+- **`applyMoves` is T17's and still rejects with `NotImplementedHereError`.** Cold start
+  treats *that* error as "no migrations" and reports any other failure as a notice while
+  continuing — the deliberately edgeless dependency `_RESUME.md` records.
+- **The join drops a row and deletes nothing** (T26/F22). `worldScores` returns
+  `unmatched`, and `/data` is the one surface that lists it. Without that list the
+  retention is invisible everywhere, which is indistinguishable from a deletion.
+- **`lib/content/domains.ts`** carries the eight locked ids because `entries()` needs
+  them at build time, before any manifest exists. A compile-time exhaustiveness check
+  against the generated `ContentDomainId` union plus a test against the compiled manifest
+  means a ninth domain cannot ship as a route with no prerendered page.
+- **The loader's test fakes moved to `lib/content/fixtures/environment.ts`**, so the
+  route-level §16.3 tests exercise the same loader control flow rather than a second,
+  differently-shaped set of stubs.
+- **Export and import are not on `/data`.** They are §12.6 and T16's. The page says so
+  rather than showing a control that does nothing — it is the page §16.3 sends people to
+  during an outage, which is the worst possible place for a dead button.
+- **`view-boundaries.test.ts`** restates §13.4's two rules as a file scan beside the
+  `eslint.config.js` slice, per §14.7's habit of gating a boundary twice.
+
+### Out-of-scope items confirmed still out
+
+`ContentLoader`'s fetch machinery (T07), `hydrate()` and the write-refusal latch itself
+(T09), `TreeView` and `MapRenderer` internals (T08, T13), export/import (T16),
+`applyLineage`/`applyMoves` (T17), accessibility verification (T20), the estimator and
+placement flow (T15 — `AssessmentFlow` in §13.4's tree is deliberately absent).

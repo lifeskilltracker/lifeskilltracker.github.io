@@ -1,20 +1,27 @@
 // @vitest-environment jsdom
 
 /**
- * The shell hydrates (T10).
+ * The shell is actually wired to the route (T10, narrowed by T14).
  *
- * `bootstrap.test.ts` proves the sequence works; this proves something calls
- * it. That gap is exactly the Phase 0 failure mode — every unit green, the
- * store never hydrated, and a completion gone after a reload — so it is worth
- * a test of its own rather than trusting a line in a layout.
+ * `shell.test.ts` covers §13.3's branches with injected dependencies, and
+ * `cold-start.test.ts` covers the sequence itself. Neither would notice if
+ * `+layout.svelte` stopped rendering `Shell`, or if the shell stopped reaching
+ * for the real store — and that gap is exactly the Phase 0 failure mode: every
+ * unit green, the store never hydrated, and a completion gone after a reload.
+ *
+ * So this file mounts the real layout with no injection at all. The manifest
+ * fetch fails here (there is no `caches` in jsdom), which is itself the point:
+ * hydration is independent of it and must still happen.
  */
 
 import 'fake-indexeddb/auto';
 import { createRawSnippet } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, flushSync, render } from '$lib/components/test-harness.svelte.js';
+import { cleanup, render } from '$lib/components/test-harness.svelte.js';
+import { content } from '$lib/content/store.svelte.js';
 import { progress } from '$lib/state/progress.svelte.js';
 import { store } from '$lib/state/store.js';
+import { ui } from '$lib/state/ui.svelte.js';
 import Layout from './+layout.svelte';
 
 const children = createRawSnippet(() => ({ render: () => '<main>page</main>' }));
@@ -22,6 +29,8 @@ const children = createRawSnippet(() => ({ render: () => '<main>page</main>' }))
 beforeEach(async () => {
 	progress.reset();
 	progress.writable = true;
+	content.reset();
+	ui.reset();
 	await store.close();
 });
 
@@ -37,19 +46,9 @@ describe('the root layout', () => {
 		await vi.waitFor(() => expect(store.hydrated).toBe(true));
 	});
 
-	it('renders its page whether or not hydration has landed', () => {
+	it('puts its chrome up immediately, before anything has resolved', () => {
 		const { container } = render(Layout, { children });
-		expect(container.querySelector('main')).not.toBeNull();
-	});
-
-	it('says so when the session is not writable, rather than looking normal', async () => {
-		const { container } = render(Layout, { children });
-		await vi.waitFor(() => expect(store.hydrated).toBe(true));
-		expect(container.querySelector('[data-degraded]')).toBeNull();
-
-		// §13.3's latch, set by a hydration failure and never cleared.
-		progress.writable = false;
-		flushSync();
-		expect(container.querySelector('[data-degraded]')).not.toBeNull();
+		expect(container.querySelector('nav')).not.toBeNull();
+		expect(container.textContent).toContain('page');
 	});
 });

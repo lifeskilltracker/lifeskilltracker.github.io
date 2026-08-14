@@ -25,6 +25,13 @@ class ContentStore {
   setTree(tree: CompiledTree): void {
     this.trees = { ...this.trees, [tree.id]: tree };
   }
+
+  /** Test seam: a fresh store between cases, matching the §13.2 mirror's. */
+  reset(): void {
+    this.manifest = null;
+    this.trees = {};
+    this.offline = false;
+  }
 }
 
 export const content = new ContentStore();

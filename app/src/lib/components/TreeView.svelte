@@ -38,9 +38,25 @@
 		 * that re-scored a hypothetical would be importing the engine (§13.4).
 		 */
 		uncheckConsequence?: (uid: string) => UncheckConsequence | null;
+		/**
+		 * The open milestone panel, bindable (T14). It is a prop rather than
+		 * private state because §13.1 gives it a URL — `/s/<treeId>/m/<slug>` — so
+		 * the shell must be able to open a panel it was deep-linked to, and to
+		 * notice when the user closes one. The component still owns *when* it
+		 * changes; the shell only owns the address.
+		 */
+		openUid?: string | null;
 	}
 
-	let { tree, positions, progress, viewport, onintent, uncheckConsequence }: Props = $props();
+	let {
+		tree,
+		positions,
+		progress,
+		viewport,
+		onintent,
+		uncheckConsequence,
+		openUid = $bindable(null)
+	}: Props = $props();
 
 	const milestoneOf = (uid: string): CompiledMilestone | undefined =>
 		tree.milestones.find((m) => m.uid === uid);
@@ -68,14 +84,15 @@
 	const touches = (from: string, to: string): boolean =>
 		focusedUid !== null && (from === focusedUid || to === focusedUid);
 
-	/** The open milestone, or `null`. One panel at a time (§9.4). */
-	let openUid = $state<string | null>(null);
+	/** One panel at a time (§9.4); `openUid` above is the whole of that state. */
 	let noteDraft = $state('');
 	let noteOpen = $state(false);
 
 	const nodeElements: Record<string, (SVGGElement | HTMLElement) | undefined> = $state({});
 
-	let open = $derived(openUid === null ? undefined : milestoneOf(openUid));
+	let open = $derived(
+		openUid === null || openUid === undefined ? undefined : milestoneOf(openUid)
+	);
 
 	function openPanel(uid: string): void {
 		openUid = uid;
@@ -88,7 +105,7 @@
 		const returnTo = openUid;
 		openUid = null;
 		pending = null;
-		if (returnTo !== null) nodeElements[returnTo]?.focus();
+		if (returnTo !== null && returnTo !== undefined) nodeElements[returnTo]?.focus();
 	}
 
 	function onNodeKey(event: KeyboardEvent, uid: string): void {

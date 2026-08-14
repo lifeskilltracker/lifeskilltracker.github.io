@@ -38,7 +38,7 @@
 	 * has one home. Nothing else here reaches into `lib/scoring`, and no number
 	 * from §11.6 is repeated in this file.
 	 */
-	import { base } from '$app/paths';
+	import { resolve } from '$app/paths';
 	import { bandFor } from '$lib/scoring';
 	import type { CompiledMapRegion, DomainId, DomainScore, Manifest } from '$lib/types';
 	import {
@@ -281,18 +281,16 @@
 		{#each regions as region (region.id)}
 			<li>
 				<!--
-					`base` rather than `resolve()`: the `/d/[domain]` route is T14's and
-					does not exist yet, so `resolve()` has no route id to type-check
-					against. `base` supplies the only thing it would add here — the
-					GitHub Pages prefix (§4.4) — and this line is worth revisiting when
-					the route lands.
+					`resolve()` rather than `base` + a string: the `/d/[domain]` route
+					landed with T14, so the route id can now be type-checked, and
+					`resolve` adds the GitHub Pages prefix itself (§4.4). `region.href`
+					stays as the unprefixed path the shell is handed on selection.
 				-->
-				<!-- eslint-disable svelte/no-navigation-without-resolve -->
 				<a
 					class="domain-link"
 					class:is-fogged={region.fogged}
 					data-domain={region.id}
-					href="{base}{region.href}"
+					href={resolve('/d/[domain]', { domain: region.id })}
 					aria-label={region.name}
 					onclick={(event) => onLinkClick(event, region.id, region.href)}
 				>

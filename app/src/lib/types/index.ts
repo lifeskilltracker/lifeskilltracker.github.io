@@ -20,6 +20,9 @@ export type {
   // domain order and looks the geometry up, so the region type is part of the
   // surface even though `Manifest` already contains it (T13).
   CompiledMapRegion,
+  // §5.9's locked domain ids (F20). T14 prerenders one `/d/<domainId>` per
+  // member, so the union has a runtime counterpart in `lib/content/domains.ts`.
+  ContentDomainId,
 } from './compiled.js';
 export type { Taxonomy, MovedIndex } from './aliases.js';
 export type {

@@ -13,7 +13,6 @@ import { createContentLoader } from './index.js';
 import { PINNED_CACHE, RUNTIME_CACHE } from './buckets.js';
 import { assertBundleShape, ShapeAssertionError } from './assert-shape.js';
 import { PinFailedError, TreeUnavailableError } from './bundle.js';
-import type { LoaderEnvironment } from './environment.js';
 import {
   FUTURE_SCHEMA_BUNDLE,
   NINE_LEVEL_BUNDLE,
@@ -23,96 +22,17 @@ import {
   manifestFixture,
 } from './fixtures/bundles.js';
 
-const CONTENT_BASE = '/content';
-const MANIFEST_URL = `${CONTENT_BASE}/manifest.json`;
-const COOKING_BUNDLE = 'trees/cooking.dee91fe4.json';
-const COOKING_URL = `${CONTENT_BASE}/${COOKING_BUNDLE}`;
+import {
+  CONTENT_BASE,
+  COOKING_BUNDLE,
+  COOKING_URL,
+  MANIFEST_URL,
+  environment,
+  fakeCacheStorage,
+  happyRoutes,
+  type Route,
+} from './fixtures/environment.js';
 
-// ---------------------------------------------------------------- fake caches
-
-function fakeCacheStorage() {
-  const buckets = new Map<string, Map<string, Response>>();
-
-  const bucket = (name: string) => {
-    const existing = buckets.get(name);
-    if (existing !== undefined) return existing;
-    const created = new Map<string, Response>();
-    buckets.set(name, created);
-    return created;
-  };
-
-  const keyOf = (request: RequestInfo | URL) => String(request);
-
-  const storage = {
-    open: async (name: string) => {
-      const entries = bucket(name);
-      return {
-        // Cache Storage stores a copy; a Response body is read-once.
-        put: async (request: RequestInfo | URL, response: Response) => {
-          entries.set(keyOf(request), response.clone());
-        },
-        match: async (request: RequestInfo | URL) => {
-          const hit = entries.get(keyOf(request));
-          return hit === undefined ? undefined : hit.clone();
-        },
-        delete: async (request: RequestInfo | URL) => entries.delete(keyOf(request)),
-      } as unknown as Cache;
-    },
-  } as unknown as CacheStorage;
-
-  return { storage, buckets, bucket };
-}
-
-// ----------------------------------------------------------------- fake fetch
-
-interface Route {
-  body?: unknown;
-  text?: string;
-  status?: number;
-  /** Throws, as a network failure does, rather than resolving non-ok. */
-  networkError?: boolean;
-}
-
-function fakeFetch(routes: Record<string, Route>) {
-  const calls: string[] = [];
-  const fetcher = (async (input: RequestInfo | URL) => {
-    const url = String(input);
-    calls.push(url);
-    const route = routes[url];
-    if (route === undefined || route.networkError === true) {
-      throw new TypeError(`network failure for ${url}`);
-    }
-    const body = route.text ?? JSON.stringify(route.body);
-    return new Response(body, {
-      status: route.status ?? 200,
-      headers: { 'content-type': 'application/json' },
-    });
-  }) as unknown as typeof globalThis.fetch;
-
-  return {
-    fetch: fetcher,
-    calls,
-    countFor: (url: string) => calls.filter((c) => c === url).length,
-    routes,
-  };
-}
-
-function environment(
-  routes: Record<string, Route>,
-  caches = fakeCacheStorage(),
-): { env: LoaderEnvironment; net: ReturnType<typeof fakeFetch>; caches: ReturnType<typeof fakeCacheStorage> } {
-  const net = fakeFetch(routes);
-  return {
-    env: { fetch: net.fetch, caches: caches.storage, contentBase: CONTENT_BASE },
-    net,
-    caches,
-  };
-}
-
-const happyRoutes = (): Record<string, Route> => ({
-  [MANIFEST_URL]: { body: manifestFixture([{ id: 'cooking', bundle: COOKING_BUNDLE }]) },
-  [COOKING_URL]: { body: VALID_BUNDLE },
-});
 
 // ------------------------------------------------------------------- the §7.5 assertion
 

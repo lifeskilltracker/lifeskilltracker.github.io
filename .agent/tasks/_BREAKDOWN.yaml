@@ -289,6 +289,27 @@ tasks:
     prd: [F23]
     status: written
     doc: T14-routes-and-cold-start.md
+    note: >
+      Implemented and verified complete 2026-08-14. Four structural decisions the doc did
+      not make. (1) The cold-start sequence lives in `lib/actions/cold-start.ts` and the
+      shell body in `routes/Shell.svelte`, because a SvelteKit route component may take
+      only `data` and `children` — so §13.3's three failure branches would have been
+      unreachable in a test with the dependencies hard-wired into `+layout.svelte`.
+      (2) The `layoutTree` CALL moved from the tree route into
+      `lib/actions/tree-session.svelte.ts`. T14's criterion is that TreeView is the only
+      view-layer file naming `lib/layout`, and T08 had deliberately made TreeView take
+      positions as a prop; `lib/actions` is the only place left that satisfies both.
+      (3) `/s/[tree]` and `/s/[tree]/m/[slug]` share `routes/s/[tree]/SkillPage.svelte`
+      — a non-route component in a route directory, since it imports `lib/actions` and
+      §14.1 draws ACTIONS -> ROUTES, never ACTIONS -> COMP. The panel is a `$bindable`
+      prop on TreeView mirrored into §13.2's `ui` store, so the URL and the open panel
+      cannot disagree. (4) `SkillPageData` gained `reason: 'missing' | 'unreachable'`,
+      because §16.3 has two tree-unavailable rows with different sentences and T26/F22
+      requires the missing one to link to /data when a SKILL row survives.
+      `store.applyMoves` is T17's and still rejects with NotImplementedHereError; cold
+      start treats exactly that error as "no migrations" and reports any other failure.
+      `MapRenderer` switched from `base + href` to `resolve('/d/[domain]')` now that the
+      route exists — T13 left a comment asking for exactly that.
 
   - id: T15
     title: Placement and level estimator

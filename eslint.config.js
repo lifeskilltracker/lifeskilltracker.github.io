@@ -146,6 +146,61 @@ const scoringRestrictions = {
   },
 };
 
+/**
+ * T14 — §13.4's two view-layer rules, which are the ones §14.7 says are
+ * "checkable by inspection" and therefore worth making checkable by machine.
+ *
+ * **No route imports the Scoring Engine.** Scores arrive as derived values
+ * through props; the derivations live in `lib/actions`, which is where §14.1
+ * puts anything that needs both a manifest and a `SKILL` row (T26/F4).
+ *
+ * **`TreeView` is the only component that consumes the Layout Engine.** It
+ * consumes it as a *prop*, so what this rule actually enforces is that nobody
+ * else calls `layoutTree` from the view layer at all — §8.6 requires that
+ * toggling a milestone never re-runs layout, and the call site is in
+ * `lib/actions/tree-session.svelte.ts` where user state cannot reach it.
+ *
+ * The component rules restate T09's `lib/state` pattern because
+ * `no-restricted-imports` replaces wholesale rather than merging: a later config
+ * object listing only the layout pattern would silently drop the state one.
+ */
+const STATE_PATTERN = {
+  group: ['$lib/state', '$lib/state/*', '../state', '../state/*', '../../state/*'],
+  message: '§14.1: components must not import lib/state — progress arrives as props (§13.4).',
+};
+
+const LAYOUT_PATTERN = {
+  group: ['$lib/layout', '$lib/layout/*'],
+  message:
+    '§13.4: TreeView is the only component that consumes the Layout Engine, and it consumes it as a prop — the call belongs in lib/actions (§8.6).',
+};
+
+const SCORING_PATTERN = {
+  group: ['$lib/scoring', '$lib/scoring/*'],
+  message:
+    '§13.4: routes must not import the Scoring Engine — scores arrive as derived props from lib/actions (T26/F4).',
+};
+
+/** @type {import('eslint').Linter.Config} */
+const viewLayoutRestrictions = {
+  files: ['app/src/lib/components/**/*.{ts,svelte}'],
+  // TreeView consumes the engine's *type*; a test may build a layout to hand it
+  // one, which is the fixture, not the forbidden edge.
+  ignores: ['app/src/lib/components/TreeView.svelte', 'app/src/lib/components/**/*.test.ts'],
+  rules: {
+    'no-restricted-imports': ['error', { paths: [], patterns: [STATE_PATTERN, LAYOUT_PATTERN] }],
+  },
+};
+
+/** @type {import('eslint').Linter.Config} */
+const routeRestrictions = {
+  files: ['app/src/routes/**/*.{ts,svelte}'],
+  ignores: ['app/src/routes/**/*.test.ts'],
+  rules: {
+    'no-restricted-imports': ['error', { paths: [], patterns: [LAYOUT_PATTERN, SCORING_PATTERN] }],
+  },
+};
+
 /** Node globals for config files executed by Node (no extra dependency). */
 const nodeGlobals = {
   Buffer: 'readonly',
@@ -213,4 +268,6 @@ export default tseslint.config(
   contentRestrictions,
   componentRestrictions,
   scoringRestrictions,
+  viewLayoutRestrictions,
+  routeRestrictions,
 );
