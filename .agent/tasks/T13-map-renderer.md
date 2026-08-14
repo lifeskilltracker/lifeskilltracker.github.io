@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-14 |
 | **Phase** | 1 |
 | **Cluster** | views |
 | **Blocked by** | T11b, T12 |
@@ -146,35 +146,35 @@ T26/F18). Do not invent band names or thresholds locally.
 
 ## Acceptance criteria
 
-- [ ] Fill is implemented as `clip-path`, not `opacity` or `width`/`height` alone; a
+- [x] Fill is implemented as `clip-path`, not `opacity` or `width`/`height` alone; a
       component test asserts a partly-filled region's outline and label remain
       full-opacity (§10.5).
-- [ ] No component test or rendered DOM node ever contains a raw percentage string for a
+- [x] No component test or rendered DOM node ever contains a raw percentage string for a
       domain's fill — grep the rendered markup for `%` in a fill-adjacent node and assert
       none is present (F34).
-- [ ] Fill is also exposed as text in the region's accessible name and on focus, carrying
+- [x] Fill is also exposed as text in the region's accessible name and on focus, carrying
       a **named band**, not a number (§10.5, N5, §15.3).
-- [ ] Recency renders as a literal date string ("Last activity — 12 March" or equivalent),
+- [x] Recency renders as a literal date string ("Last activity — 12 March" or equivalent),
       sourced from `lastActivityAt`, with no interpolated decay factor, opacity fade, or
       time-since computation beyond formatting the date (D-20).
-- [ ] Breadth renders as a plain integer count beside the label, with a test asserting it
+- [x] Breadth renders as a plain integer count beside the label, with a test asserting it
       equals the number of started skills in that domain (F35, §10.5).
-- [ ] A domain with zero published trees in the manifest renders fogged (desaturated,
+- [x] A domain with zero published trees in the manifest renders fogged (desaturated,
       contribute-one affordance) regardless of user state — a test using a manifest with
       an empty domain and non-empty user progress for that domain still shows fog (§10.5,
       F22).
-- [ ] Making's subregions render as interior stroke lines within the Making path, never as
+- [x] Making's subregions render as interior stroke lines within the Making path, never as
       separate `<path>` elements with their own fill or outline — a test asserts no
       subregion-scoped `region-fill` or `region-outline` class exists (§10.6, F27).
-- [ ] Selecting a region (click or Enter/Space while focused) navigates to that domain's
+- [x] Selecting a region (click or Enter/Space while focused) navigates to that domain's
       listing route (§10.7, F23).
-- [ ] Every region is reachable via keyboard in a stable order independent of pixel
+- [x] Every region is reachable via keyboard in a stable order independent of pixel
       position — a test asserts the tab order matches the manifest's domain order rather
       than any computed layout position (§10.7).
-- [ ] Below the documented legibility threshold, the component renders a domain list
+- [x] Below the documented legibility threshold, the component renders a domain list
       instead of the SVG map, carrying the same three channels as inline text (§10.7,
       §8.5's narrow precedent).
-- [ ] `npm run --workspace app test -- MapRenderer` passes.
+- [x] `npm run --workspace app test -- MapRenderer` passes.
 
 ## Verification
 
@@ -240,3 +240,47 @@ what keeps the table tunable without touching the engine.
 
 **F15.** §10.5's channel table sourced **Breadth** to §11.6; it is §11.7. Fixed in the spec;
 if this doc reproduces that table, fix it here too.
+
+
+## Implementation notes — 2026-08-14
+
+**Done.** `MapRenderer.svelte`, `map-presentation.ts` and `MapRenderer.test.ts` (26 tests);
+app 316 tests, tools 195, typecheck, lint, S1 gate and `npm run build` all clean.
+
+Six decisions the document did not settle, recorded because each one was a fork:
+
+- **A third file.** The deliverables named two; there are three. `map-presentation.ts` holds
+  the accessible-name builder §15.3 shares with T20, the fill rectangle, the date formatter,
+  the fog predicate and the geometry fallbacks — everything worth asserting without a DOM.
+  Keeping it beside the component (rather than in `lib/`) is what lets `vitest MapRenderer`
+  still be the whole suite: its tests live in `MapRenderer.test.ts`.
+- **`bandFor` is imported from `$lib/scoring`, not restated.** `tiers.ts` is the local
+  precedent for restating a mapping rather than importing the engine (§13.4), and it is the
+  wrong precedent here: F18 requires **one table and one resolver**, and T11b's barrel
+  re-exports `bandFor` in as many words "for T13's regions and T20's copy." Restating it
+  would have been the exact duplication F18 exists to prevent. Nothing else in this component
+  touches the engine, and a test greps both files for the four band boundaries.
+- **The date carries a year** — "Last activity — 12 March 2026". §10.5's example omits it,
+  but dropping the year either loses it outright or requires comparing against today, and
+  comparing against today is the elapsed-time computation the criteria forbid. Formatted in
+  UTC, matching §12.2's storage, so a late-evening completion does not move a day.
+- **The threshold gates are written against code, not prose.** The D-20 gate forbids
+  `shimmer`, `decay`, `saturate(`, `halfLife` and `Date.now`, and it strips comments first:
+  the paragraphs naming the rejected mechanisms are the main thing stopping a later
+  maintainer from re-adding them, and a gate that made writing them impossible would be
+  working against its own purpose.
+- **Clip-path ids are instance-scoped** (`$props.id()`), not `#fill-making` verbatim. Two
+  maps on one page would otherwise have the second clipped by the first's fill.
+- **The list branch uses real `<a href>`; the SVG regions use §10.5's `<g role="link">`
+  verbatim.** Both report `{ domain, href }` upward and neither navigates — the shell owns
+  the route (§13.4). The anchor is `base`-prefixed rather than `resolve()`d, because
+  `/d/[domain]` is T14's and does not exist yet for `resolve()` to type-check against; the
+  `svelte/no-navigation-without-resolve` suppression there is worth revisiting when it lands.
+
+**One file outside the deliverables changed**: `lib/types/index.ts` re-exports
+`CompiledMapRegion`, which `Manifest` already contained but nothing had addressed directly.
+
+**Left for T14, deliberately**: nothing renders this yet. The manifest × `SKILL` join that
+produces `DomainSkillRow[]` is T14's (T26/F4), and so is `/` and `/d/[domain]`, so wiring the
+component into a route here would have meant building half of T14 without its cold-start
+branches. `MAP_LIST_BELOW` is exported for the route that will measure its container.

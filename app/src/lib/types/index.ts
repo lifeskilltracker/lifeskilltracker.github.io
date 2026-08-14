@@ -16,6 +16,10 @@ export type {
   MilestoneRef,
   RequirementGroup,
   Manifest,
+  // §10.5's renderer addresses one region at a time: it walks the taxonomy's
+  // domain order and looks the geometry up, so the region type is part of the
+  // surface even though `Manifest` already contains it (T13).
+  CompiledMapRegion,
 } from './compiled.js';
 export type { Taxonomy, MovedIndex } from './aliases.js';
 export type {

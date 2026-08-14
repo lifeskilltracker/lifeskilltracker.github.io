@@ -1,16 +1,49 @@
 # RESUME — implementation, phase 1
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-13 after T11b and T12. Read this, then `_BREAKDOWN.yaml`.
+Updated 2026-08-14 after T13. Read this, then `_BREAKDOWN.yaml`.
 
-# SESSION 15 — T11b AND T12 ARE DONE.
+# SESSION 16 — T13 IS DONE. THE MAP DRAWS.
 
-Repository state: **485 tests** (290 app + 195 tools), typecheck, lint, build, `gen:types`
-diff-free, `lst validate` and `lst compile` all clean.
+Repository state: **511 tests** (316 app + 195 tools), typecheck, lint, S1, build all clean.
 
-**T13 is fully unblocked** — it needed both of these and now has both: `domainScores`'
-three channels and eight real region paths in the manifest. Also unblocked: **T14, T17,
-T19**, and **T15** as soon as T00 lands D20. The critical path is **T13 → T14 → T20**.
+**T14 is the critical path and is fully unblocked.** It is also the task that makes any of
+phase 1 visible: T13 built the component and deliberately wired it to nothing.
+
+## T13 — the Map Renderer
+
+`app/src/lib/components/MapRenderer.svelte` draws §10.5's four channels over T12's eight
+paths, with `map-presentation.ts` beside it holding everything assertable without a DOM —
+§15.3's accessible-name builder (**T20 shares this, do not write a second one**), the fill
+rectangle, the UTC date formatter, the fog predicate, and geometry fallbacks for the
+`bounds`/`label` the schema marks optional and the compiler always emits.
+
+- **`bandFor` is imported from `$lib/scoring`, not restated.** `tiers.ts` restates `tierFor`
+  rather than importing the engine (§13.4) and is the obvious precedent; it is the wrong one.
+  F18 requires one table and one resolver, and T11b's barrel re-exports `bandFor` in as many
+  words "for T13's regions and T20's copy". **T20 should import it the same way.**
+- **Recency renders "Last activity — 12 March 2026".** §10.5's example has no year; keeping
+  it avoids comparing against today, which is the elapsed-time computation D-20 forbids.
+- **Two grep gates**, both in `MapRenderer.test.ts`: no band boundary appears in either file,
+  and no `shimmer` / `decay` / `saturate(` / `halfLife` / `Date.now` appears in the component.
+  The second strips comments first, on purpose — the prose naming the rejected mechanisms is
+  what keeps them rejected.
+- **Reading order is the manifest's domain order**, asserted against a fixture whose region
+  geometry runs the other way. The list below `MAP_LIST_BELOW` reproduces it exactly (§15.3).
+- `lib/types/index.ts` gained a `CompiledMapRegion` re-export. Nothing else outside the
+  component changed.
+
+**For T14**: the component takes `(manifest, domainScores, viewport, onselect)` and navigates
+nowhere — it reports `{ domain, href }` upward and the shell routes. The manifest × `SKILL`
+join that produces `DomainSkillRow[]` is yours (T26/F4), `/` and `/d/[domain]` are yours, and
+`MAP_LIST_BELOW` is exported for the container measurement §15.7 wants (the skill page's
+`NARROW_BELOW` is the pattern). The list branch's `<a>` suppresses
+`svelte/no-navigation-without-resolve` because `/d/[domain]` did not exist for `resolve()` to
+type-check against — once it does, that suppression should go.
+
+**For T20**: the accessible names, the focus band text, and the fog affordance are all in
+place and unit-tested, but nothing has been through axe or a keyboard-only pass — that is
+still entirely yours, and it needs T14's routes to have somewhere to run.
 
 ## T12 — the map has real geometry
 

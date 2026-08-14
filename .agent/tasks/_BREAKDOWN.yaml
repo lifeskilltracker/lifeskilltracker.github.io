@@ -267,6 +267,17 @@ tasks:
     prd: [F21, F33, F34, F35, D-20]
     status: written
     doc: T13-map-renderer.md
+    note: >
+      Implemented and verified complete 2026-08-14. Three files, not the two the doc named:
+      `map-presentation.ts` holds the §15.3 accessible-name builder T20 also needs, the fill
+      rectangle, the UTC date formatter and the fog predicate, with its tests inside
+      MapRenderer.test.ts so `vitest MapRenderer` stays the whole suite. `bandFor` is
+      IMPORTED from `$lib/scoring` rather than restated the way `tiers.ts` restates
+      `tierFor` — F18's one-table-one-resolver rule outranks that precedent, and T11b's
+      barrel re-exports it for exactly this. Recency renders "Last activity — 12 March 2026":
+      the year is kept because dropping it would require comparing against today, which is
+      the elapsed-time computation D-20 forbids. Nothing renders the component yet — the
+      manifest x SKILL join and both routes are T14's.
 
   - id: T14
     title: Full routes and cold-start branches
