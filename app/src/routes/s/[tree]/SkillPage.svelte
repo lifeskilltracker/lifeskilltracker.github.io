@@ -19,6 +19,7 @@
 	 */
 	import TreeView from '$lib/components/TreeView.svelte';
 	import SkillHeader from '$lib/components/SkillHeader.svelte';
+	import AssessmentFlow from '$lib/components/AssessmentFlow.svelte';
 	import { TREE_NARROW_BELOW } from '$lib/components/breakpoints.js';
 	import type { MilestoneIntent } from '$lib/components/intents.js';
 	import { openTreeSession, type TreeSession } from '$lib/actions/tree-session.svelte.js';
@@ -157,6 +158,19 @@
 				{onintent}
 				bind:openUid={panelUid}
 				uncheckConsequence={(uid) => session?.uncheckConsequence(uid) ?? null}
+			/>
+			<!--
+				§11.8's placement and estimator (T15, S3). Below the tree: it is the way
+				in for someone who already practises the skill, and putting it above
+				would make the tree itself look like something to get past.
+			-->
+			<AssessmentFlow
+				tree={data.tree}
+				progress={session.progress}
+				estimate={(level) => session?.estimate(level) ?? []}
+				placementConsequence={(selection) =>
+					session?.placementConsequence(selection) ?? null}
+				{onintent}
 			/>
 		{/if}
 	</main>

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | written — specification complete; implementation blocked by T11b |
+| **Status** | complete — 2026-08-14 |
 | **Phase** | 1 |
 | **Cluster** | judgment |
 | **Blocked by** | T11b |
@@ -95,26 +95,26 @@ await store.setMilestoneState(uid, 'complete', { … });
 
 ## Acceptance criteria
 
-- [ ] `estimateMilestones` is a pure function: same inputs, same output, no clock, no
+- [x] `estimateMilestones` is a pure function: same inputs, same output, no clock, no
       randomness, no I/O. Asserted by calling it twice and comparing.
-- [ ] `lib/scoring/estimate.ts` imports nothing from `svelte`, `$app`, `lib/state`, or
+- [x] `lib/scoring/estimate.ts` imports nothing from `svelte`, `$app`, `lib/state`, or
       `lib/content` — the §14.7 purity check covers it automatically.
-- [ ] The estimator reads **no** field that does not exist in `CompiledTree` today; adding
+- [x] The estimator reads **no** field that does not exist in `CompiledTree` today; adding
       an authored mapping field to satisfy it is a failure of the task.
-- [ ] For **L** ∈ {1..10}, the returned uid set is exactly every milestone uid in levels
+- [x] For **L** ∈ {1..10}, the returned uid set is exactly every milestone uid in levels
       1..**L** (contiguous prefix); no mastery uids; no skipped levels below **L**.
-- [ ] Running the estimator at **L** and accepting its output unmodified yields
+- [x] Running the estimator at **L** and accepting its output unmodified yields
       `attainedLevel === L`.
-- [ ] Each pre-checked milestone can be individually un-checked before the flow is
+- [x] Each pre-checked milestone can be individually un-checked before the flow is
       committed, and un-checking one does not disturb the others.
-- [ ] Pre-checked milestones carry an accessible announcement distinguishing them from
+- [x] Pre-checked milestones carry an accessible announcement distinguishing them from
       user-completed ones (§15.6), verified by a testing-library query on the accessible
       name or description.
-- [ ] Committing the flow writes through `setMilestoneState` only — a grep proves no
+- [x] Committing the flow writes through `setMilestoneState` only — a grep proves no
       second write path exists.
-- [ ] Placement that would lower `attained` states the consequence before the action, in
+- [x] Placement that would lower `attained` states the consequence before the action, in
       the form §11.10 specifies.
-- [ ] Placement is reachable and completable by keyboard alone (§15.8).
+- [x] Placement is reachable and completable by keyboard alone (§15.8).
 
 ## Verification
 
@@ -142,3 +142,68 @@ milestones, commit, reload, and confirm the persisted state matches what was on 
   task's problem, recorded so the connection is not rediscovered.
 - S3 is measured against this task, so the flow's usability matters as much as its
   correctness — an estimator that is right and unusable fails the metric just as squarely.
+
+## Implementation notes — 2026-08-14
+
+```
+app/src/lib/scoring/estimate.ts             estimateMilestones — the whole of D20
+app/src/lib/scoring/estimate.test.ts
+app/src/lib/components/AssessmentFlow.svelte
+app/src/lib/components/AssessmentFlow.test.ts
+app/src/lib/components/consequences.ts      + placementWarning (§11.10, bulk form)
+app/src/lib/actions/uncheck-consequence.ts  + placementConsequenceOf
+app/src/lib/actions/tree-session.svelte.ts  + estimate/placementConsequence; serialized writes
+app/src/routes/s/[tree]/SkillPage.svelte    mounts the flow below the tree
+```
+
+### Four decisions this document did not make
+
+- **The two mechanisms share one review list.** F29 and F30 produce the same thing — a
+  set of milestones the user asserts they have done — and §15.6 puts five obligations on
+  the list (level grouping, a running count, keyboard operation, interruptibility,
+  per-item reversal). Two screens would have meant two copies of all five, and the second
+  copy is the one that rots.
+- **The estimate is added to what is already recorded, never substituted for it.** §11.8
+  makes the prefix a suggestion; a suggestion that silently un-ticked real work would be
+  asserting something about the user, which §15.6 rules out in as many words. The
+  consequence is that only what the estimate *adds* is marked as pre-checked — a
+  milestone the user genuinely completed is their work, not the estimator's guess.
+- **§11.10's warning needed a bulk form.** Its sentences are written for one milestone,
+  and F29 makes the bulk case ordinary: a user correcting the estimator un-checks several
+  things in one action, so `placementConsequenceOf` re-scores the whole selection and
+  `placementWarning` states it before the commit. Stating it one milestone at a time
+  after the fact would be stating it too late.
+- **`TreeSession.apply` now serializes writes.** §12.4 makes each write its own
+  transaction that reads the tree's records back and recomputes `attainedLevel`; a review
+  list committing twelve of them at once had them racing, and the denormalized level
+  settled on whichever finished last. Rapid clicking in `TreeView` is the same hazard
+  arriving more slowly, so the fix sits in the session rather than in the flow.
+
+### Smaller things worth knowing
+
+- **`bonus` counts as recorded.** §11.4's `bonus` is surplus completion inside an `n_of`
+  group, not a different kind of record. Treating it as incomplete would have the flow
+  offer to re-complete work already done, and then write it again.
+- **The pre-check marker is inside the `<label>`**, so it is part of the checkbox's
+  accessible name rather than decoration a screen reader would skip. It is also visible:
+  a sighted user has the same right to know which ticks are guesses.
+- **The accessible-name assertion is a DOM query, not a testing-library one.** The
+  acceptance criterion named testing-library; the repository has no such dependency (T08
+  built `test-harness.svelte.ts` instead), and adding one to read `label.textContent`
+  would buy nothing. The assertion is the same: the marker is inside the label, so it is
+  in the accessible name.
+- **The draft survives leaving the flow** ("Finish later"), which is §15.6's
+  interruptible-and-resumable clause. It is component state and dies with the page —
+  §12.2 has two stored states and neither of them is "half-placed".
+- **Out-of-range coarse input throws** rather than clamping. Clamping turns a caller's
+  arithmetic bug into a silent bulk write over the only copy of someone's progress.
+- **The estimator was checked against a tree carrying only `uid` and `level`** on its
+  milestones, which is the mechanical form of "reads no field that does not exist in
+  `CompiledTree` today".
+
+### Out-of-scope items confirmed still out
+
+The Scoring Engine proper (T11a, T11b), the write path (T09), the milestone panel (T08),
+and any per-skill authored mapping — the last rejected by F29 rather than deferred.
+R-23's Guttman diagnostic over real completion patterns stays unavailable: N2 and D-17
+forbid the telemetry it would need.

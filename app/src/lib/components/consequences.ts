@@ -56,6 +56,26 @@ export function formatClearedLevels(cleared: readonly number[]): string {
 		.join(', ');
 }
 
+/**
+ * The same sentence for a whole placement (§11.8, T15): *"Saving this drops
+ * Cooking from Level 8 to Level 1. Levels 3–8 stay cleared."*
+ *
+ * §11.10's warning is written for one milestone at a time, and F29 makes the
+ * bulk case the ordinary one — a user correcting the estimator's guesses is
+ * un-checking several things in a single action, and stating the consequence
+ * afterwards would be stating it too late.
+ */
+export function placementWarning(
+	skillTitle: string,
+	consequence: { before: number; after: number; cleared: readonly number[] }
+): string {
+	const drop = `Saving this drops ${skillTitle} from Level ${consequence.before} to Level ${consequence.after}.`;
+	const survives = formatClearedLevels(consequence.cleared);
+	if (survives === '') return drop;
+	const plural = consequence.cleared.length === 1 ? 'Level' : 'Levels';
+	return `${drop} ${plural} ${survives} stay cleared.`;
+}
+
 /** *"Level 2 can't be completed without this. Cooking will stay at Level 1."* */
 export function dismissalWarning(
 	skillTitle: string,

@@ -30,11 +30,11 @@
  */
 
 import { layoutTree, type TreeLayout } from '$lib/layout';
-import { scoreSkill, type SkillProgress } from '$lib/scoring';
+import { estimateMilestones, scoreSkill, type SkillProgress } from '$lib/scoring';
 import { NotWritableError, store } from '$lib/state/store.js';
 import type { CompiledTree } from '$lib/types';
 import type { MilestoneIntent, UncheckConsequence } from '$lib/components/intents.js';
-import { uncheckConsequenceOf } from './uncheck-consequence.js';
+import { placementConsequenceOf, uncheckConsequenceOf } from './uncheck-consequence.js';
 
 export interface TreeSession {
 	/** §14.4's tree-local score, recomputed whenever the §13.2 mirror commits. */
@@ -45,6 +45,10 @@ export interface TreeSession {
 	readonly ready: Promise<void>;
 	apply(intent: MilestoneIntent): Promise<void>;
 	uncheckConsequence(uid: string): UncheckConsequence | null;
+	/** F30's prefix for a coarse self-assessment (§11.8) — T15. */
+	estimate(coarseLevel: number): string[];
+	/** §11.10 for a whole placement: what committing this selection would cost. */
+	placementConsequence(selection: readonly string[]): UncheckConsequence | null;
 	close(): void;
 }
 
@@ -86,7 +90,27 @@ class Session implements TreeSession {
 		scoreSkill(this.#tree, store.progressFor(this.#tree.id))
 	);
 
-	async apply(intent: MilestoneIntent): Promise<void> {
+	/**
+	 * Writes are serialized through one chain (T15).
+	 *
+	 * §12.4 makes each write its own transaction that reads the tree's records
+	 * back and recomputes `attainedLevel` from them. F29's placement commits a
+	 * whole review list at once, so without this the twelfth write could open its
+	 * transaction against a store the third one had not finished changing, and the
+	 * denormalized level would settle on whichever finished last. Rapid clicking
+	 * in `TreeView` is the same hazard arriving more slowly.
+	 */
+	#queue: Promise<void> = Promise.resolve();
+
+	apply(intent: MilestoneIntent): Promise<void> {
+		const next = this.#queue.then(() => this.#applyOne(intent));
+		// The chain must survive a rejected write — one failed milestone must not
+		// wedge every later one — while the caller still sees its own failure.
+		this.#queue = next.catch(() => undefined);
+		return next;
+	}
+
+	async #applyOne(intent: MilestoneIntent): Promise<void> {
 		switch (intent.kind) {
 			case 'complete':
 				await store.setMilestoneState(intent.uid, 'complete');
@@ -124,6 +148,20 @@ class Session implements TreeSession {
 	 */
 	uncheckConsequence(uid: string): UncheckConsequence | null {
 		return uncheckConsequenceOf(this.#tree, store.progressFor(this.#tree.id), uid);
+	}
+
+	/**
+	 * F30's estimate (§11.8). It lives here rather than in the page because
+	 * §13.4 forbids a route from importing the Scoring Engine at all, and
+	 * `AssessmentFlow` takes it as a callback for the same reason `TreeView`
+	 * takes `uncheckConsequence` as one.
+	 */
+	estimate(coarseLevel: number): string[] {
+		return estimateMilestones(this.#tree, coarseLevel);
+	}
+
+	placementConsequence(selection: readonly string[]): UncheckConsequence | null {
+		return placementConsequenceOf(this.#tree, store.progressFor(this.#tree.id), selection);
 	}
 
 	close(): void {

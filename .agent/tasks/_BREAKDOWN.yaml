@@ -322,8 +322,15 @@ tasks:
     status: written
     doc: T15-placement-and-estimator.md
     note: >
-      Specification complete 2026-08-07 (D20 rule in PRD v1.4 and task doc). Unblocked
-      by T00; implementation blocked by T11b until domain scoring ships.
+      Implemented and verified complete 2026-08-14. `estimateMilestones` is a pure
+      prefix over `level`/`uid` — no authored mapping data, which is what keeps F29's
+      "no additional per-skill authored content" true. `AssessmentFlow` runs placement
+      and the estimator through one review list; pre-checks are marked inside the
+      label, so the marker is part of the checkbox's accessible name and dies at
+      commit — §12.2 still has exactly two stored states. Two seams the doc did not
+      name: §11.10's warning needed a bulk form (`placementConsequenceOf`), and
+      `TreeSession.apply` now serializes writes, since a review list committing
+      twelve §12.4 transactions at once had them racing for the denormalized level.
 
   - id: T16
     title: Export and import

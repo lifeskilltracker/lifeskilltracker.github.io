@@ -121,3 +121,54 @@ describe('uncheckConsequence — §11.10’s honest recomputation', () => {
 		expect(session.uncheckConsequence(uidOf(tree, 'c'))).toBeNull();
 	});
 });
+
+describe('§11.8 — the placement seam (T15)', () => {
+	it('hands out F30’s prefix for the tree it was opened with', () => {
+		const tree = tinyTree(`estimate-${(counter += 1)}`);
+		const session = openTreeSession(tree);
+
+		expect(session.estimate(1)).toEqual([uidOf(tree, 'a'), uidOf(tree, 'b')]);
+		expect(session.estimate(2)).toEqual([
+			uidOf(tree, 'a'),
+			uidOf(tree, 'b'),
+			uidOf(tree, 'c'),
+			uidOf(tree, 'd')
+		]);
+	});
+
+	it('reports what a whole placement would cost, without performing it', async () => {
+		const tree = tinyTree(`placement-${(counter += 1)}`);
+		const session = openTreeSession(tree);
+		await session.apply({ kind: 'complete', uid: uidOf(tree, 'a') });
+		await session.apply({ kind: 'complete', uid: uidOf(tree, 'b') });
+
+		// The user un-ticks one of the two the level needs.
+		const consequence = session.placementConsequence([uidOf(tree, 'a')]);
+		expect(consequence?.before).toBe(1);
+		expect(consequence?.after).toBe(0);
+		expect(store.progressFor(tree.id).milestones.get(uidOf(tree, 'b'))).toBe('complete');
+
+		// Adding to what is already there costs nothing, which is the F29 case.
+		expect(
+			session.placementConsequence([uidOf(tree, 'a'), uidOf(tree, 'b'), uidOf(tree, 'c')])
+		).toBeNull();
+	});
+
+	it('serializes a bulk commit, so the denormalized level settles on the last write', async () => {
+		const tree = tinyTree(`bulk-${(counter += 1)}`);
+		const session = openTreeSession(tree);
+
+		// Fired the way `AssessmentFlow` fires them: synchronously, in a loop.
+		const writes = ['a', 'b', 'c', 'd'].map((slug) =>
+			session.apply({ kind: 'complete', uid: uidOf(tree, slug) })
+		);
+		await Promise.all(writes);
+
+		// Levels 3–10 hold no milestones in this fixture and are vacuously
+		// satisfied, so clearing 1 and 2 attains 10 — what matters here is that
+		// all four writes landed and the stored level agrees with the score.
+		expect(session.progress.attainedLevel).toBe(10);
+		expect(progress.skills[tree.id].attainedLevel).toBe(10);
+		expect(Object.keys(progress.milestones)).toHaveLength(4);
+	});
+});

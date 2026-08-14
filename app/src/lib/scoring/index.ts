@@ -16,10 +16,10 @@
  * joined from the manifest and the `SKILL` store, which is what lets §3.3's
  * world map render before any bundle is fetched.
  *
- * Two things §11 mentions are still deliberately absent rather than stubbed:
- * F30's level estimator, whose *rule* (D20) is unresolved and is T15's, and
- * F29 placement, which §11.8 says needs no engine mode at all — it is ordinary
- * milestone completion in bulk.
+ * F30's level estimator arrived with T15 and is re-exported below. F29
+ * placement still has no engine mode and never will: §11.8 makes it ordinary
+ * milestone completion in bulk, which is exactly what lets it "require no
+ * additional per-skill authored content".
  */
 
 import type { CompiledTree, NodeState, TierName, TreeProgress } from '$lib/types';
@@ -54,6 +54,12 @@ export function scoreSkill(tree: CompiledTree, progress: TreeProgress): SkillPro
 }
 
 export { evaluateGroup, thresholdOf } from './groups.js';
+export {
+  CoarseLevelRangeError,
+  MAX_COARSE_LEVEL,
+  MIN_COARSE_LEVEL,
+  estimateMilestones,
+} from './estimate.js';
 export { evaluateLevel, summarizeLevels, tierFor } from './levels.js';
 export { evaluateNodes } from './nodes.js';
 export type { GroupProgress } from './groups.js';
