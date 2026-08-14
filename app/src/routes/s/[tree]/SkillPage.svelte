@@ -19,6 +19,7 @@
 	 */
 	import TreeView from '$lib/components/TreeView.svelte';
 	import SkillHeader from '$lib/components/SkillHeader.svelte';
+	import { TREE_NARROW_BELOW } from '$lib/components/breakpoints.js';
 	import type { MilestoneIntent } from '$lib/components/intents.js';
 	import { openTreeSession, type TreeSession } from '$lib/actions/tree-session.svelte.js';
 	import { progress } from '$lib/state/progress.svelte.js';
@@ -35,9 +36,6 @@
 	}
 
 	let { data, openUid = null, notice = null }: Props = $props();
-
-	/** Below this, the tree collapses to §8.5's one-column reading order (§15.7). */
-	const NARROW_BELOW = 720;
 
 	let container: HTMLElement | undefined = $state();
 	let viewport = $state<'wide' | 'narrow'>('wide');
@@ -81,7 +79,9 @@
 
 		const observer = new ResizeObserver((entries) => {
 			const width = entries[0]?.contentRect.width ?? element.clientWidth;
-			viewport = width < NARROW_BELOW ? 'narrow' : 'wide';
+			// §8.5's one-column reading order; the threshold is §15.7's, named with
+			// the other two in `lib/components/breakpoints.ts`.
+			viewport = width < TREE_NARROW_BELOW ? 'narrow' : 'wide';
 		});
 		observer.observe(element);
 		return () => observer.disconnect();

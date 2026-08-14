@@ -33,6 +33,17 @@ export interface TreeSpec {
   levels: LevelSpec[];
   /** Prerequisite edges, by slug. */
   requires?: Record<string, string[]>;
+  /**
+   * Declared track ids, in order (§5.5). Omitted means the single synthetic
+   * column §8.2 step 2 gives a tree with no tracks — which is what every
+   * scoring test wants, since tracks affect layout and nothing else.
+   *
+   * §15.2's `↑`/`↓` are defined as "same track", so a test for them needs a tree
+   * where "same track" excludes something. That is the only reason this exists.
+   */
+  tracks?: string[];
+  /** Slug → track id. A slug left out lands in the first declared track. */
+  track?: Record<string, string>;
 }
 
 let fixtureCount = 0;
@@ -58,13 +69,19 @@ export function makeScoringTree(spec: TreeSpec): CompiledTree {
     return { index, slug };
   };
 
+  const tracks = spec.tracks ?? [];
+  const trackOf = (slug: string): { track: string; trackIndex: number } => {
+    if (tracks.length === 0) return { track: '', trackIndex: 0 };
+    const id = spec.track?.[slug] ?? tracks[0];
+    return { track: id, trackIndex: Math.max(0, tracks.indexOf(id)) };
+  };
+
   const milestones = flat.map(({ slug, level }, index) => ({
     id: slug,
     uid: `U${String(index).padStart(7, '0')}`,
     title: slug,
     level,
-    track: '',
-    trackIndex: 0,
+    ...trackOf(slug),
     order: index,
     requires: (spec.requires?.[slug] ?? []).map(ref),
   }));
@@ -89,6 +106,9 @@ export function makeScoringTree(spec: TreeSpec): CompiledTree {
     summary: 'Scoring fixture',
     domain: 'home',
     provenance: { authors: [{ name: 'fixture' }], copyleftDerived: false },
+    ...(tracks.length === 0
+      ? {}
+      : { tracks: tracks.map((id) => ({ id, title: id })) }),
     levels,
     milestones,
   } as unknown as CompiledTree;

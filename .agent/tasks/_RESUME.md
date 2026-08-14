@@ -1,7 +1,63 @@
 # RESUME — implementation, phase 1
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-14 after T14. Read this, then `_BREAKDOWN.yaml`.
+Updated 2026-08-14 after T20. Read this, then `_BREAKDOWN.yaml`.
+
+# SESSION 18 — T20 IS *PARTLY* DONE. §15 HOLDS FOR EVERYTHING THAT EXISTS.
+
+Repository state: **657 tests** (462 app + 195 tools), `svelte-check` clean over 442 files,
+lint clean, static build unchanged in shape.
+
+**T20 is not closed, and closing it is not this session's fault to fix.** Ten of its
+thirteen criteria are met and asserted as tests. The three that are not:
+
+- **§15.6 (F29's placement flow, F30's estimator) needs T15**, which is written and not
+  implemented. `_BREAKDOWN.yaml` now lists T15 in T20's `blocked_by`; the original field
+  missed it. Nothing was stubbed to make those criteria pass.
+- **§15.8's manual keyboard-only walkthrough and screen-reader spot checks are not
+  performed**, and cannot complete before T15 and T16 — two of the four flows are `place`
+  and `export`. `browse` and `complete` are walkable now and are a real pending check.
+
+**Read `T20-accessibility.md`'s implementation notes before touching either renderer.**
+Three of the five decisions there constrain later work:
+
+- **`(level, track, lane)` is now one order for three jobs** — document order, focus order,
+  and §15.1's reading order — produced by `gridOrder` in `lib/components/keyboard-grid.ts`.
+  The **wide** branch renders from it too, which it did not before. Nodes are positioned by
+  `transform` so nothing moved on screen, but **changing render order in either branch now
+  changes the keyboard model.**
+- **The arrow keys are viewport-dependent by necessity.** Wide draws level 1 at the bottom
+  (§8.2), narrow at the top (§8.5, F27), so `focusTarget` takes the viewport and flips the
+  sign. `Home`/`End` resolve to the lowest and highest levels that hold nodes, not literally
+  1 and 10.
+- **The live region is a diff of two `SkillProgress` values, not a message.** §15.2 wants the
+  consequence, and the component handling the click cannot know it. `TreeView` keeps the
+  previous value in a plain variable, deliberately not `$state`.
+
+Also new and worth knowing: **`lib/components/breakpoints.ts`** holds §15.7's three
+thresholds in one place (`SkillPage` and `map-presentation` import from it); the axe helper
+is **`lib/components/axe.ts`**, scoped to WCAG 2.1 A/AA because axe's best-practice `region`
+rule fires on any component tested in isolation; the map's manifest fixture moved to
+**`lib/components/fixtures.ts`**, shared by its two test files; and `makeScoringTree` gained
+optional `tracks`/`track`.
+
+**`docs/RELEASE-CHECKLIST.md` is new, and it is the §16.2 checklist location.** T24's
+collision over CONTRIBUTING.md is resolved rather than deferred — T24's note now says not to
+duplicate the record. §16.2 in `ARCHITECTURE.md` points at the file.
+
+## What T20 left for its dependents
+
+- **T15** — §15.6 is specified and untested because the flow does not exist. When it lands,
+  group the checkbox list by level with a running count, make every pre-check individually
+  announced and reversible, and make the flow abandonable and resumable. Then finish T20's
+  two §15.6 criteria in `TreeView.a11y.test.ts`'s idiom and add the flow to the axe gate.
+- **T16** — same shape: `export` is one of §15.8's four flows, so the walkthrough record in
+  `docs/RELEASE-CHECKLIST.md` cannot be completed until it exists.
+- **T25** — the axe assertions live inside `npm test`; `.github/workflows/` is still empty,
+  so "CI fails on an axe violation" is true of the command and pending on the job.
+
+**Next: T15, then T16, then a return to T20's manual half.** T17 is unblocked and
+independent.
 
 # SESSION 17 — T14 IS DONE. THE APP HAS ALL OF ITS ROUTES.
 

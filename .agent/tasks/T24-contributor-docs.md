@@ -209,13 +209,13 @@ this task's scope rules out.
 
 ## Notes and hazards
 
-- **T20 also writes into `docs/CONTRIBUTING.md`, and neither task blocks the other.** T20's
-  acceptance criteria put the dated keyboard-only and screen-reader walkthrough record in
-  "`docs/CONTRIBUTING.md` or the §16.2 checklist location". The two tasks are unordered —
-  T24 waits on T21 and T22, T20 waits on T08, T13, and T14 — so whichever lands second must
-  **extend** the file rather than regenerate it. If this task authors CONTRIBUTING.md after
-  T20, preserve that walkthrough record; it is a dated verification artifact and rewriting
-  it loses evidence, not prose.
+- **~~T20 also writes into `docs/CONTRIBUTING.md`~~ — resolved 2026-08-14. The collision is
+  gone.** T20 took the other of its two options and put the record in the §16.2 checklist
+  location, which it created as **`docs/RELEASE-CHECKLIST.md`**, precisely because this task
+  authors CONTRIBUTING.md wholesale and the two are unordered. This task must therefore
+  **not** write a walkthrough record, a release checklist, or an accessibility verification
+  table into CONTRIBUTING.md — link to `docs/RELEASE-CHECKLIST.md` instead. A second copy
+  would be a dated verification artifact with two dates, which is worse than none.
 - **R-03 has no mechanical backstop.** This task's rubric is, per §5.4 and §19.3, the
   *entire* mitigation for semantic redefinition under a stable uid, alongside two-round
   review (F42). Do not treat the Mozilla-rule paragraph as boilerplate to satisfy a

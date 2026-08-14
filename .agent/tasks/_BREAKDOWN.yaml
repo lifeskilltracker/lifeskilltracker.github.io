@@ -386,12 +386,20 @@ tasks:
     title: Accessibility pass and axe gate
     phase: 1
     cluster: views
-    blocked_by: [T08, T13, T14]
+    blocked_by: [T08, T13, T14, T15]
     blocks: []
     spec: ["§15"]
     prd: [N5, D-10, R-07]
     status: written
     doc: T20-accessibility.md
+    note: >
+      Partly implemented 2026-08-14 — ten of thirteen criteria, all automated. `blocked_by`
+      gained T15: §15.6 is in this task's scope and there is no placement flow or estimator
+      to make accessible until T15 lands. §15.8's manual keyboard-only and screen-reader
+      passes are also outstanding, and cannot complete before T15 and T16 either, since two
+      of the four flows are `place` and `export`. Recorded in docs/RELEASE-CHECKLIST.md,
+      which this task created as the §16.2 checklist location — T24's CONTRIBUTING.md
+      collision is resolved, not deferred.
 
   - id: T21
     title: Exemplar trees 2 and 3 — branching and modular

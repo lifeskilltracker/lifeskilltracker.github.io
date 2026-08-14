@@ -13,6 +13,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { bundleFixture } from '$lib/content/fixtures/bundles.js';
+import { auditAccessibility } from '$lib/components/axe.js';
 import { cleanup, render } from '$lib/components/test-harness.svelte.js';
 import { progress } from '$lib/state/progress.svelte.js';
 import { store } from '$lib/state/store.js';
@@ -77,6 +78,29 @@ describe('/s/[tree] — the rendered page', () => {
 		await expect(
 			store.setMilestoneState(bundle.milestones[0].uid, 'complete')
 		).resolves.toBeUndefined();
+	});
+
+	/**
+	 * §15.8's gate on the *composed* page (T20), not only on `TreeView` in
+	 * isolation. Half of what axe checks is about a document — heading order,
+	 * duplicate ids, landmark naming — and none of that is visible from a
+	 * component test that mounts one subtree.
+	 */
+	it('passes the axe gate as a whole page (§15.8)', async () => {
+		const bundle = tree();
+		const { container } = render(SkillPage, { data: pageData(bundle) });
+
+		expect((await auditAccessibility(container)).length).toBeGreaterThan(0);
+	});
+
+	it('passes the axe gate with a milestone panel open', async () => {
+		const bundle = tree();
+		const { container } = render(SkillPage, {
+			data: pageData(bundle),
+			openUid: bundle.milestones[0].uid
+		});
+
+		await auditAccessibility(container);
 	});
 
 	it('still reports an unavailable tree rather than a blank page (§7.4, §16.3)', () => {

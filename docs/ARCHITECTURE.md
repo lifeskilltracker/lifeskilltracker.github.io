@@ -2576,6 +2576,8 @@ Two version numbers, doing different jobs:
 
 Automated in CI except where marked. Manual items are deliberately few, because a checklist a part-time maintainer skips is worse than none.
 
+The working copy lives in **`docs/RELEASE-CHECKLIST.md`**, which also holds §15.8's dated record of the manual accessibility passes. It is a separate file from `CONTRIBUTING.md` on purpose: the record is a verification artifact, and CONTRIBUTING.md is authored wholesale.
+
 - All §6.5 gating jobs green
 - `contentVersion` bumped on every tree whose compiled output changed — enforced by §6.4's baseline job, not by memory
 - Two review rounds recorded in `provenance`, for content PRs (F42)

@@ -18,9 +18,12 @@
 	import type { TreeLayout } from '$lib/layout';
 	import type { SkillProgress } from '$lib/scoring';
 	import type { CompiledMilestone, CompiledTree, MasteryEntry } from '$lib/types';
+	import { progressAnnouncement } from './announcements.js';
 	import { cappedLevel, dismissalWarning, uncheckWarning } from './consequences.js';
 	import type { MilestoneIntent, UncheckConsequence } from './intents.js';
-	import { presentationFor } from './node-state.js';
+	import { focusTarget, gridOrder, isGridKey } from './keyboard-grid.js';
+	import { levelSectionName, nodeAccessibleName, nodeDescription } from './node-description.js';
+	import { hitRect, presentationFor } from './node-state.js';
 	import { attainmentLabel, bandTier } from './tiers.js';
 
 	interface Props {
@@ -90,6 +93,50 @@
 
 	const nodeElements: Record<string, (SVGGElement | HTMLElement) | undefined> = $state({});
 
+	/**
+	 * §15.2's grid order — `(level, track, lane)` — and it is the order the nodes
+	 * are *rendered* in, in both viewports. Document order, focus order and
+	 * §15.1's reading order are one order; the arithmetic lives in
+	 * `keyboard-grid.ts` so it can be tested without a DOM.
+	 */
+	const ordered = $derived(gridOrder(positions.nodes));
+
+	/**
+	 * §15.2 — "a single tab stop with roving `tabindex`", so an eighty-milestone
+	 * tree does not cost eighty tabs. Resolved against `ordered` rather than read
+	 * straight back, so switching tree cannot leave the roving uid naming a node
+	 * that no longer exists — which would leave the tree with no tab stop at all.
+	 */
+	let rovingUid = $state<string | null>(null);
+	const tabStop = $derived(
+		ordered.find((node) => node.uid === rovingUid)?.uid ?? ordered[0]?.uid ?? null
+	);
+
+	function moveFocus(uid: string): void {
+		rovingUid = uid;
+		nodeElements[uid]?.focus();
+	}
+
+	/**
+	 * §15.2's live region: `polite`, one of them, and stating the consequence
+	 * rather than the click. The consequence is only visible as a *diff*, and this
+	 * component is handed the after-state as a prop (§13.4) — so the previous
+	 * value is kept in a plain variable, deliberately not `$state`: it is an
+	 * input to the effect, never a dependency of it, and making it reactive would
+	 * make the effect re-run on its own write.
+	 */
+	let announcement = $state('');
+	let previousProgress: SkillProgress | null = null;
+
+	$effect(() => {
+		const current = progress;
+		if (previousProgress !== null && previousProgress !== current) {
+			const spoken = progressAnnouncement(tree, previousProgress, current);
+			if (spoken !== null) announcement = spoken;
+		}
+		previousProgress = current;
+	});
+
 	let open = $derived(
 		openUid === null || openUid === undefined ? undefined : milestoneOf(openUid)
 	);
@@ -108,11 +155,31 @@
 		if (returnTo !== null && returnTo !== undefined) nodeElements[returnTo]?.focus();
 	}
 
+	/** The whole of §15.2's key table, activation and traversal alike. */
 	function onNodeKey(event: KeyboardEvent, uid: string): void {
-		if (event.key !== 'Enter' && event.key !== ' ') return;
-		// Space scrolls the page otherwise, which moves the tree under the user.
+		if (event.key === 'Enter' || event.key === ' ') {
+			// Space scrolls the page otherwise, which moves the tree under the user.
+			event.preventDefault();
+			openPanel(uid);
+			return;
+		}
+
+		// Esc closes from the node as well as from the panel: opening a panel does
+		// not move focus (§9.4 — it is not a dialog and must not trap), so the node
+		// is exactly where the key press arrives.
+		if (event.key === 'Escape') {
+			if (openUid === null || openUid === undefined) return;
+			event.preventDefault();
+			closePanel();
+			return;
+		}
+
+		if (!isGridKey(event.key)) return;
+		// Arrows scroll and Home/End jump the document otherwise; both would move
+		// the tree out from under the focus this is about to place.
 		event.preventDefault();
-		openPanel(uid);
+		const target = focusTarget(positions.nodes, progress.nodeStates, uid, event.key, viewport);
+		if (target !== undefined) moveFocus(target);
 	}
 
 	function emit(intent: MilestoneIntent): void {
@@ -233,6 +300,14 @@
 	-->
 	<p class="tree-status">{attainmentLabel(progress.attainedLevel, progress.tier)}</p>
 
+	<!--
+		§15.2's single shared live region. `polite` — never `assertive`, which
+		interrupts — and it holds the consequence of the last change, not a log.
+		Visually hidden because the same consequence is already on screen as the
+		node's own state and the row's readout.
+	-->
+	<p class="visually-hidden announcer" aria-live="polite" role="status">{announcement}</p>
+
 	{#if viewport === 'wide'}
 		<svg
 			class="tree"
@@ -259,7 +334,20 @@
 			<g class="rows">
 				{#each positions.rows as row (row.level)}
 					{@const level = progress.levels.find((l) => l.level === row.level)}
-					<g class="row" data-level={row.level} class:is-satisfied={level?.satisfied}>
+					<!--
+						§15.2's level section, in the form SVG has one: a named group. The
+						name carries number, tier and per-group progress, so traversing the
+						structure gives F32's readout without entering a level — and it
+						carries them as words, because the visible `2 / 2` is spoken as
+						"2 slash 2".
+					-->
+					<g
+						class="row"
+						data-level={row.level}
+						class:is-satisfied={level?.satisfied}
+						role="group"
+						aria-label={levelSectionName(row.level, bandTier(row.level), level?.groups ?? [])}
+					>
 						<rect class="row-band" x="0" y={row.y} width={positions.width} height={row.h} />
 						<!--
 							One readout per requirement group, never averaged: a level with an
@@ -285,25 +373,46 @@
 			</g>
 	
 			<g class="nodes">
-				{#each positions.nodes as positioned (positioned.uid)}
+				{#each ordered as positioned (positioned.uid)}
 					{@const state = progress.nodeStates.get(positioned.uid)}
 					{@const look = presentationFor(state)}
+					{@const hit = hitRect(positioned.w, positioned.h)}
 					<g
 						class="node {look.className}"
 						data-uid={positioned.uid}
 						data-state={state}
 						data-level={positioned.level}
-						tabindex="0"
+						tabindex={positioned.uid === tabStop ? 0 : -1}
 						role="button"
+						aria-label={nodeAccessibleName(tree, positioned.uid)}
 						aria-describedby="ms-{positioned.uid}-desc"
 						transform="translate({positioned.x}, {positioned.y})"
 						bind:this={nodeElements[positioned.uid]}
 						onclick={() => openPanel(positioned.uid)}
 						onkeydown={(event) => onNodeKey(event, positioned.uid)}
-						onfocus={() => (focusedUid = positioned.uid)}
+						onfocus={() => {
+							focusedUid = positioned.uid;
+							rovingUid = positioned.uid;
+						}}
 						onblur={() => (focusedUid = null)}
 					>
-						<desc id="ms-{positioned.uid}-desc">Level {positioned.level}. {state}.</desc>
+						<desc id="ms-{positioned.uid}-desc"
+							>{nodeDescription(tree, progress, positioned.uid)}</desc
+						>
+						<!--
+							§15.7's 44×44 target. Transparent and centred on the drawn box, so
+							the node can be smaller than a finger without being harder to hit.
+							First child, so the box, glyph and label all paint over it.
+						-->
+						<rect
+							class="hit-area"
+							fill="transparent"
+							pointer-events="all"
+							x={hit.x}
+							y={hit.y}
+							width={hit.width}
+							height={hit.height}
+						/>
 						<rect
 							class="node-box"
 							x="0"
@@ -366,9 +475,23 @@
 		<div class="narrow-stack">
 			{#each positions.rows as row (row.level)}
 				{@const level = progress.levels.find((l) => l.level === row.level)}
-				<section class="row" data-level={row.level} class:is-satisfied={level?.satisfied}>
-					<h3>
-						Level {row.level} · {bandTier(row.level)}
+				<!--
+						§15.2's structure: a section per level, named by its own heading, and
+						an ordered list of milestones inside it. The heading's accessible name
+						spells the counts out — the visible `2 / 2` is spoken "2 slash 2" —
+						while the visible text stays the compact form §9.6 draws.
+					-->
+					<section
+						class="row"
+						data-level={row.level}
+						class:is-satisfied={level?.satisfied}
+						aria-labelledby="level-{row.level}-heading"
+					>
+						<h3
+							id="level-{row.level}-heading"
+							aria-label={levelSectionName(row.level, bandTier(row.level), level?.groups ?? [])}
+						>
+							Level {row.level} · {bandTier(row.level)}
 						{#each level?.groups ?? [] as group, index (index)}
 							<span class="group-progress"
 								>{Math.min(group.completed, group.n)} / {group.n}</span
@@ -376,7 +499,7 @@
 						{/each}
 					</h3>
 					<ol class="stack">
-						{#each positions.nodes.filter((n) => n.level === row.level) as positioned (positioned.uid)}
+						{#each ordered.filter((n) => n.level === row.level) as positioned (positioned.uid)}
 							{@const state = progress.nodeStates.get(positioned.uid)}
 							{@const look = presentationFor(state)}
 							<li>
@@ -385,13 +508,17 @@
 									data-uid={positioned.uid}
 									data-state={state}
 									data-level={positioned.level}
-									tabindex="0"
+									tabindex={positioned.uid === tabStop ? 0 : -1}
 									role="button"
+									aria-label={nodeAccessibleName(tree, positioned.uid)}
 									aria-describedby="ms-{positioned.uid}-desc"
 									bind:this={nodeElements[positioned.uid]}
 									onclick={() => openPanel(positioned.uid)}
 									onkeydown={(event) => onNodeKey(event, positioned.uid)}
-									onfocus={() => (focusedUid = positioned.uid)}
+									onfocus={() => {
+										focusedUid = positioned.uid;
+										rovingUid = positioned.uid;
+									}}
 									onblur={() => (focusedUid = null)}
 								>
 									<svg class="node-glyph" viewBox="0 0 16 16" aria-hidden="true">
@@ -406,7 +533,7 @@
 										</span>
 									{/if}
 									<span class="visually-hidden" id="ms-{positioned.uid}-desc">
-										Level {positioned.level}. {state}.
+										{nodeDescription(tree, progress, positioned.uid)}
 									</span>
 								</div>
 							</li>
@@ -688,5 +815,25 @@
 		margin-block: 0.75rem;
 		padding: 0.5rem;
 		border-inline-start: 4px solid currentColor;
+	}
+
+	/* §15.7's third threshold: the milestone detail becomes a full-screen sheet.
+	   A `@container` rule and not a media query — `.tree-view` is the container —
+	   so a tree embedded in a narrow column gets the sheet on a wide screen too.
+	   The literal is `PANEL_SHEET_BELOW`; a container query cannot read a
+	   constant, so `TreeView.a11y.test.ts` asserts the two agree.
+
+	   It stays an `<aside>` with the same role it had: §9.4 makes completion one
+	   action with no confirmation, so becoming full-screen must not make it a
+	   dialog that traps focus (F31). */
+	@container (width < 560px) {
+		.milestone-panel {
+			position: fixed;
+			inset: 0;
+			z-index: 2;
+			margin: 0;
+			overflow-y: auto;
+			background: var(--surface, #fff);
+		}
 	}
 </style>

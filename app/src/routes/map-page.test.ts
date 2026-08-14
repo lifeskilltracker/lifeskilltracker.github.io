@@ -17,6 +17,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { auditAccessibility } from '$lib/components/axe.js';
 import { cleanup, flushSync, render } from '$lib/components/test-harness.svelte.js';
 import { content } from '$lib/content/store.svelte.js';
 import { progress } from '$lib/state/progress.svelte.js';
@@ -94,6 +95,20 @@ describe('the map route', () => {
 		// complete anyway. That is why a failing bundle cannot dim a region.
 		expect(content.trees).toEqual({});
 		expect(container.querySelectorAll('[data-domain]').length).toBeGreaterThanOrEqual(2);
+	});
+
+	/** §15.8's gate on the composed route, not only on `MapRenderer` (T20). */
+	it('passes the axe gate as a whole page (§15.8)', async () => {
+		content.setManifest(manifest(), false);
+		progress.hydrated = true;
+		const { container } = render(MapPage, {});
+
+		expect((await auditAccessibility(container)).length).toBeGreaterThan(0);
+	});
+
+	it('passes the axe gate before the manifest resolves', async () => {
+		const { container } = render(MapPage, {});
+		await auditAccessibility(container);
 	});
 
 	it('says the regions do not reflect the user until hydration lands', () => {

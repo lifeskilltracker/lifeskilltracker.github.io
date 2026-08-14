@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BANDS, bandFor, domainScores } from '$lib/scoring';
-import type { DomainScore, DomainSkillRow, Manifest } from '$lib/types';
+import type { DomainScore, DomainSkillRow } from '$lib/types';
 import MapRenderer from './MapRenderer.svelte';
 import {
   FOG_AFFORDANCE,
@@ -29,6 +29,13 @@ import {
   regionAccessibleName,
 } from './map-presentation.js';
 import { cleanup, click, focus, press, render } from './test-harness.svelte.js';
+import {
+  DOMAINS,
+  ROWS,
+  manifestFixture,
+  squarePath,
+  type ManifestOptions,
+} from './fixtures.js';
 
 afterEach(cleanup);
 
@@ -52,124 +59,6 @@ const codeOf = (text: string): string =>
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|\s)\/\/.*$/gm, '');
-
-const DOMAINS = [
-  'making',
-  'mind',
-  'body',
-  'home',
-  'people',
-  'work-money',
-  'play',
-  'outdoors-nature',
-] as const;
-
-const TITLES: Record<string, string> = {
-  making: 'Making',
-  mind: 'Mind',
-  body: 'Body',
-  home: 'Home',
-  people: 'People',
-  'work-money': 'Work & Money',
-  play: 'Play',
-  'outdoors-nature': 'Outdoors & Nature',
-};
-
-/** A square region at `(x, 0)`, 100 × 100 — the shape of the compiler's output, not its geometry. */
-function squarePath(x: number): string {
-  return `M ${x},0 L ${x + 100},0 L ${x + 100},100 L ${x},100 Z`;
-}
-
-interface ManifestOptions {
-  /** Domains the library has published a tree for. Everything else is fogged (F22). */
-  published?: readonly string[];
-  /**
-   * Region order in `taxonomy.map.regions`, and therefore pixel order — the
-   * reading order must not follow it (§10.7).
-   */
-  regionOrder?: readonly string[];
-}
-
-function manifestFixture(options: ManifestOptions = {}): Manifest {
-  const published = options.published ?? DOMAINS.filter((domain) => domain !== 'play');
-  const regionOrder = options.regionOrder ?? [...DOMAINS].reverse();
-
-  return {
-    schemaVersion: 1,
-    generated: '2026-08-13T00:00:00Z',
-    moved: {},
-    taxonomy: {
-      // Reading order is this array's order (§10.7).
-      domains: DOMAINS.map((domain) =>
-        domain === 'making'
-          ? {
-              id: 'making' as const,
-              title: TITLES[domain],
-              blurb: `${TITLES[domain]} blurb`,
-              palette: { base: '#ddd', accent: '#333' },
-              subregions: [
-                { id: 'expression' as const, title: 'Expression' },
-                { id: 'objects' as const, title: 'Objects' },
-                { id: 'systems' as const, title: 'Systems' },
-              ],
-            }
-          : {
-              id: domain as Exclude<(typeof DOMAINS)[number], 'making'>,
-              title: TITLES[domain],
-              blurb: `${TITLES[domain]} blurb`,
-              palette: { base: '#ddd', accent: '#333' },
-            },
-      ),
-      facets: [],
-      map: {
-        regions: regionOrder.map((domain, index) => ({
-          domain: domain as (typeof DOMAINS)[number],
-          // Descending x against the reading order, so a test that read the tab
-          // order off the geometry would come out backwards.
-          path: squarePath((regionOrder.length - index) * 120),
-          label: { x: (regionOrder.length - index) * 120 + 50, y: 50 },
-          bounds: { x: (regionOrder.length - index) * 120, y: 0, width: 100, height: 100 },
-          ...(domain === 'making'
-            ? {
-                subregions: [
-                  { id: 'expression' as const, path: squarePath((regionOrder.length - index) * 120) },
-                  { id: 'objects' as const, path: squarePath((regionOrder.length - index) * 120) },
-                  { id: 'systems' as const, path: squarePath((regionOrder.length - index) * 120) },
-                ],
-              }
-            : {}),
-        })),
-      },
-    },
-    trees: published.map((domain, index) => ({
-      id: `${domain}-tree`,
-      contentVersion: 1,
-      title: `${TITLES[domain]} tree`,
-      summary: 'fixture',
-      domain,
-      facets: [],
-      milestoneCount: 40,
-      authors: ['fixture'],
-      bundle: `bundles/${index}.json`,
-    })),
-  } as Manifest;
-}
-
-function row(domain: string, treeId: string, attainedLevel: number, at: string): DomainSkillRow {
-  return { treeId, domain, attainedLevel, lastActivityAt: at };
-}
-
-/**
- * Making: one skill at level 4 and two started but unranked → score 45,
- * fill 45/93 = 0.484 (Moderate), breadth 3, latest activity 12 March 2026.
- * Mind: published, nothing started. Play: started, but nothing published (F22).
- */
-const ROWS: DomainSkillRow[] = [
-  row('making', 'making-tree', 4, '2026-03-12T09:00:00.000Z'),
-  row('making', 'making-b', 0, '2026-01-04T09:00:00.000Z'),
-  row('making', 'making-c', 0, '2026-02-20T09:00:00.000Z'),
-  row('play', 'play-tree', 2, '2026-04-01T09:00:00.000Z'),
-];
 
 function mount(options: ManifestOptions & { viewport?: 'map' | 'list'; rows?: DomainSkillRow[] } = {}) {
   const manifest = manifestFixture(options);

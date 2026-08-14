@@ -30,15 +30,11 @@ import { bandFor } from '$lib/scoring';
 import type { CompiledMapRegion, DomainId, DomainScore, Manifest } from '$lib/types';
 
 /**
- * Below this container width, §10.7 substitutes the domain list for the map:
- * there is no pan and no zoom, so past the point where labels stop being
- * legible the honest thing is a list. §8.5 makes the same concession for trees,
- * and §15.3 requires the list to be the same content in the same order.
- *
- * Like §8.1's layout units this is tunable data, not a normative value — the
- * route measures its own container and picks a mode (§15.7).
+ * Below this container width, §10.7 substitutes the domain list for the map.
+ * The number itself lives in `breakpoints.ts` with §15.7's other two, and is
+ * re-exported here because this is where the map's callers already look.
  */
-export const MAP_LIST_BELOW = 560;
+export { MAP_LIST_BELOW } from './breakpoints.js';
 
 /** §10.7, F23 — selecting a region opens that domain's skill listing (T14's route). */
 export function domainListingHref(domain: DomainId): string {
