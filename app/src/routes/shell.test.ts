@@ -46,6 +46,7 @@ function storeStub(options: { fail?: boolean } = {}): ColdStartStore {
 		get hydrated() {
 			return progress.hydrated;
 		},
+		recordManifest: async () => undefined,
 		hydrate: async () => {
 			if (options.fail === true) {
 				progress.hydrated = false;
@@ -88,7 +89,8 @@ describe('§13.3 step 1 — chrome first, no full-page spinner', () => {
 			userStore: {
 				hydrated: false,
 				hydrate: () => new Promise<void>(() => {}),
-				applyMoves: async () => []
+				applyMoves: async () => [],
+				recordManifest: async () => undefined
 			}
 		});
 
@@ -181,6 +183,7 @@ describe('§12.5 — what applyMoves did is said out loud', () => {
 			get hydrated() {
 				return progress.hydrated;
 			},
+			recordManifest: async () => undefined,
 			hydrate: async () => {
 				progress.hydrated = true;
 			},

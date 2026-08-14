@@ -41,6 +41,11 @@ function stubStore(options: StubOptions = {}) {
       return hydrated;
     },
     calls,
+    async recordManifest() {
+      // T16: what an export copies from the manifest. Recorded, never read back
+      // by the start sequence itself.
+      calls.push('recordManifest');
+    },
     async hydrate() {
       calls.push('hydrate');
       if (options.hydrate !== undefined) {
@@ -208,6 +213,7 @@ describe('§13.3 — hydration fails', () => {
       hydrated: false,
       hydrate: () => Promise.resolve(),
       applyMoves: vi.fn(async () => []),
+      recordManifest: vi.fn(async () => undefined),
     };
 
     const result = await coldStart(createContentLoader(env), store);

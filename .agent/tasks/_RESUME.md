@@ -1,5 +1,49 @@
 # RESUME — implementation, phase 1
 
+Updated 2026-08-14 after T15 and T16.
+
+# SESSION 13 — T15 AND T16 COMPLETE.
+
+T15 (placement and the level estimator) and T16 (export and import) verified complete
+2026-08-14: 568 app tests, `npm run typecheck` clean, `npm run lint` clean, `npm run build`
+clean, S1 gate holds, and no Ajv in the built client bundle.
+
+**What is now true that was not:**
+
+- **A user can get their progress off this device and back onto another one.** `/data`
+  has a working export download and import picker, with §12.6's replace behind a
+  confirmation and §16.5's retired-achievement list beside it.
+- **`store.export()` and `store.import()` are implemented**; only `applyLineage` and
+  `applyMoves` still reject with `NotImplementedHereError`, both T17's.
+- **`store.recordManifest()` is new**, called by `coldStart`. §14.5 gives `export()` no
+  arguments and §14.1 forbids `lib/state` from reading a manifest, so §7.2's `generated`
+  stamp and the library's tree ids are injected — the same shape as `openTree`. Anything
+  stubbing `ColdStartStore` must provide it.
+- **`TreeSession.apply` serializes writes** (T15). §12.4 makes each write its own
+  transaction that recomputes `attainedLevel`; a placement committing twelve at once had
+  them racing. Rapid clicking in `TreeView` was the same hazard, more slowly.
+- **`app/package.json` has a `version`**, and `app/src/lib/version.ts` mirrors it with a
+  drift test. §16.1's app semver is recorded in every export.
+
+**Two things a later task must not undo:**
+
+- **`validate-export.ts` is hand-written on purpose.** §7.3 and §17.1 keep a schema engine
+  out of the client; `import.test.ts` runs the real `export.schema.json` under Ajv over a
+  twenty-mutation corpus, plus a vacuity guard, so the two cannot drift. A build check
+  asserts no non-test module imports Ajv.
+- **The milestone row tolerates unknown keys** (R-06, §12.8) and the skill row does not.
+  Adding `additionalProperties: false` to the milestone shape would turn phase 2's photos
+  into a breaking `schemaVersion` bump.
+
+**Next up:** T17 (lineage migration and orphan records) is the natural successor — it owns
+`applyLineage`/`applyMoves`, the self-heal half of T26/F20 that T16's test could only
+half-assert, and the only writer of the `ORPHAN` store T16 exports. T18 (durability and
+quota) is unblocked now that `lastExportAt` is written. T19, T21, T22, T23 are also open.
+
+---
+
+# RESUME — implementation, phase 1
+
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
 Updated 2026-08-14 after T20. Read this, then `_BREAKDOWN.yaml`.
 

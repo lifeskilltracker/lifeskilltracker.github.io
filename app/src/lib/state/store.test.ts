@@ -441,7 +441,7 @@ describe('§14.5 — the methods this task declares but does not implement', () 
     const store = freshStore();
     await expect(store.applyLineage()).rejects.toThrow('T17');
     await expect(store.applyMoves()).rejects.toThrow('T17');
-    await expect(store.export()).rejects.toThrow('T16');
-    await expect(store.import()).rejects.toThrow('T16');
+    // `export` and `import` landed with T16; their tests are in
+    // `export.test.ts` and `import.test.ts`.
   });
 });

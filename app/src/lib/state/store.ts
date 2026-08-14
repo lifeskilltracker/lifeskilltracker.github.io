@@ -18,12 +18,25 @@ import type {
   MovedIndex,
   TreeProgress,
 } from '$lib/types';
+import { APP_VERSION } from '$lib/version.js';
 import { BY_TREE, STORES, openDatabase, type Database } from './db.js';
 import { evaluateAttainedLevel as defaultEvaluator } from './default-evaluator.js';
 import type { AttainedLevelEvaluator } from './default-evaluator.js';
+import { buildExportFile } from './export.js';
+import { planImport } from './import.js';
+import { migrateExportFile } from './migrate-export.js';
 import { refreshProgressMirror } from './mirror.js';
 import { progress } from './progress.svelte.js';
-import { LAST_EXPORT_AT_KEY, type MilestoneRecord, type SkillRecord } from './types.js';
+import {
+  LAST_EXPORT_AT_KEY,
+  MANIFEST_KEY,
+  UNKNOWN_GENERATED,
+  type ManifestMeta,
+  type MilestoneRecord,
+  type OrphanRecord,
+  type SkillRecord,
+} from './types.js';
+import { readSchemaVersion, validateExportFile } from './validate-export.js';
 
 export interface UserStateStore {
   hydrate(): Promise<void>;
@@ -36,6 +49,8 @@ export interface UserStateStore {
     evaluateAttainedLevel: (progress: TreeProgress) => number,
   ): Promise<MigrationReport>;
   applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]>;
+  /** T16: §7.2's build stamp and the library's tree ids, injected by the shell. */
+  recordManifest(meta: ManifestMeta): Promise<void>;
   export(): Promise<ExportFile>;
   import(file: ExportFile, mode: 'merge' | 'replace'): Promise<ImportReport>;
   storageStatus(): Promise<{ usage: number; quota: number; lastExportAt?: string }>;
@@ -344,12 +359,133 @@ export function createUserStateStore(options: StoreOptions = {}) {
       return Promise.reject(new NotImplementedHereError('applyMoves', 'T17 (§12.5)'));
     },
 
-    export(): Promise<ExportFile> {
-      return Promise.reject(new NotImplementedHereError('export', 'T16 (§12.6)'));
+    /**
+     * The two manifest facts the export path needs, recorded at cold start by
+     * `lib/actions` (§14.1 forbids this module from reading a manifest itself).
+     * Best-effort: a failure here must never fail the start, since everything
+     * that depends on it is archaeology or a report counter.
+     */
+    async recordManifest(meta: ManifestMeta): Promise<void> {
+      const handle = await database();
+      await handle.put(STORES.meta, { key: MANIFEST_KEY, value: meta });
     },
 
-    import(): Promise<ImportReport> {
-      return Promise.reject(new NotImplementedHereError('import', 'T16 (§12.6)'));
+    /**
+     * §12.6's export. Reads the three stores in one readonly transaction, so the
+     * file cannot describe a state that never existed — a `SKILL` row read
+     * before a concurrent write and its `MILESTONE` rows read after it would
+     * export an `attainedLevel` disagreeing with the records it summarizes.
+     */
+    async export(): Promise<ExportFile> {
+      const handle = await database();
+
+      const read = handle.transaction(
+        [STORES.skill, STORES.milestone, STORES.orphan, STORES.meta],
+        'readonly',
+      );
+      const [skills, milestones, orphans, manifest] = await Promise.all([
+        read.objectStore(STORES.skill).getAll(),
+        read.objectStore(STORES.milestone).getAll(),
+        read.objectStore(STORES.orphan).getAll(),
+        read.objectStore(STORES.meta).get(MANIFEST_KEY),
+      ]);
+      await read.done;
+
+      const generated = (manifest?.value as ManifestMeta | undefined)?.generated;
+      const exportedAt = nowIso();
+      const file = buildExportFile({
+        skills: skills as SkillRecord[],
+        milestones: milestones as MilestoneRecord[],
+        orphans: orphans as OrphanRecord[],
+        appVersion: APP_VERSION,
+        generated: generated ?? UNKNOWN_GENERATED,
+        exportedAt,
+      });
+
+      // §12.7 depends on this: `lastActivityAt > lastExportAt` is the definition
+      // of "new activity", and T18 reads it to decide when to prompt. Written
+      // after the file is assembled, so a failed assembly cannot claim a backup
+      // that does not exist. A read-only session skips it — nothing may write
+      // when hydration failed (§13.3) — and still gets its file.
+      if (progress.writable && !hydrationFailed) {
+        await handle.put(STORES.meta, { key: LAST_EXPORT_AT_KEY, value: exportedAt });
+      }
+
+      return file;
+    },
+
+    /**
+     * §12.6's import. **Validate, migrate, then open the transaction** — in that
+     * order, and the order is the whole design. §16.3's recurring rule is that a
+     * read failure must never become a write, so every rejection below happens
+     * before IndexedDB has been asked for anything.
+     */
+    async import(file: ExportFile, mode: 'merge' | 'replace'): Promise<ImportReport> {
+      // First, before any read: §13.3's latch. A session that could not read the
+      // user's progress must not write over it, and "import" is the largest
+      // write in the system.
+      requireWritable();
+
+      const schemaVersionIn = readSchemaVersion(file);
+      validateExportFile(file);
+      const migrated = migrateExportFile(file, schemaVersionIn);
+
+      const handle = await database();
+      const manifest = await handle.get(STORES.meta, MANIFEST_KEY);
+      const treeIds = (manifest?.value as ManifestMeta | undefined)?.treeIds;
+
+      const tx = handle.transaction(
+        [STORES.skill, STORES.milestone, STORES.orphan],
+        'readwrite',
+      );
+      let report: ImportReport;
+
+      try {
+        const skills = tx.objectStore(STORES.skill);
+        const milestones = tx.objectStore(STORES.milestone);
+        const orphans = tx.objectStore(STORES.orphan);
+
+        const plan = planImport(
+          migrated,
+          {
+            skills: (await skills.getAll()) as SkillRecord[],
+            milestones: (await milestones.getAll()) as MilestoneRecord[],
+            orphans: (await orphans.getAll()) as OrphanRecord[],
+          },
+          {
+            mode,
+            schemaVersionIn,
+            knownTreeIds: treeIds === undefined ? null : new Set(treeIds),
+          },
+        );
+
+        for (const treeId of plan.deleteSkills) await skills.delete(treeId);
+        for (const uid of plan.deleteMilestones) await milestones.delete(uid);
+        for (const uid of plan.deleteOrphans) await orphans.delete(uid);
+        for (const skill of plan.skills) await skills.put(skill);
+        for (const milestone of plan.milestones) await milestones.put(milestone);
+        for (const orphan of plan.orphans) await orphans.put(orphan);
+
+        report = plan.report;
+        await tx.done;
+      } catch (error) {
+        // One transaction for the whole file: §12.6 says an unreadable file is
+        // rejected whole and never partially applied, and a failure part-way
+        // through the writes is the same requirement arriving later.
+        tx.done.catch(() => undefined);
+        try {
+          tx.abort();
+        } catch {
+          /* already settled */
+        }
+        throw error;
+      }
+
+      // T26/F23: every writer refreshes §13.2's mirror on commit. `import`
+      // rewrites MILESTONE rows wholesale, so the alternative is stale progress
+      // on the first paint after a restore.
+      await refreshProgressMirror(handle);
+      return report;
     },
 
     /** Test seam: drop the handle so a new database name takes effect. */

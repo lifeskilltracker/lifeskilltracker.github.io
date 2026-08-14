@@ -31,7 +31,16 @@ import { NotImplementedHereError, type UserStateStore } from '$lib/state/store.j
 import type { Manifest, MigrationReport } from '$lib/types';
 
 export type ColdStartContent = Pick<ContentLoader, 'loadManifest' | 'isOffline'>;
-export type ColdStartStore = Pick<UserStateStore, 'hydrate' | 'applyMoves' | 'hydrated'>;
+/**
+ * `recordManifest` is T16's: §14.1 forbids `lib/state` from reading a manifest
+ * and §14.5 gives `export()` no arguments, so the shell hands the two facts the
+ * export path needs over here — the same injection `openTree` uses for a
+ * bundle, at the one moment a manifest is in hand.
+ */
+export type ColdStartStore = Pick<
+	UserStateStore,
+	'hydrate' | 'applyMoves' | 'hydrated' | 'recordManifest'
+>;
 
 interface ColdStartCommon {
 	/** False when hydration rejected — §13.3's read-only session. */
@@ -105,6 +114,21 @@ export async function coldStart(
 		// The loader already served a cached manifest if it had one (§7.4), so a
 		// rejection here means there was none: §16.3's cold-start failure screen.
 		return { kind: 'failed', reason: messageOf(manifest.reason), hydrated, ...hydrationError };
+	}
+
+	// Best-effort, and deliberately not awaited into the failure path: what it
+	// records is archaeology (§7.2's `generated` in every export) and one report
+	// counter (T26/F22's `skillsWithNoManifestEntry`). Neither is worth failing
+	// a start over, and a read-only session writes nothing at all (§13.3).
+	if (hydrated) {
+		try {
+			await store.recordManifest({
+				generated: manifest.value.generated,
+				treeIds: manifest.value.trees.map((tree) => tree.id)
+			});
+		} catch {
+			/* the export falls back to an unknown build stamp (§12.6) */
+		}
 	}
 
 	// Step 3 — the write, before anything derives. Skipped with every other

@@ -1,0 +1,74 @@
+{
+  "format": "life-xp-skill-tracker/progress",
+  "schemaVersion": 1,
+  "exportedAt": "2026-08-04T11:03:00.000Z",
+  "appVersion": "0.1.0",
+  "generated": "2026-09-14T00:00:00.000Z",
+  "skills": [
+    {
+      "treeId": "blacksmithing",
+      "startedAt": "2026-05-01T09:00:00.000Z",
+      "attainedLevel": 3,
+      "lastActivityAt": "2026-08-04T10:59:00.000Z",
+      "contentVersionSeen": 7,
+      "grandfathered": {
+        "1": {
+          "uids": [
+            "k7m2qp9x"
+          ],
+          "contentVersion": 5
+        }
+      }
+    },
+    {
+      "treeId": "cooking",
+      "startedAt": "2026-06-11T18:20:00.000Z",
+      "attainedLevel": 1,
+      "lastActivityAt": "2026-07-02T08:15:00.000Z",
+      "contentVersionSeen": 2,
+      "grandfathered": {}
+    }
+  ],
+  "milestones": [
+    {
+      "uid": "k7m2qp9x",
+      "treeId": "blacksmithing",
+      "slug": "light-the-forge",
+      "title": "Light a fire and bring stock to forging heat",
+      "state": "complete",
+      "at": "2026-05-01T09:14:00.000Z",
+      "note": "First proper coal fire. Took three goes.",
+      "contentVersion": 5,
+      "photo": "photos/k7m2qp9x.webp"
+    },
+    {
+      "uid": "b3n4tv5w",
+      "treeId": "blacksmithing",
+      "slug": "draw-a-taper",
+      "title": "Draw a clean taper on square stock",
+      "state": "complete",
+      "at": "2026-06-20T14:02:00.000Z",
+      "contentVersion": 7
+    },
+    {
+      "uid": "c8d9efgh",
+      "treeId": "cooking",
+      "slug": "boil-pasta",
+      "title": "Cook dried pasta to al dente and drain it",
+      "state": "dismissed",
+      "at": "2026-07-02T08:15:00.000Z",
+      "contentVersion": 2
+    }
+  ],
+  "orphans": [
+    {
+      "uid": "z1y2x3w4",
+      "treeId": "blacksmithing",
+      "title": "Sharpen a chisel on an oilstone",
+      "state": "complete",
+      "at": "2026-05-18T11:00:00.000Z",
+      "note": "Kept for the record.",
+      "reason": "retired"
+    }
+  ]
+}

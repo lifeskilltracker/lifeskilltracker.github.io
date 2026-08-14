@@ -67,3 +67,32 @@ export interface OrphanRecord {
 }
 
 export const LAST_EXPORT_AT_KEY = 'lastExportAt';
+
+/**
+ * What the last-read manifest said about itself (T16).
+ *
+ * §14.5 gives `export()` no arguments, and §14.1 forbids this module from
+ * importing `lib/content` — so the two manifest facts the export path needs have
+ * to arrive some other way, and they arrive here. `lib/actions` writes this at
+ * cold start, which is the same injection `openTree` already uses for a bundle.
+ *
+ * - `generated` is §7.2's build stamp, copied into every export as archaeology
+ *   for a human reader (T26/F8). Nothing branches on it.
+ * - `treeIds` is what makes T26/F22's `skillsWithNoManifestEntry` countable: an
+ *   import is the only way a `SKILL` row can exist for a tree this library does
+ *   not have, so the import is where it has to be reported.
+ */
+export const MANIFEST_KEY = 'manifest';
+
+export interface ManifestMeta {
+  generated: string;
+  treeIds: string[];
+}
+
+/**
+ * The `generated` an export carries when no manifest has ever been read on this
+ * device. Obviously not a build stamp — which is the point. Using `exportedAt`
+ * instead would tell the file's human reader that the library was built the
+ * moment they exported it, which is a lie rather than an absence.
+ */
+export const UNKNOWN_GENERATED = '1970-01-01T00:00:00.000Z';

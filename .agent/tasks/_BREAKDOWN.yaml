@@ -343,9 +343,16 @@ tasks:
     status: written
     doc: T16-export-import.md
     note: >
-      The only contract whose consumer the project can never update. T26/F12 gave every
-      array its own merge rule; its milestone-beats-orphan rule must not ship without the
-      `contentVersionSeen` rewind that forces T17's pass to replay.
+      Implemented and verified complete 2026-08-14. Milestone-beats-orphan shipped with the
+      `contentVersionSeen` minimum, as required. Three decisions the document did not make:
+      the app still ships no validator — `validate-export.ts` is hand-written and
+      `import.test.ts` runs the real schema under Ajv over a mutation corpus to stop drift,
+      with a build check proving no non-test module imports Ajv; "prior version" means the
+      pre-F19/F15 shape at schemaVersion 1, since the schema's minimum is 1 and no version 0
+      ever existed; and imported timestamps are normalized to §12.2's `.sssZ` form rather
+      than throwing, which is the diagnostic T11b's note anticipated, resolved the other way.
+      `generated` and the manifest's tree ids reach the store through a new `recordManifest`
+      injection at cold start (§14.1 forbids `lib/state` from reading a manifest).
 
   - id: T17
     title: Lineage migration at load and orphan records

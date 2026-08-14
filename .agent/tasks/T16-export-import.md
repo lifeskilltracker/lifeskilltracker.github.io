@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete — 2026-08-14 |
 | **Phase** | 1 |
 | **Cluster** | runtime-io |
 | **Blocked by** | T09, T14 |
@@ -181,60 +181,60 @@ prior**; older exports are migrated on import through the chain. Anything newer 
 
 ## Acceptance criteria
 
-- [ ] A round-trip test: seed the store, `export()`, wipe the database, `import(file,
+- [x] A round-trip test: seed the store, `export()`, wipe the database, `import(file,
       'replace')`, and assert the resulting `SKILL`, `MILESTONE`, and `ORPHAN` contents are
       byte-identical to the seed — including `slug`, `title`, `at`, and `note`.
-- [ ] A test asserts the exported object validates against `schema/export.schema.json`
+- [x] A test asserts the exported object validates against `schema/export.schema.json`
       under Ajv, and that `format` is exactly `"life-xp-skill-tracker/progress"`.
-- [ ] A test asserts `export()` output is **deterministic** given identical store contents
+- [x] A test asserts `export()` output is **deterministic** given identical store contents
       apart from `exportedAt` — records are emitted in a stable order (by `treeId` then
       `uid`), so two exports diff cleanly.
-- [ ] A test asserts `export()` writes `lastExportAt` into `META` and that the value is
+- [x] A test asserts `export()` writes `lastExportAt` into `META` and that the value is
       readable through `storageStatus()`.
-- [ ] Merge, newest wins: import a file whose record for `k7m2qp9x` has a later `at` than
+- [x] Merge, newest wins: import a file whose record for `k7m2qp9x` has a later `at` than
       the stored one; assert the stored record is replaced. Repeat with an earlier `at`;
       assert the stored record survives.
-- [ ] Merge, union: import a file containing a uid absent from the store; assert it is
+- [x] Merge, union: import a file containing a uid absent from the store; assert it is
       added and that no stored uid absent from the file is removed.
-- [ ] Merge, `skills`: import a file whose skill row for `blacksmithing` has an **earlier**
+- [x] Merge, `skills`: import a file whose skill row for `blacksmithing` has an **earlier**
       `startedAt`, a **later** `lastActivityAt`, and a **lower** `contentVersionSeen` than
       the stored one; assert all three fields move, and that `attainedLevel` is taken from
       the later-`lastActivityAt` side rather than maximised. Repeat with the file's
       `attainedLevel` **higher** but its `lastActivityAt` **earlier**, and assert the stored
       (lower) value survives — this is F12's ratchet regression test.
-- [ ] Merge, absent `lastActivityAt`: a side with the field present beats a side without it,
+- [x] Merge, absent `lastActivityAt`: a side with the field present beats a side without it,
       regardless of the other fields.
-- [ ] Merge, `orphans`: import an orphan whose `reason` is `unknown` over a stored one whose
+- [x] Merge, `orphans`: import an orphan whose `reason` is `unknown` over a stored one whose
       `reason` is `retired`, both with the same `at`; assert `retired` survives.
-- [ ] Merge, cross-array: import a file holding a uid as a live milestone that the store
+- [x] Merge, cross-array: import a file holding a uid as a live milestone that the store
       holds as an orphan; assert the milestone wins, the `ORPHAN` row is gone, and
       `ImportReport.orphans.droppedForLiveRecord` is 1.
-- [ ] Rewind: after any merge that lowered a `contentVersionSeen`, assert `treesRewound`
+- [x] Rewind: after any merge that lowered a `contentVersionSeen`, assert `treesRewound`
       counts it and the stored value is the minimum of the two sides.
-- [ ] Replace: assert `import(file, 'replace')` removes stored uids absent from the file,
+- [x] Replace: assert `import(file, 'replace')` removes stored uids absent from the file,
       and that the `/data` page requires a confirmation step before calling it — verifiable
       by a component test that asserts `import` is not called on the first click.
-- [ ] Reject whole: import `fixtures/export/invalid-field` (one milestone with a
+- [x] Reject whole: import `fixtures/export/invalid-field` (one milestone with a
       non-enum `state`); assert `import` rejects, the returned/raised error names the
       failing field path, and **zero** records changed in IndexedDB.
-- [ ] Refuse newer: import `fixtures/export/newer-version` (`schemaVersion` current + 1);
+- [x] Refuse newer: import `fixtures/export/newer-version` (`schemaVersion` current + 1);
       assert the rejection message states the file came from a newer version and that no
       migration was attempted.
-- [ ] Migrate prior: import `fixtures/export/prior-version`; assert it succeeds and the
+- [x] Migrate prior: import `fixtures/export/prior-version`; assert it succeeds and the
       migrated records match the expected current-version shape.
-- [ ] Unknown-key tolerance: import `fixtures/export/unknown-photo-key` (a milestone
+- [x] Unknown-key tolerance: import `fixtures/export/unknown-photo-key` (a milestone
       carrying `"photo": "…"`); assert the import **succeeds**, the milestone is stored,
       and a subsequent `export()` still validates. This is the §12.8 reservation and must
       be present now (**R-06**).
-- [ ] A test asserts import rejects immediately when `store.writable === false` (§13.3,
+- [x] A test asserts import rejects immediately when `store.writable === false` (§13.3,
       T09's latch) without touching IndexedDB.
-- [ ] A human-readability check, as a test over the round-trip fixture: every milestone
+- [x] A human-readability check, as a test over the round-trip fixture: every milestone
       entry in the exported JSON contains a non-empty `title`, and every entry with a note
       retains it verbatim. N7's second reader has no codebase.
-- [ ] `ExportFile` and `ImportReport` are declared in `export-types.ts` **matching §14.5
+- [x] `ExportFile` and `ImportReport` are declared in `export-types.ts` **matching §14.5
       exactly** (T26/F3 typed them there) and imported by `app/src/lib/state/store.ts`, and
       `npx tsc --noEmit` passes.
-- [ ] `/data` renders the orphan list (§16.5) and the current `contentVersion` and
+- [x] `/data` renders the orphan list (§16.5) and the current `contentVersion` and
       `appVersion`.
 
 ## Verification
@@ -338,3 +338,79 @@ optional. The merge rule is now explicit: the whole record travels together, sin
 `title`, `note` and `contentVersion` are all provenance of the completion the winning `at`
 identifies. Mixing fields across the two sides would describe a completion that never
 happened.
+
+## Implementation notes — 2026-08-14
+
+```
+app/src/lib/state/export-types.ts        format constants, the version window, ORPHAN_SPECIFICITY
+app/src/lib/state/validate-export.ts     the client's own check, with field paths
+app/src/lib/state/migrate-export.ts      §5.10's chain + the F19/F15 backfill + §12.2 normalization
+app/src/lib/state/export.ts              buildExportFile, serializeExportFile, exportFileName
+app/src/lib/state/import.ts              planImport — the three merge rules, pure
+app/src/lib/state/store.ts               export()/import()/recordManifest(), one transaction each
+app/src/lib/version.ts                   §16.1's app semver
+app/src/routes/data/+page.svelte         export, import, replace confirmation, orphan list
+app/src/lib/state/fixtures/export/*.json valid, invalid-field, newer-version, prior-version,
+                                         unknown-photo-key
+app/src/lib/state/fixtures/schema.ts     the real schema under Ajv — tests only
+```
+
+### Seven decisions this document did not make
+
+- **The app still does not ship a validator.** §7.3 refuses Ajv in the client over §17.1's
+  70 kB budget, and an import is exactly the case where a check is not optional — so
+  `validate-export.ts` is the narrow hand-written form, and `import.test.ts` runs the real
+  `export.schema.json` under Ajv over a twenty-mutation corpus so the two cannot drift.
+  A build check asserts no non-test module imports Ajv, and the built bundle contains none.
+- **`prior-version` means the pre-F19/F15 shape, not `schemaVersion: 0`.** The schema puts
+  `minimum: 1` on `schemaVersion`, so there is no version 0 to migrate from and nothing has
+  ever shipped below 1. What T26/F19 and T26/F15 actually describe is a file written before
+  two fields became required, and §5.10's "migration path fills them in" is the backfill in
+  `migrate-export.ts`. The chain registry is present and empty, so the next real bump has a
+  home and a test that already checks the window is covered.
+- **Timestamps are normalized on the way in, not rejected.** `_BREAKDOWN.yaml` anticipated
+  §11.7's fixed-precision assertion arriving "as an import diagnostic". Refusing a readable
+  instant over its formatting would be refusing someone's backup to protect a string
+  comparison, so the ingest rewrites every timestamp to §12.2's `.sssZ` form instead. The
+  `prior-version` fixture carries a second-precision stamp so this is covered.
+- **`generated` and the manifest's tree ids arrive through `recordManifest`.** §14.5 gives
+  `export()` no arguments and §14.1 forbids `lib/state` from reading a manifest, so the two
+  facts the export path needs are injected at cold start — the same shape as `openTree`.
+  With no manifest ever read, `generated` is the epoch rather than `exportedAt`: an obvious
+  absence beats a plausible lie in a file whose reader has no codebase.
+- **`ExportFile` and `ImportReport` stay declared in `$lib/types`.** T26/F3 typed them into
+  §14.5 and `ExportFile` is *generated* from `export.schema.json`, so re-declaring them in
+  `export-types.ts` would have been a second source of truth for the one contract the
+  project can never update. That module re-exports them and owns everything else about the
+  format.
+- **`/data` shows the manifest's `generated`, not a "current `contentVersion`".** T26/F8
+  removed the library-wide counter (§7.2, §16.1) after this criterion was written; the
+  `generated` stamp is what §16.1 says covers that job, and it is the value every export
+  carries.
+- **`TreeSession`-style serialization was not needed here** — `import` is one transaction
+  for the whole file, which is also how "reject whole, never partially apply" survives a
+  mid-write failure rather than only a mid-validation one.
+
+### Smaller things worth knowing
+
+- **`export()` reads all four stores in one readonly transaction.** A `SKILL` row read
+  before a concurrent write and its `MILESTONE` rows read after it would export an
+  `attainedLevel` disagreeing with the records it summarizes.
+- **`lastExportAt` is skipped in a read-only session** (§13.3) and the file is still
+  produced. Nothing may write when hydration failed, and refusing to hand someone a backup
+  because the app could not record that it had done so would be the wrong way round.
+- **The T26/F20 test asserts the half that exists.** The reintroduced uid and the rewind
+  that makes it temporary are both checked; "open the tree and it is satisfied again" is
+  `applyLineage`, which is T17's. The test says so.
+- **`role="alert"` is banned app-wide** by `TreeView.a11y.test.ts` — §15.2 allows one polite
+  region and no interrupting one — so the import and export errors are `role="status"`.
+- **The equivalence corpus has a vacuity guard**, since a comparison test where both sides
+  always accept passes silently.
+
+### Out-of-scope items confirmed still out
+
+`export.schema.json` itself (T02), the write path and the latch (T09), export *prompting*
+and the quota panel (T18, which reads the `lastExportAt` written here), lineage migration
+and orphan *creation* (T17 — this task exports and imports the `ORPHAN` store's contents and
+never decides what belongs there), photos and the ZIP form (phase 2, §12.8 — only the
+unknown-key tolerance is here), and any network transfer at all (N2).
