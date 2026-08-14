@@ -219,6 +219,11 @@ tasks:
     status: written
     doc: T11b-scoring-aggregation.md
     note: >
+      Implemented and verified complete 2026-08-13. Two decisions the document did not
+      make: §11.7's recency max asserts §12.2's FULL fixed-precision form, not just the
+      Z suffix (Z sorts above '.', so a second-precision stamp silently beats a later
+      millisecond one — T16 should expect this throw as an import diagnostic); and a
+      frozen record with zero uids is refused, since [].every() is vacuously true.
       Document written 2026-08-06 in the same split. The §11.5–§11.9 half — frozen
       satisfaction, domain score, fill, recency, breadth, self-assessment, and the
       §11.9 invariants that need a score to state (1–5, 7, and the score half of 6).

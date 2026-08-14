@@ -1,5 +1,6 @@
 /**
- * The Scoring Engine, tree-local half (§11.1–§11.4, §14.4).
+ * The Scoring Engine (§11, §14.4) — `scoreSkill` over one tree, and
+ * `domainScores` across all of them.
  *
  * One pure function over one compiled tree and that tree's progress. It imports
  * nothing from Svelte, the DOM, `$app`, `lib/content`, or `lib/state` — §14.1
@@ -11,10 +12,14 @@
  * write (§3.2's single-writer rule). An engine that froze its own records would
  * be a second writer with no transaction.
  *
- * Everything from §11.5 onward — grandfathered satisfaction, the contribution
- * table, `score`, `fill`, breadth, recency, `domainScores` — is **T11b**, and is
- * deliberately absent rather than stubbed: a `domainScores` returning zeros is
- * worse than its absence, because T13 and T14 would render it.
+ * **`domainScores` never reads tree content** (§14.4). It takes attained levels
+ * joined from the manifest and the `SKILL` store, which is what lets §3.3's
+ * world map render before any bundle is fetched.
+ *
+ * Two things §11 mentions are still deliberately absent rather than stubbed:
+ * F30's level estimator, whose *rule* (D20) is unresolved and is T15's, and
+ * F29 placement, which §11.8 says needs no engine mode at all — it is ordinary
+ * milestone completion in bulk.
  */
 
 import type { CompiledTree, NodeState, TierName, TreeProgress } from '$lib/types';
@@ -53,3 +58,17 @@ export { evaluateLevel, summarizeLevels, tierFor } from './levels.js';
 export { evaluateNodes } from './nodes.js';
 export type { GroupProgress } from './groups.js';
 export type { LevelProgress } from './levels.js';
+
+/**
+ * The aggregation surface (§11.6, §11.7). `domainScores` crosses tree
+ * boundaries, and does so without ever touching tree content — the property
+ * that lets §3.3's world map render before a single bundle is fetched.
+ *
+ * `BANDS` and `bandFor` are re-exported for T13's regions and T20's copy, so
+ * neither has to reach past this barrel into the data module and neither has a
+ * reason to inline a threshold.
+ */
+export { domainScores } from './domain.js';
+export { BANDS, bandFor } from './bands.js';
+export { CONTRIBUTION, K, contribution } from './table.js';
+export type { Band } from './bands.js';

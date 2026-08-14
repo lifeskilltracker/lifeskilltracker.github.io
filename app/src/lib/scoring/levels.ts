@@ -21,7 +21,7 @@ export interface LevelProgress {
   groups: GroupProgress[];
   ratio: number; // unweighted mean of group ratios — F11
   satisfied: boolean;
-  /** Always `false` here; T11b adds §11.5's disjunct that can make it true. */
+  /** §11.5 — true exactly when a frozen record is the only thing satisfying it. */
   grandfathered: boolean;
   /** Uids satisfying this level now; the store freezes this (§11.5). */
   satisfiedBy: readonly string[];
@@ -38,7 +38,21 @@ export function evaluateLevel(
   const groups = evaluations.map((e) => e.progress);
 
   // A level is satisfied when every one of its groups is satisfied.
-  const satisfied = groups.every((g) => g.satisfied);
+  const evaluatedSatisfied = groups.every((g) => g.satisfied);
+
+  // §11.5's second disjunct (D-19). The record is read, never written: T09
+  // decides what to freeze and writes it inside §12.4's transaction.
+  //
+  // `uids.length > 0` is not defensive noise — `[].every(…)` is `true`, so
+  // without it an empty record would hand out the level for nothing, and an
+  // empty record is a store bug this must not reward.
+  const frozen = progress.grandfathered.get(level.level);
+  const frozenHolds =
+    frozen !== undefined &&
+    frozen.uids.length > 0 &&
+    frozen.uids.every((uid) => progress.milestones.get(uid) === 'complete');
+
+  const satisfied = evaluatedSatisfied || frozenHolds;
 
   // Per-group ratios survive individually: a level with an `all` group and an
   // `n_of` group has two independent things to report, and §9.6 renders them
@@ -49,12 +63,17 @@ export function evaluateLevel(
   // only `n` of them would make the frozen set depend on iteration order, and
   // the store freezes what the user actually did (§11.5).
   const satisfiedBy: string[] = [];
-  if (satisfied) {
+  if (evaluatedSatisfied) {
     for (const evaluation of evaluations) {
       for (const uid of evaluation.completedUids) {
         if (!satisfiedBy.includes(uid)) satisfiedBy.push(uid);
       }
     }
+  } else if (frozenHolds) {
+    // What actually holds the level up. The evaluator found it short, so its
+    // completed set is not the answer, and reporting nothing would leave T09
+    // unable to re-freeze the record it is about to carry forward.
+    satisfiedBy.push(...frozen.uids);
   }
 
   return {
@@ -62,9 +81,10 @@ export function evaluateLevel(
     groups,
     ratio,
     satisfied,
-    // T11b flips this. The phase-0 test asserting it is always false is the
-    // failing counterpart that change has to turn green.
-    grandfathered: false,
+    // True exactly when the frozen record is what carried it — not merely when
+    // one exists. A level satisfied by evaluation *and* covered by a record
+    // reports `false`, because nothing is being preserved.
+    grandfathered: !evaluatedSatisfied && frozenHolds,
     satisfiedBy,
   };
 }

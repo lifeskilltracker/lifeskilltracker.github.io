@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-13 |
 | **Phase** | 1 |
 | **Cluster** | pure-engines |
 | **Blocked by** | T10 |
@@ -226,113 +226,113 @@ Two properties are **contractual** and are what the test suite asserts (§14.4):
 
 **Grandfathered satisfaction (§11.5, D-19)**
 
-- [ ] A level that evaluates unsatisfied but has a frozen record whose every uid is still
+- [x] A level that evaluates unsatisfied but has a frozen record whose every uid is still
       complete reports `satisfied: true` and `grandfathered: true`.
-- [ ] Un-checking any single uid in that frozen record drops the level back to
+- [x] Un-checking any single uid in that frozen record drops the level back to
       `satisfied: false`, `grandfathered: false` — the record is not a ratchet.
-- [ ] A level satisfied by evaluation *and* covered by a frozen record reports
+- [x] A level satisfied by evaluation *and* covered by a frozen record reports
       `satisfied: true` with `grandfathered: false`; the flag means "only the record holds
       it up", not "a record exists".
-- [ ] `satisfiedBy` is still reported for grandfathered levels, and `scoreSkill` performs
+- [x] `satisfiedBy` is still reported for grandfathered levels, and `scoreSkill` performs
       **no write of any kind** — asserted by passing a frozen `TreeProgress` and
       deep-equality on it after the call (§3.2's single-writer rule).
-- [ ] T11a's placeholder test asserting `grandfathered` is always `false` is replaced, not
+- [x] T11a's placeholder test asserting `grandfathered` is always `false` is replaced, not
       deleted, by the cases above.
 
 **Domain score and fill (§11.6, D-21)**
 
-- [ ] `table.ts` exports the literal `[8, 19, 32, 45, 60, 75, 91, 108, 125, 142]` and
+- [x] `table.ts` exports the literal `[8, 19, 32, 45, 60, 75, 91, 108, 125, 142]` and
       `K = 48` as data with a documented index convention, and a test asserts each entry
       equals `Math.round(L ** 1.25 * 8)` for L = 1..10. The literal is the source of
       truth; the `Math.round` test guards provenance, not behaviour.
-- [ ] `score` sums `contribution(attainedLevel)` over skills whose **primary** domain is
+- [x] `score` sums `contribution(attainedLevel)` over skills whose **primary** domain is
       *d*; a test asserts a skill's `secondaryDomains` contribute to no domain's score.
-- [ ] A skill at `attainedLevel: 0` contributes exactly 0.
-- [ ] `domainScores` is called with a `skills` array and a taxonomy and **no tree
+- [x] A skill at `attainedLevel: 0` contributes exactly 0.
+- [x] `domainScores` is called with a `skills` array and a taxonomy and **no tree
       argument**; a test asserts `domain.ts` imports nothing from `lib/content` and that
       `CompiledTree` does not appear in `domainScores`' type signature (§14.4, §3.3).
-- [ ] The §11.3 worked example's score consequence: moving one skill from `attainedLevel: 1`
+- [x] The §11.3 worked example's score consequence: moving one skill from `attainedLevel: 1`
       to `attainedLevel: 4` raises its domain's score by exactly **37**
       (`table[4] − table[1] = 45 − 8`). Assert against the shipped table, not the figure.
-- [ ] One skill at L10 yields `fill ≈ 0.747` and five skills at L2 yield `fill ≈ 0.664`,
+- [x] One skill at L10 yields `fill ≈ 0.747` and five skills at L2 yield `fill ≈ 0.664`,
       reproducing the §11.6 depth-beats-breadth claim on the **shipped ×8 table**.
-- [ ] The limits §11.6 states are also tested so they are not later mistaken for bugs:
+- [x] The limits §11.6 states are also tested so they are not later mistaken for bugs:
       ten skills at L2 (`fill ≈ 0.798`) still outscores one at L9 (`fill ≈ 0.723`), and a
       domain at 8×L10 reaches `fill ≈ 0.959` without saturating.
-- [ ] The returned map is total over `taxonomy.domains`: a taxonomy of eight domains with
+- [x] The returned map is total over `taxonomy.domains`: a taxonomy of eight domains with
       rows in two of them returns eight entries, and the six empty ones are
       `{ score: 0, fill: 0, breadth: 0, lastActivityAt: null }`.
 
 **Bands (§11.6, T26/F18)**
 
-- [ ] `bands.ts` is a pure, dependency-free module exporting one ordered table
+- [x] `bands.ts` is a pure, dependency-free module exporting one ordered table
       `[{ name: string; from: number }, …]` and one resolver `bandFor(fill): string`. The
       name type is **`string`**, not a union — renaming a band must be a one-line data edit.
-- [ ] A property test asserts the table is non-empty and ascending, its first bound is 0,
+- [x] A property test asserts the table is non-empty and ascending, its first bound is 0,
       and every bound lies in `[0, 1)`.
-- [ ] `bandFor` returns `Quiet` at 0, `Deep` at 0.9999, and the correct band at each of
+- [x] `bandFor` returns `Quiet` at 0, `Deep` at 0.9999, and the correct band at each of
       the four interior boundaries — boundaries are half-open `[from, next)`.
-- [ ] `bandFor(fill(oneSkillAtL10))` is `Deep`. This is the landmark the boundaries were
+- [x] `bandFor(fill(oneSkillAtL10))` is `Deep`. This is the landmark the boundaries were
       chosen for; if it ever fails, the table moved and the R-19 claim moved with it.
-- [ ] A grep test asserts no numeric band threshold appears anywhere outside `bands.ts` —
+- [x] A grep test asserts no numeric band threshold appears anywhere outside `bands.ts` —
       the mechanical form of "one table, one resolver, no thresholds in components". T13
       and T20 both consume this resolver.
-- [ ] `DomainScore` has **no band field**; a test asserts the string `band` does not appear
+- [x] `DomainScore` has **no band field**; a test asserts the string `band` does not appear
       in `domain.ts`'s exported types.
 
 **Breadth and recency (§11.7, D-20, F35)**
 
-- [ ] Breadth for a domain equals the number of entries in `skills` carrying that primary
+- [x] Breadth for a domain equals the number of entries in `skills` carrying that primary
       domain, independent of their attained levels (§11.7, F35).
-- [ ] A domain whose every started skill is at `attainedLevel: 0` reports
+- [x] A domain whose every started skill is at `attainedLevel: 0` reports
       `score: 0, fill: 0` with `breadth > 0` — the two channels are independent, which is
       what stops `Quiet` from claiming emptiness beside a skills-started count of four.
-- [ ] `lastActivityAt` is the lexicographic maximum over the domain's rows, and `null`
+- [x] `lastActivityAt` is the lexicographic maximum over the domain's rows, and `null`
       **only** for a domain with no started skills. There is no second null case: `SKILL.
       lastActivityAt` is total (T26/F19).
-- [ ] A mixed-precision fixture proves the string comparison is safe: every input carries
+- [x] A mixed-precision fixture proves the string comparison is safe: every input carries
       the §12.2 `Z` suffix, and a test asserts the function rejects or is never handed a
       timestamp without one. A non-`Z` value makes the comparison silently wrong.
 
 **Invariants — property tests over generated inputs (§11.9, §14.4)**
 
-- [ ] `invariants.prop.ts` gains a generator for `ReadonlyArray<DomainSkillRow>` over a
+- [x] `invariants.prop.ts` gains a generator for `ReadonlyArray<DomainSkillRow>` over a
       generated taxonomy, and a generator for non-empty `TreeProgress.grandfathered` maps.
       It extends T11a's exported generators rather than duplicating them.
-- [ ] Invariant 1 — **completing a milestone never decreases any `DomainScore` field** —
+- [x] Invariant 1 — **completing a milestone never decreases any `DomainScore` field** —
       runs over at least 1,000 generated cases and is the suite's headline test. N12.
-- [ ] Invariant 2 — starting a skill contributes exactly 0 to `score`, while raising
+- [x] Invariant 2 — starting a skill contributes exactly 0 to `score`, while raising
       `breadth` by 1. N12, F33.
-- [ ] Invariant 3 — `fill` strictly increases with every level attained. F34.
-- [ ] Invariant 4 — `Δfill(0→1) ≥ Δfill(L→L+1)` for all L ≥ 1 on a lone skill, computed
+- [x] Invariant 3 — `fill` strictly increases with every level attained. F34.
+- [x] Invariant 4 — `Δfill(0→1) ≥ Δfill(L→L+1)` for all L ≥ 1 on a lone skill, computed
       **from the exported `table` and `K`, never from `L ** 1.25`.** Holds strictly against
       the shipped constants: Δ = 14.29, 14.07, 11.64, 8.39, 7.17, 5.42, 4.49, 3.76, 3.02,
       2.48 (percentage points). Resolved by T26/F1 — the earlier `k = 8` × 2 table failed
       this, and failed it invisibly because the test was written against the continuous
       curve rather than the rounded integers the app ships. **Implement no tolerance**; the
       invariant is `≥`, exact.
-- [ ] Invariant 5 — `fill < 1` for all finite inputs, including a generated domain of 500
+- [x] Invariant 5 — `fill < 1` for all finite inputs, including a generated domain of 500
       skills all at L10. F34's never-saturate.
-- [ ] Invariant 6, score half — dismissing or un-dismissing changes no `DomainScore` field,
+- [x] Invariant 6, score half — dismissing or un-dismissing changes no `DomainScore` field,
       ever; generated as a random dismissal mask applied to a random progress map. F46,
       §11.10. (The tree-local half is T11a's and already green.)
-- [ ] Invariant 7 — **tree revision alone never decreases `attained`** (§11.5). Generate a
+- [x] Invariant 7 — **tree revision alone never decreases `attained`** (§11.5). Generate a
       tree, a progress map, and a revision that adds milestones to already-satisfied
       levels; freeze the satisfying sets as T09 would; assert `attainedLevel` does not fall.
       T26/F2 made this expressible, so it is a **real test, not a documented gap**.
-- [ ] A reviewer can read all eight §11.9 invariants off the test names across T11a's and
+- [x] A reviewer can read all eight §11.9 invariants off the test names across T11a's and
       T11b's `invariants.test.ts`.
 
 **Boundaries (§14.1, §14.7)**
 
-- [ ] `purity.test.ts` (T11a's, unmodified) still passes over the new files — no import of
+- [x] `purity.test.ts` (T11a's, unmodified) still passes over the new files — no import of
       `svelte`, `$app`, `$lib/state`, or `$lib/content`, and no literal `archetype`.
-- [ ] `npx eslint app/src/lib/scoring` passes via the root `eslint.config.js` slice, and
+- [x] `npx eslint app/src/lib/scoring` passes via the root `eslint.config.js` slice, and
       temporarily adding
       `import { x } from '$lib/content'` to `domain.ts` makes it fail on
       `no-restricted-imports`.
-- [ ] A domain score recompute over 50 in-memory skills completes in under 1 ms (§17.3).
-- [ ] `npx tsc --noEmit` passes with `strict: true`.
+- [x] A domain score recompute over 50 in-memory skills completes in under 1 ms (§17.3).
+- [x] `npx tsc --noEmit` passes with `strict: true`.
 
 ## Verification
 
@@ -417,3 +417,64 @@ ESLint clean, a clean typecheck.
   deleted** — see T14's join and T09's retention rule, and `ImportReport.
   skillsWithNoManifestEntry` (T16). Nothing in this engine changes; the row simply never
   arrives. Do not add a fallback domain.
+
+
+## Completion — 2026-08-13
+
+Every acceptance criterion above is ticked and checked. `lib/scoring` is now **92 tests**
+(46 from T11a, 46 added here); the full suite is 467 (290 app + 177 tools), with
+`npx eslint app/src/lib/scoring`, `npm run typecheck`, and the S1 purity gate clean.
+
+Shipped as specified: `table.ts` and `bands.ts` as dependency-free data modules,
+`domain.ts`'s single-pass three-channel reduction, §11.5's disjunct as one added condition
+in `levels.ts`, and §11.9's remaining seven invariants as property tests over 1,000
+generated cases each.
+
+### Two things the work decided that the document did not
+
+**1. §11.7's `max` needs fixed *precision*, not just a `Z`.** The acceptance criterion asked
+for a test that a timestamp without the `Z` suffix is rejected. Writing it surfaced that the
+`Z` alone is not enough: `Z` (0x5A) sorts above `.` (0x2E), so `…T09:00:00Z` beats the later
+`…T09:00:00.500Z` and the recency channel silently reports the earlier instant. §12.2 already
+says the comparison is correct "only if the format **and precision** never vary" — so
+`domain.ts` asserts the full `YYYY-MM-DDTHH:MM:SS.sssZ` form rather than the suffix.
+
+The store never produces anything else (`new Date().toISOString()`, asserted by T09's own
+test), so this fires on **imported** data or on a future writer — which is exactly where a
+silent mis-ordering would otherwise originate. **T16 should expect this throw** and surface
+it as an import diagnostic rather than letting it escape. No spec change: the rule was
+already written, only unenforced.
+
+**2. A frozen record with zero uids is refused.** `[].every(…)` is `true`, so §11.5's
+disjunct taken literally hands out the level for nothing. The engine requires
+`uids.length > 0`. An empty record is a store bug, and grandfathering a level on the
+strength of one would be the ratchet R-22 says this must not become.
+
+`satisfiedBy` on a grandfathered level reports **the record's uids**, not the evaluator's
+completed set — the evaluator found the level short, so its set is not what holds the level
+up, and T09 needs the real answer to carry the record forward.
+
+### On invariant 7, which was the point of T26/F2
+
+It is a real property test over 1,000 generated revisions, and it has teeth: deleting §11.5's
+disjunct fails both invariant 7 tests (verified by mutation). `invariants.prop.ts` gained
+`withAddedMilestones` — an additive revision that appends new uids and joins them into each
+existing group, leaving every existing uid and ref index intact the way a real revision does —
+and `frozenAs`, which stands in for T09's freeze. The engine still performs no write; the
+helper is the store's half, in the test file where it belongs.
+
+The paired non-ratchet test samples for a level that survives revision **only** because of its
+record, because a level whose sole group is `n_of` keeps its threshold when a milestone is
+added and never becomes grandfathered at all — an assertion that did not sample for that
+passed for the wrong reason.
+
+### Notes for the tasks this unblocks
+
+- **T13 and T20 consume `bandFor`, never a threshold.** `domain.test.ts` greps all of
+  `app/src` for the four boundary literals and fails on any hit outside `bands.ts`. It caught
+  a comment in its own file on first run, so it is not decorative.
+- **T14 assembles `DomainSkillRow`.** This engine consumes rows and never builds them; a row
+  naming a domain the taxonomy does not declare is skipped silently, with no fallback domain
+  (T26/F22).
+- **`DomainScore` still carries no band field**, asserted two ways. Moving a boundary must
+  stay a one-line data edit.

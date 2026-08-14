@@ -129,17 +129,134 @@ describe('§11.5 — satisfiedBy is what the store freezes', () => {
   });
 });
 
-describe('phase boundary — grandfathered is always false until T11b', () => {
-  it('stays false even when TreeProgress carries a non-empty frozen map', () => {
+/**
+ * §11.5, D-19 — grandfathered satisfaction, the replacement for T11a's
+ * placeholder assertion that `grandfathered` is always false.
+ *
+ * The scenario is a tree revision: the user satisfied level 2 under an older
+ * `contentVersion`, the level then grew a milestone they have not done, and the
+ * frozen record is what keeps their attained level from falling out from under
+ * them. It is **not a ratchet** — un-checking any frozen uid drops the level —
+ * which is what keeps R-22 honest while still making tree revision safe.
+ */
+describe('§11.5 — grandfathered satisfaction (D-19)', () => {
+  /** Level 2's four milestones, of which the user completed only three. */
+  function shortOfLevelTwo() {
     const tree = scatteredTree();
-    const grandfathered = new Map([[2, { uids: [uidOf(tree, 'l2-m1')], contentVersion: 1 }]]);
-    const progress = { ...scatteredProgress(tree), grandfathered };
+    const progress = scatteredProgress(tree);
+    const frozen = ['l2-m1', 'l2-m2', 'l2-m3'].map((slug) => uidOf(tree, slug));
+    return { tree, progress, frozen };
+  }
 
-    const result = scoreSkill(tree, progress);
+  it('carries a level that evaluates unsatisfied but whose frozen uids are all complete', () => {
+    const { tree, progress, frozen } = shortOfLevelTwo();
+    const grandfathered = new Map([[2, { uids: frozen, contentVersion: 1 }]]);
 
-    // T11b adds §11.5's disjunct. This assertion is the failing counterpart
-    // that change has to flip; the map is accepted and unread until then.
-    for (const level of result.levels) expect(level.grandfathered).toBe(false);
+    const result = scoreSkill(tree, { ...progress, grandfathered });
+    const levelTwo = result.levels.find((l) => l.level === 2)!;
+
+    expect(levelTwo.satisfied).toBe(true);
+    expect(levelTwo.grandfathered).toBe(true);
+    // And the whole point: attained no longer stalls at 1.
+    expect(result.attainedLevel).toBe(4);
+  });
+
+  it('drops the level the moment any single frozen uid is un-checked', () => {
+    const { tree, progress, frozen } = shortOfLevelTwo();
+    const grandfathered = new Map([[2, { uids: frozen, contentVersion: 1 }]]);
+    const unchecked = new Map(progress.milestones);
+    unchecked.delete(frozen[0]);
+
+    const result = scoreSkill(tree, { milestones: unchecked, grandfathered });
+    const levelTwo = result.levels.find((l) => l.level === 2)!;
+
+    // Not a ratchet — R-22's blast radius is accepted, not engineered around.
+    expect(levelTwo.satisfied).toBe(false);
+    expect(levelTwo.grandfathered).toBe(false);
     expect(result.attainedLevel).toBe(1);
+  });
+
+  it('treats a dismissed frozen uid as un-checked, exactly as §11.10 requires', () => {
+    const { tree, progress, frozen } = shortOfLevelTwo();
+    const grandfathered = new Map([[2, { uids: frozen, contentVersion: 1 }]]);
+    const dismissed = new Map(progress.milestones);
+    dismissed.set(frozen[1], 'dismissed');
+
+    const result = scoreSkill(tree, { milestones: dismissed, grandfathered });
+
+    expect(result.levels.find((l) => l.level === 2)!.satisfied).toBe(false);
+  });
+
+  it('means "only the record holds it up", not "a record exists"', () => {
+    const tree = scatteredTree();
+    const progress = scatteredProgress(tree);
+    // Level 1 is satisfied by evaluation, and also covered by a record.
+    const frozen = [1, 2, 3, 4].map((i) => uidOf(tree, `l1-m${i}`));
+    const grandfathered = new Map([[1, { uids: frozen, contentVersion: 1 }]]);
+
+    const levelOne = scoreSkill(tree, { ...progress, grandfathered }).levels.find(
+      (l) => l.level === 1,
+    )!;
+
+    expect(levelOne.satisfied).toBe(true);
+    expect(levelOne.grandfathered).toBe(false);
+  });
+
+  it('refuses an empty frozen record rather than satisfying it vacuously', () => {
+    const { tree, progress } = shortOfLevelTwo();
+    const grandfathered = new Map([[2, { uids: [], contentVersion: 1 }]]);
+
+    const result = scoreSkill(tree, { ...progress, grandfathered });
+
+    // `[].every(…)` is true, so the naive disjunct would hand out level 2 for
+    // nothing — and T09 writing an empty record is a bug this must not reward.
+    expect(result.levels.find((l) => l.level === 2)!.satisfied).toBe(false);
+    expect(result.attainedLevel).toBe(1);
+  });
+
+  it('still reports satisfiedBy for a grandfathered level', () => {
+    const { tree, progress, frozen } = shortOfLevelTwo();
+    const grandfathered = new Map([[2, { uids: frozen, contentVersion: 1 }]]);
+
+    const levelTwo = scoreSkill(tree, { ...progress, grandfathered }).levels.find(
+      (l) => l.level === 2,
+    )!;
+
+    // The uids holding the level up are the record's, not the evaluator's —
+    // the evaluator found the level short.
+    expect([...levelTwo.satisfiedBy].sort()).toEqual([...frozen].sort());
+  });
+
+  it('performs no write of any kind (§3.2 — the store is the only writer)', () => {
+    const { tree, progress, frozen } = shortOfLevelTwo();
+    const grandfathered = new Map([[2, { uids: frozen, contentVersion: 1 }]]);
+    const input = { ...progress, grandfathered };
+    const before = {
+      milestones: [...input.milestones.entries()],
+      grandfathered: [...input.grandfathered.entries()].map(([level, record]) => [
+        level,
+        { ...record, uids: [...record.uids] },
+      ]),
+    };
+
+    scoreSkill(tree, input);
+
+    expect({
+      milestones: [...input.milestones.entries()],
+      grandfathered: [...input.grandfathered.entries()].map(([level, record]) => [
+        level,
+        { ...record, uids: [...record.uids] },
+      ]),
+    }).toEqual(before);
+  });
+
+  it('ignores a record for a level the tree does not have', () => {
+    const { tree, progress } = shortOfLevelTwo();
+    const grandfathered = new Map([[99, { uids: [uidOf(tree, 'l2-m1')], contentVersion: 1 }]]);
+
+    const result = scoreSkill(tree, { ...progress, grandfathered });
+
+    expect(result.attainedLevel).toBe(1);
+    expect(result.levels).toHaveLength(10);
   });
 });

@@ -1,8 +1,43 @@
 # RESUME — implementation, phase 1
 
 Handoff written 2026-08-05, superseding the wave-2 task-doc handoff (that work is done).
-Updated 2026-08-13 after T10. Read this, then `_BREAKDOWN.yaml`, then
-`docs/SCHEMA-REVIEW-P0.md` — the gate's verdict, and the reason three tasks just unblocked.
+Updated 2026-08-13 after T11b. Read this, then `_BREAKDOWN.yaml`.
+
+# SESSION 15 — T11b IS DONE. §11 IS COMPLETE.
+
+`lib/scoring` now ships both halves: `scoreSkill` honours §11.5's frozen records, and
+`domainScores(taxonomy, rows)` returns score, fill, breadth and recency per domain without
+reading a single byte of tree content. `table.ts` and `bands.ts` are dependency-free data.
+All eight §11.9 invariants are property tests over generated inputs, 1,000 cases each.
+
+Repository state: **467 tests** (290 app + 177 tools), typecheck, lint and the S1 purity
+gate clean.
+
+**Now unblocked: T13, T14, T15, T17, T19** — though T15 still waits on T00's D20, and T13
+also waits on T12. The critical path is **T14 → T20**.
+
+## Two things T11b decided that its document did not
+
+1. **§11.7's recency `max` asserts §12.2's full fixed-precision form**, not merely the `Z`
+   suffix. `Z` (0x5A) sorts above `.` (0x2E), so `…T09:00:00Z` beats the later
+   `…T09:00:00.500Z` and recency silently reports the earlier instant. §12.2 already
+   required invariant precision; nothing enforced it. The store cannot produce a bad value
+   (`toISOString`), so this fires on **imported** data — **T16 should catch this throw and
+   report it as an import diagnostic** rather than letting it reach a user as a crash.
+2. **A frozen record with zero uids is refused.** `[].every(…)` is `true`, so §11.5's
+   disjunct taken literally grandfathers a level for nothing.
+
+## What T11b leaves for whoever is next
+
+- **T14 owns the manifest × `SKILL` join that produces `DomainSkillRow`.** The engine
+  consumes rows and never assembles them. A row naming an undeclared domain is skipped with
+  no fallback (T26/F22).
+- **T13 and T20 must call `bandFor`, never a literal threshold.** `domain.test.ts` greps all
+  of `app/src` for the four boundary values and fails on any hit outside `bands.ts`. Band
+  names are `string` by design and the table is expected to move (T26/F18).
+- **F30's estimator is still absent, deliberately.** §11.8 places it in this engine, but its
+  rule is PRD D20 and unresolved — **T15**, blocked on **T00**. It was not stubbed, because
+  an empty implementation invites a wrong one.
 
 # SESSION 14 — T10 PASSED. PHASE 0 IS CLOSED; PHASE 1 IS OPEN.
 

@@ -12,7 +12,13 @@
  */
 
 import fc from 'fast-check';
-import type { CompiledTree, MilestoneState, TreeProgress } from '$lib/types';
+import type {
+  CompiledTree,
+  DomainSkillRow,
+  MilestoneState,
+  Taxonomy,
+  TreeProgress,
+} from '$lib/types';
 import { makeScoringTree, type GroupSpec, type LevelSpec } from './fixtures.js';
 
 /** §5.3: four to eight milestones per level. */
@@ -131,4 +137,166 @@ export function withDismissals(
     milestones.set(milestone.uid, 'dismissed');
   });
   return { ...progress, milestones };
+}
+
+/* ------------------------------------------------------------------------- *
+ * T11b — the aggregation half (§11.6, §11.7).
+ *
+ * These extend the generators above rather than standing beside them: the two
+ * halves of §11 must property-test against the same corpus, or an invariant
+ * that holds tree-locally and breaks under aggregation has nowhere to show up.
+ * ------------------------------------------------------------------------- */
+
+/** §5.9's eight domains. Only the ids matter — `domainScores` reads nothing else. */
+const DOMAIN_IDS = ['making', 'mind', 'body', 'home', 'money', 'people', 'place', 'work'];
+
+/** §12.2's fixed-precision UTC form, which §11.7's lexicographic `max` requires. */
+export function isoAt(millis: number): string {
+  return new Date(millis).toISOString();
+}
+
+const EPOCH = Date.UTC(2026, 0, 1);
+
+function taxonomyOf(ids: readonly string[]): Taxonomy {
+  return {
+    domains: ids.map((id) => ({
+      id,
+      title: id,
+      blurb: '',
+      palette: { base: '#000000', accent: '#ffffff' },
+    })),
+    facets: [],
+    map: { regions: [] },
+  } as unknown as Taxonomy;
+}
+
+/** A taxonomy of one to eight of §5.9's domains. */
+export function arbitraryTaxonomy(): fc.Arbitrary<Taxonomy> {
+  return fc
+    .integer({ min: 1, max: DOMAIN_IDS.length })
+    .map((count) => taxonomyOf(DOMAIN_IDS.slice(0, count)));
+}
+
+/** Rows over a taxonomy's own domains, with valid attained levels and §12.2 dates. */
+export function arbitraryDomainRows(
+  taxonomy: Taxonomy,
+): fc.Arbitrary<ReadonlyArray<DomainSkillRow>> {
+  const ids = taxonomy.domains.map((d) => d.id);
+  return fc.array(
+    fc.tuple(
+      fc.constantFrom(...ids),
+      fc.integer({ min: 0, max: 10 }),
+      fc.integer({ min: 0, max: 10_000_000 }),
+    ),
+    { maxLength: 20 },
+  ).map((rows) =>
+    rows.map(([domain, attainedLevel, offset], index) => ({
+      treeId: `tree-${index}`,
+      domain,
+      attainedLevel,
+      lastActivityAt: isoAt(EPOCH + offset * 60_000),
+    })),
+  );
+}
+
+/** A taxonomy paired with rows over its own domains. */
+export function arbitraryTaxonomyAndRows(): fc.Arbitrary<
+  [Taxonomy, ReadonlyArray<DomainSkillRow>]
+> {
+  return arbitraryTaxonomy().chain((taxonomy) =>
+    arbitraryDomainRows(taxonomy).map(
+      (rows): [Taxonomy, ReadonlyArray<DomainSkillRow>] => [taxonomy, rows],
+    ),
+  );
+}
+
+/**
+ * Completes one incomplete milestone, chosen by a generated index. Returns the
+ * progress unchanged when every milestone is already complete — the invariant
+ * still holds there, trivially, and rejecting the case would bias the corpus
+ * towards sparsely-completed trees.
+ */
+export function withOneMoreCompletion(
+  tree: CompiledTree,
+  progress: TreeProgress,
+  pick: number,
+): TreeProgress {
+  const incomplete = tree.milestones.filter(
+    (m) => progress.milestones.get(m.uid) !== 'complete',
+  );
+  if (incomplete.length === 0) return progress;
+
+  const milestones = new Map(progress.milestones);
+  milestones.set(incomplete[pick % incomplete.length].uid, 'complete');
+  return { ...progress, milestones };
+}
+
+/**
+ * A content revision that **only adds**: one new milestone appended to each
+ * named level, joined into every requirement group that level already has.
+ *
+ * Appending to an `all` group is the case that would drop `attained` — an
+ * `n_of` group keeps its threshold and stays satisfied on its own. New
+ * milestones take new uids and are appended to the flat order, so every
+ * existing uid and every existing ref index survives, exactly as a real
+ * revision leaves them (§5.4, §12.5).
+ */
+export function withAddedMilestones(tree: CompiledTree, levels: readonly number[]): CompiledTree {
+  const milestones = [...tree.milestones];
+  const addedByLevel = new Map<number, { index: number; slug: string }>();
+
+  for (const level of levels) {
+    const index = milestones.length;
+    const slug = `rev-l${level}-m${index}`;
+    milestones.push({
+      id: slug,
+      uid: `R${String(index).padStart(7, '0')}`,
+      title: slug,
+      level,
+      track: '',
+      trackIndex: 0,
+      order: index,
+      requires: [],
+    } as unknown as (typeof milestones)[number]);
+    addedByLevel.set(level, { index, slug });
+  }
+
+  const revised = tree.levels.map((level) => {
+    const added = addedByLevel.get(level.level);
+    if (added === undefined) return level;
+    return {
+      ...level,
+      milestones: [...level.milestones, added],
+      requirements: level.requirements.map((group) => ({
+        ...group,
+        milestones: [...group.milestones, added],
+      })),
+    };
+  });
+
+  return {
+    ...tree,
+    contentVersion: tree.contentVersion + 1,
+    levels: revised,
+    milestones,
+  } as CompiledTree;
+}
+
+/**
+ * Freezes every currently-satisfied level exactly as T09 would: the level's
+ * reported `satisfiedBy`, under the tree's current `contentVersion` (§11.5,
+ * §12.4). The engine never performs this write — this helper stands in for the
+ * store so invariant 7 can be a real test rather than a documented gap.
+ */
+export function frozenAs(
+  progress: TreeProgress,
+  contentVersion: number,
+  levels: ReadonlyArray<{ level: number; satisfied: boolean; satisfiedBy: readonly string[] }>,
+): TreeProgress {
+  const grandfathered = new Map(progress.grandfathered);
+  for (const level of levels) {
+    if (!level.satisfied || level.satisfiedBy.length === 0) continue;
+    grandfathered.set(level.level, { uids: [...level.satisfiedBy], contentVersion });
+  }
+  return { ...progress, grandfathered };
 }
