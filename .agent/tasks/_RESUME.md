@@ -1,6 +1,49 @@
 # RESUME — implementation, phase 1
 
-Updated 2026-08-15 after T21.
+Updated 2026-08-15 after T22, T23 and T24.
+
+# SESSION 18 — T22, T23, T24 COMPLETE. THE CLI IS WHOLE AND THE DOCS EXIST.
+
+All three verified complete 2026-08-15: **751 app tests + 266 tools tests**, `npm run
+typecheck` clean over 530 files, `npx eslint .` clean.
+
+**The `lst` CLI now implements every row of §6.1's table.** `validate`, `ids`, `compile`
+(already shipped) plus `lint`, `status`, `new` (T22) and `baseline`, `version` (T23).
+Nothing in §6.1 is unimplemented.
+
+**What is now true that was not:**
+
+- **`lst lint` cannot fail a merge, structurally.** Rules produce findings; `lint/index.ts`
+  alone decides whether findings gate, and it decides they never do. R-04's promotion path
+  is a change in one function. Real-corpus behaviour: 17 findings across the three trees,
+  exit 0.
+- **`content/REVIEW-STATUS.md` exists and is generated.** `lst status` regenerates it,
+  writes on drift, and fails only on drift — a corpus with no reviews recorded anywhere
+  still exits 0.
+- **All eight §6.4 checks run**, against the tip of `origin/main` with the head being the
+  working tree. An unresolvable ref throws rather than passing vacuously, which is the whole
+  point of the `fetch-depth: 0` paragraph. Fixtures are real temporary git repositories.
+- **`lst version` shipped with T23**, per T23's own F8 hazard note — it needs check 5's
+  comparison byte for byte.
+- **The three contributor documents exist** and point at all three exemplar trees by path.
+
+**T25 is the only thing left in phase 1**, and it now has everything it needs: seven gating
+jobs whose commands all exist, the check-4 auto-fix patch waiting for push credentials, and
+the up-to-date-branch repository setting §6.4 requires. **T20 remains partly complete** —
+§15.6 is blocked on T15 and §15.8's manual passes are outstanding.
+
+### Three decisions recorded in the task docs rather than here
+
+- **T22** — a requirement-group "shape" is `rule` + `n`, not size; `level-pacing` fires at
+  a deviation of 3; an orphan is off the prerequisite graph in *both* directions. And
+  `vague-milestone` ships flagging the bare word "practice", nine false positives on
+  `mental-health.yaml`, kept deliberately as R-04's evidence rather than tuned away.
+- **T23** — check 2 is detectable in exactly one shape (the uid now carries a slug the
+  baseline gave to another uid); everything past that is R-03 and unreachable. Check 6
+  compares ledger entries with object keys sorted, because YAML key order is not meaning.
+- **T24** — acceptance criteria 5 and 10 contradict each other. 10's grep fires on the
+  exclusion list 5 requires verbatim. Resolved for the verbatim text; read the hit rather
+  than acting on it.
 
 # SESSION 17 — T21 COMPLETE. S1 HAS ALL THREE SHAPES, AND ONE OF THEM RENDERS WRONG.
 
