@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete — 2026-08-15 |
 | **Phase** | 1 |
 | **Cluster** | views |
 | **Blocked by** | T08, T11b |
@@ -133,36 +133,36 @@ satisfied = completed >= n
 
 ## Acceptance criteria
 
-- [ ] Dismissing any milestone in a fixture tree leaves every `GroupProgress.ratio`,
+- [x] Dismissing any milestone in a fixture tree leaves every `GroupProgress.ratio`,
       `LevelProgress.satisfied`, `attainedLevel`, and `DomainScore` field byte-identical to
       before the dismissal, for both `all` and `n_of` groups (§11.2, §11.9 invariant 6).
-- [ ] Undismissing that same milestone leaves every one of those values byte-identical to
+- [x] Undismissing that same milestone leaves every one of those values byte-identical to
       the pre-dismissal state (§11.9 invariant 6, F46).
-- [ ] A property test generates random trees, requirement-group shapes, and
+- [x] A property test generates random trees, requirement-group shapes, and
       dismiss/undismiss sequences and asserts invariant 6 holds across all of them — not a
       fixed set of example cases (§11.9).
-- [ ] A fixture with an `all` group of five milestones, two dismissed, evaluates
+- [x] A fixture with an `all` group of five milestones, two dismissed, evaluates
       `completed = 3` against `n = 5`, `satisfied = false` — proving the denominator did
       not shrink to 3 (§11.10's specific catastrophe scenario, run as a named regression
       test).
-- [ ] Dismissing a milestone renders the `dismissed` state — recessed fill, dotted border,
+- [x] Dismissing a milestone renders the `dismissed` state — recessed fill, dotted border,
       ✕ glyph — and the node is neither `display: none` nor styled with `text-decoration:
       line-through` anywhere in the rendered output (§9.3).
-- [ ] A fixture where the target milestone belongs to an `all` group at or below the
+- [x] A fixture where the target milestone belongs to an `all` group at or below the
       current blocker triggers the intercept dialog before the state mutation is called —
       a test spies on the store's `setMilestoneState` and asserts it is not called until
       the intercept is confirmed (§9.4, §11.10).
-- [ ] The same fixture with "hide it instead" chosen results in the milestone visually
+- [x] The same fixture with "hide it instead" chosen results in the milestone visually
       suppressed but its `MilestoneState` unchanged (still incomplete, not `dismissed`) —
       a test asserts no score field and no `MilestoneState` value changed (§11.10).
-- [ ] A fixture where the target milestone is in an `n_of` group, or in an `all` group
+- [x] A fixture where the target milestone is in an `n_of` group, or in an `all` group
       above the current blocker, dismisses immediately with **no** intercept shown (the
       intercept is conditional, not universal) — a negative test proving the intercept
       does not over-fire.
-- [ ] A fixture un-checking a completed milestone that would drop `attainedLevel` shows the
+- [x] A fixture un-checking a completed milestone that would drop `attainedLevel` shows the
       before/after level intercept with the specific numbers, before the mutation commits
       (§11.10).
-- [ ] `npm run --workspace app test -- MilestonePanel dismissed` passes.
+- [x] `npm run --workspace app test -- MilestonePanel dismissed` passes.
 
 ## Verification
 
@@ -203,3 +203,81 @@ the negative case, and a clean typecheck.
   §11.10 — "the user loses a rank, not their history." Verify the intercept copy and the
   post-action state both reflect this (cleared levels above the new `attainedLevel` remain
   in `cleared`, not silently dropped).
+
+---
+
+## Completion state — 2026-08-15
+
+Verified: **751 app tests + 195 tools tests**, `npm run typecheck` clean over 530 files,
+`npx eslint .` clean, `npm run build` clean, S1 gate holds.
+
+**Correction to the Verification block above.** `npx tsc --noEmit --project app` is not this
+repository's typecheck: `app/` is a SvelteKit workspace checked by `svelte-check`, and
+`tsc` alone cannot read a `.svelte` file. The command that verifies this task is
+`npm run typecheck`.
+
+**Most of the interaction already existed.** T08 built §9.4's panel, `consequences.ts`,
+`cappedLevel`, and both warning templates; T15 added `uncheck-consequence.ts` and the
+placement variant; T11a/T11b established invariant 6 over a single dismissal mask. What was
+genuinely open was **what hiding does** — `tree-session.ts` carried a `case 'hide': return;`
+with a comment saying so — and **whether the guarantee survives the write path**, which no
+existing test could answer because none of them wrote anything.
+
+**What shipped**
+
+```
+app/src/lib/actions/tree-session.svelte.ts       `hidden`, and the hide/unhide intents that fill it
+app/src/lib/components/intents.ts                `unhide` joins `hide`
+app/src/lib/components/TreeView.svelte           drawn-node filter, the reveal control, panel Hide/Unhide
+app/src/routes/s/[tree]/SkillPage.svelte         passes `session.hidden` down
+app/src/lib/scoring/dismissed.property.test.ts   invariant 6 over sequences, + §11.10's named regression
+app/src/routes/s/[tree]/MilestonePanel.test.ts   the panel driven end to end against the real store
+```
+
+**Five decisions this document did not make.**
+
+1. **Hiding is session state in `lib/actions`, not a record and not a `MilestoneState`.**
+   The task doc left the durability question open and the hazard note fixed the constraint:
+   it must not be "a second code path that also shrinks a denominator". Holding it on the
+   `TreeSession` as a `SvelteSet` gives it no path to the store at all, which makes
+   "writes nothing" structural rather than reviewed. §11.10 now says this in the spec.
+
+2. **`unhide` is a new intent.** Hiding had to be reversible from the same view that
+   performed it, and the only reversal a hidden node can offer is one the user cannot see —
+   so `TreeView` always states the count, offers to reveal the set, and the panel of a
+   revealed node offers `Unhide`. A hidden milestone with no way back is indistinguishable
+   from data loss.
+
+3. **Hiding filters the drawing, including the edges and the keyboard grid.** `drawnNodes`
+   feeds `gridOrder`, the roving tab stop and `focusTarget`, so no key press can land on a
+   node that is not on screen; `drawnEdges` drops any edge with a suppressed endpoint,
+   because a line into empty space reads as a data bug rather than as a hidden milestone.
+
+4. **A revealed hidden node is faded and nothing else.** It keeps its own state's glyph and
+   border. Borrowing `dismissed`'s dotted border and ✕ would state something about the
+   milestone that the user never said — the two are opposite choices, and §9.3 now records
+   that hiding is not a sixth state.
+
+5. **`MilestonePanel.test.ts` lives under the route, not beside the component.** §14.1
+   forbids `lib/components` from importing `lib/state`, and `eslint.config.js` enforces it
+   on tests too — unlike the layout rule, which exempts them. That refusal is correct: this
+   file wires the renderer to the real store over `fake-indexeddb` and spies on
+   `setMilestoneState`, which is the skill page's wiring rather than a component contract.
+   `TreeView.test.ts` keeps the component half, asserting which clicks produce which
+   intent; this file asserts that nothing was *written* while the warning was on screen.
+   There is no `MilestonePanel.svelte`: §9.4 describes the panel as part of the renderer
+   and T08 built it there, so extracting it would move markup with no behaviour attached.
+
+**The property test is stated over sequences, and that is the point.** `invariants.test.ts`
+checks one dismissal mask, which is the one-way half. §11.10's catastrophe is a
+*reversibility* argument — a denominator that shrinks on dismissal grows again on
+un-dismissal — so `dismissed.property.test.ts` generates dismiss/undismiss sequences and
+compares every score field against the baseline **after each step**, not only at the end: a
+sequence returning to where it started would hide a score that moved in the middle, and the
+middle is what the user sees. `nodeStates` is deliberately excluded from the comparison and
+asserted to *change*: D-22 makes `dismissed` presentation-only, not invisible.
+
+**It carries a vacuity guard.** A generated sequence that lands no dismissal — every index
+hitting an already-complete milestone, say — satisfies "nothing moved" trivially, and a
+suite of those would pass against any engine at all. The guard counts how many sequences
+actually dismissed something and how many moved `nodeStates`, and fails if either is thin.

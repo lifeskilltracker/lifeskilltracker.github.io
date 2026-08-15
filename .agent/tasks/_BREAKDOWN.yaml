@@ -426,6 +426,21 @@ tasks:
     prd: [F46, D-22]
     status: written
     doc: T19-dismissed-state.md
+    note: >
+      Implemented and verified complete 2026-08-15. Most of the interaction already
+      existed — T08 built §9.4's panel and both §11.10 warning templates, T15 added the
+      un-check arithmetic, T11a/T11b established invariant 6 over a single dismissal mask.
+      Two things were genuinely open. **What hiding does**: it is now a presentation-only
+      suppression held by the `TreeSession` as a `SvelteSet`, writing no record and no
+      `MilestoneState`, with a reveal control and an `unhide` intent so it is reversible
+      from the view that performed it; §11.10 and §9.3 now say so, and §9.3 records that
+      hiding is not a sixth node state. **Whether the guarantee survives the write path**:
+      `routes/s/[tree]/MilestonePanel.test.ts` drives the panel against the real store over
+      `fake-indexeddb` and spies on `setMilestoneState`, which is the only way to tell
+      "warned first" from "wrote anyway". It sits under the route because §14.1 forbids
+      `lib/components` from importing `lib/state` and ESLint enforces that on tests too.
+      `scoring/dismissed.property.test.ts` states invariant 6 over dismiss/undismiss
+      **sequences**, comparing after every step, and carries a vacuity guard.
 
   - id: T20
     title: Accessibility pass and axe gate

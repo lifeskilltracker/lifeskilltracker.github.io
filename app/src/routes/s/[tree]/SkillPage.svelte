@@ -177,6 +177,7 @@
 				{onintent}
 				bind:openUid={panelUid}
 				uncheckConsequence={(uid) => session?.uncheckConsequence(uid) ?? null}
+				hidden={session.hidden}
 			/>
 			<!--
 				§11.8's placement and estimator (T15, S3). Below the tree: it is the way

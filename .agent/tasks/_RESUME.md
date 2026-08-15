@@ -1,5 +1,51 @@
 # RESUME — implementation, phase 1
 
+Updated 2026-08-15 after T19.
+
+# SESSION 16 — T19 COMPLETE. `dismissed` IS VERIFIABLY INERT.
+
+T19 (dismissed state end to end) verified complete 2026-08-15: **751 app tests + 195 tools
+tests**, `npm run typecheck` clean over 530 files, `npx eslint .` clean, `npm run build`
+clean, S1 gate holds.
+
+**What is now true that was not:**
+
+- **"Hide it instead" does something.** `tree-session.ts` carried a `case 'hide': return;`
+  with a comment admitting it. Hiding is now a presentation-only suppression held by the
+  `TreeSession` as a `SvelteSet` — no record, no `MilestoneState`, no preference — with a
+  `Show hidden (N)` control and an `unhide` intent, because a suppression the user cannot
+  find again is indistinguishable from data loss. §11.10 and §9.3 now specify it.
+- **Invariant 6 is stated over sequences, not over one mask.** §11.10's catastrophe is a
+  *reversibility* argument, so `scoring/dismissed.property.test.ts` generates
+  dismiss/undismiss sequences and compares every score field against the baseline **after
+  every step** — a sequence that returns to where it started would hide a score that moved
+  in the middle. `nodeStates` is excluded and asserted to change: `dismissed` is
+  presentation-only, not invisible.
+- **§11.10's catastrophe is a named regression test.** An `all` group of five with two
+  dismissed evaluates `completed = 3`, `n = 5`, `satisfied = false`; all five dismissed is
+  `0 of 5` and still unsatisfied, not vacuously satisfied.
+- **The intercept is verified against the write path, not against the wording.**
+  `routes/s/[tree]/MilestonePanel.test.ts` wires the panel to the real store over
+  `fake-indexeddb` and spies on `setMilestoneState`. No existing test could tell "warned
+  first" from "wrote anyway", because none of them wrote anything.
+
+**Three things a later task must not undo:**
+
+- **Hiding never reaches the store.** That is what makes "writes nothing" structural rather
+  than reviewed. If a durable hidden flag is ever wanted, it is a §12.2 schema question and
+  a breaking bump — not a quiet extra call in `#applyOne`.
+- **A revealed hidden node keeps its own state's glyph and border.** Borrowing
+  `dismissed`'s dotted border and ✕ would state something the user never said.
+- **The property test's vacuity guard stays.** Without it a corpus where no dismissal ever
+  lands passes against any engine at all.
+
+**Next up:** **T21, T22, T23, T24, T25 are the only open tasks left.** T00 is complete, so
+the "T00 awaits owner decisions" line carried by sessions 11–15 is stale. T20 remains
+*partly* complete: §15.6's criteria were blocked on T15, which has since landed, and
+§15.8's manual passes are still outstanding — see its own *Completion state*.
+
+---
+
 Updated 2026-08-15 after T18.
 
 # SESSION 15 — T18 COMPLETE. THE runtime-io CLUSTER IS CLOSED.

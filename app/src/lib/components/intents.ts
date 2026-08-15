@@ -7,8 +7,12 @@
  * decides what it means for storage.
  *
  * `hide` is here because §11.10 requires the dismissal intercept to offer "hide
- * it instead" as the softer option. **T19 owns what hiding does**; this file
- * owns the fact that the user asked for it.
+ * it instead" as the softer option. **T19 settled what hiding does**: it is a
+ * presentation-only suppression held by the session, and it writes no
+ * `MilestoneState` at all. That is the whole reason it is a separate intent
+ * rather than a second way to reach `dismiss` — §11.10 offers it as the option
+ * that avoids the cap, so an implementation that stored a state would hand the
+ * user the same catastrophe under a gentler word.
  */
 
 export type MilestoneIntent =
@@ -17,7 +21,10 @@ export type MilestoneIntent =
 	/** Clear the record entirely — un-check, or un-dismiss (§12.2: absence, not a state). */
 	| { kind: 'undo'; uid: string }
 	| { kind: 'note'; uid: string; note: string }
-	| { kind: 'hide'; uid: string };
+	/** Suppress from view for this session. Writes nothing (§11.10, T19). */
+	| { kind: 'hide'; uid: string }
+	/** The reverse of `hide`, and equally free of stored state. */
+	| { kind: 'unhide'; uid: string };
 
 /**
  * §11.10's un-check consequence: *"Un-checking this drops Cooking from Level 8

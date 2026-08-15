@@ -49,6 +49,18 @@
 		 * changes; the shell only owns the address.
 		 */
 		openUid?: string | null;
+		/**
+		 * §11.10's "hide it instead", resolved (T19): uids the user asked to see
+		 * less of, held by the session and written down nowhere.
+		 *
+		 * It is a prop and not local state for the same reason `openUid` is —
+		 * `lib/actions` owns the decision, the component owns the drawing — and it
+		 * is deliberately *not* consulted anywhere near `progress`. Hiding is the
+		 * option §11.10 offers because it does **not** cap the skill, so a hidden
+		 * milestone stays incomplete, stays in its group's denominator, and stays
+		 * one click from being completed. Everything below only stops drawing it.
+		 */
+		hidden?: ReadonlySet<string>;
 	}
 
 	let {
@@ -58,7 +70,8 @@
 		viewport,
 		onintent,
 		uncheckConsequence,
-		openUid = $bindable(null)
+		openUid = $bindable(null),
+		hidden = new Set<string>()
 	}: Props = $props();
 
 	const milestoneOf = (uid: string): CompiledMilestone | undefined =>
@@ -94,12 +107,41 @@
 	const nodeElements: Record<string, (SVGGElement | HTMLElement) | undefined> = $state({});
 
 	/**
+	 * Whether the hidden milestones are on screen anyway (T19).
+	 *
+	 * Hiding has to be reversible from the same view that performed it, and the
+	 * only reversal a hidden node can offer is one the user cannot see. So the
+	 * count is always stated and the set is always one press from being back —
+	 * the suppression is a filter over the drawing, never a deletion.
+	 */
+	let revealHidden = $state(false);
+
+	const isHidden = (uid: string): boolean => hidden.has(uid);
+	const drawn = (uid: string): boolean => revealHidden || !hidden.has(uid);
+
+	/**
+	 * The nodes actually drawn. Everything downstream — grid order, the tab stop,
+	 * the arrow keys, the narrow stack — reads this rather than
+	 * `positions.nodes`, so a hidden milestone cannot be reached by a key press
+	 * that has nowhere visible to land.
+	 */
+	const drawnNodes = $derived(positions.nodes.filter((node) => drawn(node.uid)));
+
+	/**
+	 * An edge to a node that is not on screen renders as a line into empty space,
+	 * which reads as a data bug rather than as a hidden milestone.
+	 */
+	const drawnEdges = $derived(
+		positions.edges.filter((edge) => drawn(edge.fromUid) && drawn(edge.toUid))
+	);
+
+	/**
 	 * §15.2's grid order — `(level, track, lane)` — and it is the order the nodes
 	 * are *rendered* in, in both viewports. Document order, focus order and
 	 * §15.1's reading order are one order; the arithmetic lives in
 	 * `keyboard-grid.ts` so it can be tested without a DOM.
 	 */
-	const ordered = $derived(gridOrder(positions.nodes));
+	const ordered = $derived(gridOrder(drawnNodes));
 
 	/**
 	 * §15.2 — "a single tab stop with roving `tabindex`", so an eighty-milestone
@@ -178,7 +220,7 @@
 		// Arrows scroll and Home/End jump the document otherwise; both would move
 		// the tree out from under the focus this is about to place.
 		event.preventDefault();
-		const target = focusTarget(positions.nodes, progress.nodeStates, uid, event.key, viewport);
+		const target = focusTarget(drawnNodes, progress.nodeStates, uid, event.key, viewport);
 		if (target !== undefined) moveFocus(target);
 	}
 
@@ -233,12 +275,31 @@
 		closePanel();
 	}
 
-	/** §11.10's softer option. What hiding *does* is T19's. */
+	/**
+	 * §11.10's softer option (T19). It emits `hide` and nothing else — no
+	 * `dismiss`, no state, no second denominator rule. The user asked to stop
+	 * looking at the milestone, not to give it up.
+	 */
 	function hidePending(): void {
 		if (pending === null) return;
 		emit({ kind: 'hide', uid: pending.uid });
 		pending = null;
 		closePanel();
+	}
+
+	/**
+	 * Hiding from the panel directly, with no intercept in front of it: there is
+	 * no consequence to state. This is what makes the "hide it instead" offer an
+	 * ordinary action the user can reach again rather than a one-time escape
+	 * hatch inside a warning they have already dismissed.
+	 */
+	function hide(uid: string): void {
+		emit({ kind: 'hide', uid });
+		closePanel();
+	}
+
+	function unhide(uid: string): void {
+		emit({ kind: 'unhide', uid });
 	}
 
 	function cancelPending(): void {
@@ -300,6 +361,25 @@
 	-->
 	<p class="tree-status">{attainmentLabel(progress.attainedLevel, progress.tier)}</p>
 
+	{#if hidden.size > 0}
+		<!--
+			T19: the whole of hiding's user-facing memory. The count is stated
+			whether or not the set is revealed, because a suppression the user
+			cannot find again is indistinguishable from data loss — and because
+			hiding changes no score, there is nothing else about it to report.
+		-->
+		<p class="hidden-controls">
+			<button
+				type="button"
+				data-action="reveal-hidden"
+				aria-pressed={revealHidden}
+				onclick={() => (revealHidden = !revealHidden)}
+			>
+				{revealHidden ? 'Stop showing hidden' : 'Show hidden'} ({hidden.size})
+			</button>
+		</p>
+	{/if}
+
 	<!--
 		§15.2's single shared live region. `polite` — never `assertive`, which
 		interrupts — and it holds the consequence of the last change, not a log.
@@ -319,7 +399,7 @@
 	
 			<!-- Decorative: §15 carries the same relationships as text on the node. -->
 			<g class="edges" aria-hidden="true">
-				{#each positions.edges as edge (`${edge.fromUid}->${edge.toUid}`)}
+				{#each drawnEdges as edge (`${edge.fromUid}->${edge.toUid}`)}
 					<path
 						class="edge"
 						class:is-lit={touches(edge.fromUid, edge.toUid)}
@@ -379,8 +459,10 @@
 					{@const hit = hitRect(positioned.w, positioned.h)}
 					<g
 						class="node {look.className}"
+						class:is-hidden={isHidden(positioned.uid)}
 						data-uid={positioned.uid}
 						data-state={state}
+						data-hidden={isHidden(positioned.uid) ? 'true' : undefined}
 						data-level={positioned.level}
 						tabindex={positioned.uid === tabStop ? 0 : -1}
 						role="button"
@@ -505,8 +587,10 @@
 							<li>
 								<div
 									class="node {look.className}"
+									class:is-hidden={isHidden(positioned.uid)}
 									data-uid={positioned.uid}
 									data-state={state}
+									data-hidden={isHidden(positioned.uid) ? 'true' : undefined}
 									data-level={positioned.level}
 									tabindex={positioned.uid === tabStop ? 0 : -1}
 									role="button"
@@ -612,6 +696,13 @@
 					Not for me
 				</button>
 				<button type="button" data-action="undo" onclick={() => undo(open.uid)}> Undo </button>
+				{#if isHidden(open.uid)}
+					<button type="button" data-action="unhide" onclick={() => unhide(open.uid)}>
+						Unhide
+					</button>
+				{:else}
+					<button type="button" data-action="hide" onclick={() => hide(open.uid)}> Hide </button>
+				{/if}
 			</div>
 
 			{#if pending !== null}
@@ -712,6 +803,19 @@
 	.node.is-locked .node-box,
 	.node.is-dismissed .node-box {
 		fill: var(--surface-recessed, #f1f1f1);
+	}
+
+	/* T19 — a revealed hidden node. Faded, and nothing more: hiding says nothing
+	   about the milestone's state, so it must not borrow `dismissed`'s dotted
+	   border or its ✕. Deliberately not `display: none` even here — the node is
+	   only ever in the DOM when the user has asked to see the hidden set, and a
+	   node that is present but invisible would be reachable and unreadable. */
+	.node.is-hidden {
+		opacity: 0.4;
+	}
+
+	.hidden-controls {
+		margin: 0.25rem 0;
 	}
 
 	.node-label-inner {

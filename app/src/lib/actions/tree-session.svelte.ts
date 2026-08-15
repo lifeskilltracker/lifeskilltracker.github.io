@@ -29,6 +29,7 @@
  * user is reading.
  */
 
+import { SvelteSet } from 'svelte/reactivity';
 import { layoutTree, type TreeLayout } from '$lib/layout';
 import { estimateMilestones, scoreSkill, type SkillProgress } from '$lib/scoring';
 import { NotWritableError, store } from '$lib/state/store.js';
@@ -47,6 +48,11 @@ export interface TreeSession {
 	/** §12.5's one summary, or null when the last open migrated nothing (T17). */
 	readonly migration: MigrationReport | null;
 	dismissMigration(): void;
+	/**
+	 * §11.10's "hide it instead", as the only thing it may be: uids suppressed
+	 * from view for this session and written down nowhere (T19).
+	 */
+	readonly hidden: ReadonlySet<string>;
 	apply(intent: MilestoneIntent): Promise<void>;
 	uncheckConsequence(uid: string): UncheckConsequence | null;
 	/** F30's prefix for a coarse self-assessment (§11.8) — T15. */
@@ -76,6 +82,25 @@ class Session implements TreeSession {
 
 	dismissMigration(): void {
 		this.#migration = null;
+	}
+
+	/**
+	 * §11.10's softer option (T19).
+	 *
+	 * It is session state and **not** a record, a preference, or a
+	 * `MilestoneState`. §11.10 offers hiding precisely as the choice that does
+	 * not cap the skill, so the one thing it may never do is change what the
+	 * Scoring Engine reads — and the surest way to guarantee that is to give it
+	 * no path to the store at all.
+	 *
+	 * Session-scoped is the honest scope for now. T09's schema has no field for
+	 * it, and inventing one would make a presentation choice outlive the reason
+	 * the user made it.
+	 */
+	readonly #hidden = new SvelteSet<string>();
+
+	get hidden(): ReadonlySet<string> {
+		return this.#hidden;
 	}
 
 	/**
@@ -181,9 +206,14 @@ class Session implements TreeSession {
 				return;
 			}
 			case 'hide':
-				// §11.10 requires the *offer*; T19 owns the dismissed/hidden flow and
-				// its denominator semantics. Doing nothing here is the honest state of
-				// that work — it must not quietly become a dismissal.
+				// No `await`, because there is nothing to write. §11.10's whole
+				// argument for offering this is that it leaves the user's options
+				// open; a hidden milestone is still incomplete, still in its group's
+				// denominator, and still one click from being completed (T19).
+				this.#hidden.add(intent.uid);
+				return;
+			case 'unhide':
+				this.#hidden.delete(intent.uid);
 				return;
 		}
 	}
