@@ -15,6 +15,9 @@ export type {
   MasteryEntry,
   MilestoneRef,
   RequirementGroup,
+  // §5.4's ledger, retained verbatim by the compiler (§7.3) and consumed by
+  // §12.5's migration pass (T17).
+  LineageEntry,
   Manifest,
   // §10.5's renderer addresses one region at a time: it walks the taxonomy's
   // domain order and looks the geometry up, so the region type is part of the

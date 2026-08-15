@@ -370,6 +370,18 @@ tasks:
       T26/F13 gave it a second entry point, `applyMoves`, called by T14's cold-start
       sequence. Deliberately no hard T17 → T14 edge: T14 stubs it like the other
       same-phase components it composes, rather than lengthening the critical path.
+      Implemented and verified complete 2026-08-14. The pass is split in two — `foldLineage`
+      is arithmetic with no database in sight, `applyLineage` is the transaction that writes
+      what it decided — because §12.5's twelve table cells, its four fold rules and F14's
+      composition guarantee are all properties of the arithmetic. Two calls the document did
+      not make, both resolved toward §12.5's stated reason rather than its literal wording:
+      the unknown sweep also drops the uid from the frozen sets (the same permanent
+      unverifiability that justifies the `retired` and `moved` deviations, reached by a third
+      route); and a `merged` group whose predecessors are only partly present in a frozen set
+      has those removed rather than left, since their records are consumed or orphaned
+      either way. A merged successor inherits the *latest* predecessor's `at` and note —
+      §12.5 fixes neither. `LineageGrammarError` closes F21 by aborting the transaction
+      rather than guessing at a malformed `into`.
 
   - id: T18
     title: Durability, quota, and export prompting

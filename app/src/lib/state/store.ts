@@ -13,7 +13,6 @@ import type {
   CompiledTree,
   ExportFile,
   ImportReport,
-  MigrationReport,
   MilestoneState,
   MovedIndex,
   TreeProgress,
@@ -24,6 +23,9 @@ import { evaluateAttainedLevel as defaultEvaluator } from './default-evaluator.j
 import type { AttainedLevelEvaluator } from './default-evaluator.js';
 import { buildExportFile } from './export.js';
 import { planImport } from './import.js';
+import { applyLineage } from './lineage.js';
+import type { MigrationReport } from './lineage-types.js';
+import { applyMoves } from './moves.js';
 import { migrateExportFile } from './migrate-export.js';
 import { refreshProgressMirror } from './mirror.js';
 import { progress } from './progress.svelte.js';
@@ -351,12 +353,39 @@ export function createUserStateStore(options: StoreOptions = {}) {
       };
     },
 
-    applyLineage(): Promise<MigrationReport> {
-      return Promise.reject(new NotImplementedHereError('applyLineage', 'T17 (§12.5)'));
+    /**
+     * §12.5's migration pass, run before the tree renders whenever the bundle's
+     * `contentVersion` exceeds this skill's `contentVersionSeen`. The
+     * dispositions and the transaction live in `./lineage.js`; what belongs here
+     * is the pair of rules every writer in this module shares — §13.3's latch,
+     * and refreshing §13.2's mirror on commit.
+     *
+     * The `evaluateAttainedLevel` callback is how the level is recomputed
+     * without `lib/state` importing `lib/scoring` (§14.1). It does **not** call
+     * `reconcileAttainedLevel` (T26/F26): `MigrationReport.attainedLevel.after`
+     * is the number the summary puts on screen, and a second computation
+     * writing a different one would contradict a sentence the user is reading.
+     */
+    async applyLineage(
+      tree: CompiledTree,
+      evaluateAttainedLevel: (progress: TreeProgress) => number,
+    ): Promise<MigrationReport> {
+      requireWritable();
+      const handle = await database();
+      const report = await applyLineage(handle, tree, evaluateAttainedLevel);
+      // T26/F23: without this the first paint after a migration renders
+      // pre-migration state, which is the paint §12.5 exists to make correct.
+      if (report.changed) await refreshProgressMirror(handle);
+      return report;
     },
 
-    applyMoves(): Promise<readonly MigrationReport[]> {
-      return Promise.reject(new NotImplementedHereError('applyMoves', 'T17 (§12.5)'));
+    /** §12.5's cross-tree pass, run once at cold start from the manifest. */
+    async applyMoves(moved: MovedIndex): Promise<readonly MigrationReport[]> {
+      requireWritable();
+      const handle = await database();
+      const reports = await applyMoves(handle, moved);
+      if (reports.length > 0) await refreshProgressMirror(handle);
+      return reports;
     },
 
     /**

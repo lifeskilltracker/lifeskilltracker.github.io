@@ -32,7 +32,7 @@
 import { layoutTree, type TreeLayout } from '$lib/layout';
 import { estimateMilestones, scoreSkill, type SkillProgress } from '$lib/scoring';
 import { NotWritableError, store } from '$lib/state/store.js';
-import type { CompiledTree } from '$lib/types';
+import type { CompiledTree, MigrationReport } from '$lib/types';
 import type { MilestoneIntent, UncheckConsequence } from '$lib/components/intents.js';
 import { placementConsequenceOf, uncheckConsequenceOf } from './uncheck-consequence.js';
 
@@ -41,8 +41,11 @@ export interface TreeSession {
 	readonly progress: SkillProgress;
 	/** §8's positions for a viewport. Memoized; user state is not in the key. */
 	layoutFor(viewport: 'wide' | 'narrow'): TreeLayout;
-	/** Resolves once the open sequence — §12.3's write-back — has settled. */
+	/** Resolves once the open sequence — §12.5's pass, then §12.3's write-back — has settled. */
 	readonly ready: Promise<void>;
+	/** §12.5's one summary, or null when the last open migrated nothing (T17). */
+	readonly migration: MigrationReport | null;
+	dismissMigration(): void;
 	apply(intent: MilestoneIntent): Promise<void>;
 	uncheckConsequence(uid: string): UncheckConsequence | null;
 	/** F30's prefix for a coarse self-assessment (§11.8) — T15. */
@@ -62,14 +65,47 @@ class Session implements TreeSession {
 		this.ready = this.#open();
 	}
 
+	/** §12.5's summary for this open. Reactive, so the page renders it when the
+	 *  pass resolves rather than needing the route to await anything. */
+	#migration = $state<MigrationReport | null>(null);
+
+	get migration(): MigrationReport | null {
+		return this.#migration;
+	}
+
+	dismissMigration(): void {
+		this.#migration = null;
+	}
+
 	/**
-	 * §12.3's reconciliation on open. It never rejects: a read-only session
-	 * (§13.3) is the expected case, not an error, and a page that failed to
-	 * render because a *denormalization* could not be refreshed would have
-	 * escalated a cosmetic staleness into an outage.
+	 * §12.5's migration pass, then §12.3's reconciliation. Neither rejects: a
+	 * read-only session (§13.3) is the expected case, not an error, and a page
+	 * that failed to render because a *denormalization* could not be refreshed
+	 * would have escalated a cosmetic staleness into an outage.
+	 *
+	 * The order is fixed by T26/F26. `applyLineage` persists the level it
+	 * recomputed and puts it on screen as `attainedLevel.after`; a reconcile
+	 * running first would compute against pre-migration records, and one
+	 * computing a different number afterwards would contradict a sentence the
+	 * user is reading. Running second, it finds the value already stored and
+	 * resolves `false`.
+	 *
+	 * The evaluator is passed in because §14.1 gives `lib/state` no edge to
+	 * `lib/scoring`; this module is the layer that holds both.
 	 */
 	async #open(): Promise<void> {
-		// T17 inserts `applyLineage` here, before the line below (§12.5).
+		try {
+			const report = await store.applyLineage(
+				this.#tree,
+				(progress) => scoreSkill(this.#tree, progress).attainedLevel
+			);
+			// §12.5: no summary for a pass that mutated nothing, which is the usual
+			// outcome of §12.6's forced replay.
+			if (report.changed) this.#migration = report;
+		} catch (error) {
+			if (!(error instanceof NotWritableError)) throw error;
+		}
+
 		try {
 			await store.reconcileAttainedLevel(this.#tree.id, this.progress.attainedLevel);
 		} catch (error) {

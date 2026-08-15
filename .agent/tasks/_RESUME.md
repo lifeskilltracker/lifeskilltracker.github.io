@@ -1,5 +1,51 @@
 # RESUME — implementation, phase 1
 
+Updated 2026-08-14 after T17.
+
+# SESSION 14 — T17 COMPLETE. `UserStateStore` HAS NO STUBS LEFT.
+
+T17 (lineage migration and orphan records) verified complete 2026-08-14: **653 app tests +
+195 tools tests**, `npm run typecheck` clean over 514 files, `npm run lint` clean,
+`npm run build` clean, S1 gate holds.
+
+**What is now true that was not:**
+
+- **User state survives an arbitrary number of content releases without a silent
+  mutation.** `applyLineage` runs on tree open whenever the bundle's `contentVersion`
+  exceeds that skill's `contentVersionSeen`, folds §12.5's ledger, and returns a
+  `MigrationReport` the skill page renders as one dismissible summary.
+- **Every method §14.5 declares is implemented.** `NotImplementedHereError` no longer
+  fires from anywhere in `lib/state`; the class stays exported because
+  `cold-start.test.ts` still asserts the shell survives a store that throws it.
+- **The `ORPHAN` store has a writer.** T16 exported orphans that nothing could create; the
+  migration pass is the only thing that creates them, and `/data` now renders them through
+  `RetiredAchievements.svelte` rather than an inline list.
+- **`applyMoves` re-homes records at cold start** from the manifest's `moved` map, which is
+  what closes T26/F13: `MILESTONE`'s key is the uid, so a record invisible to its
+  destination tree gets overwritten the moment the user re-ticks the milestone.
+- **`TreeSession` exposes `migration` and `dismissMigration()`**, and runs `applyLineage`
+  before `reconcileAttainedLevel` (F26's order — the reconcile must not contradict the
+  number the summary is showing).
+
+**Three things a later task must not undo:**
+
+- **The fold is pure and lives apart from the transaction.** `foldLineage` in
+  `lineage.ts` takes records and a ledger and returns a plan; `applyLineage` writes it.
+  Folding inside the transaction would make §12.5's twelve table cells and F14's
+  composition property testable only through IndexedDB.
+- **Consumption and the frozen-set replacement ship together.** A `split` deletes the
+  predecessor row *and* replaces its uid in `SKILL.grandfathered` with the successors.
+  Doing one without the other leaves a set §11.5 can never verify, which is D-19 defeated
+  by the mechanism meant to preserve it.
+- **`>` never becomes `!=`** in the trigger comparison, and neither pass touches
+  `lastActivityAt`.
+
+**Next up:** T18 (durability and quota) is unblocked and is the last runtime-io task. T19,
+T21, T22, T23, T24, T25 remain open. See T17's own doc for the three calls §12.5 does not
+make that the implementation had to resolve.
+
+---
+
 Updated 2026-08-14 after T15 and T16.
 
 # SESSION 13 — T15 AND T16 COMPLETE.

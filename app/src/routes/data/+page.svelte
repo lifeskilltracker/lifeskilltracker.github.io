@@ -17,6 +17,7 @@
 	 * deliberate act rather than a default.
 	 */
 	import { resolve } from '$app/paths';
+	import RetiredAchievements from '$lib/components/RetiredAchievements.svelte';
 	import { joinDomainRows } from '$lib/actions/domain-scores.js';
 	import { content } from '$lib/content/store.svelte.js';
 	import { exportFileName, serializeExportFile } from '$lib/state/export.js';
@@ -264,27 +265,12 @@
 
 	{#if orphans.length > 0}
 		<!--
-			§16.5's retired achievements. §12.5 keeps the record and drops only the
-			live reference, and this is where a user can see that what they did is
-			still theirs. No slug, deliberately: an orphan is exactly the milestone
-			that no longer exists, so a link would be a dead one.
+			§16.5's retired achievements. T16 rendered this list inline; T17 is the
+			task that first *writes* an orphan, and it moved the list into a
+			component so the migration path and this page cannot drift apart about
+			what an orphan looks like.
 		-->
-		<section aria-labelledby="orphans-heading">
-			<h2 id="orphans-heading">Retired achievements</h2>
-			<p>
-				These milestones are no longer part of their skill, usually because the skill was
-				revised. What you did is still recorded.
-			</p>
-			<ul data-orphans>
-				{#each orphans as orphan (orphan.uid)}
-					<li data-uid={orphan.uid} data-reason={orphan.reason}>
-						<span class="orphan-title">{orphan.title}</span>
-						<span class="detail">{orphan.treeId} · {orphan.at}</span>
-						{#if orphan.note}<span class="detail">{orphan.note}</span>{/if}
-					</li>
-				{/each}
-			</ul>
-		</section>
+		<RetiredAchievements {orphans} />
 	{/if}
 
 	{#if unmatched.length > 0}
@@ -342,14 +328,5 @@
 		padding: 0.5rem;
 		border-inline-start: 4px solid currentColor;
 	}
-	[data-orphans] {
-		list-style: none;
-		padding: 0;
-	}
-	[data-orphans] li {
-		margin-block-end: 0.5rem;
-	}
-	[data-orphans] .detail {
-		display: block;
-	}
+	/* The orphan list's own rules moved with it into RetiredAchievements. */
 </style>

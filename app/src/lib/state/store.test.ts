@@ -436,12 +436,16 @@ describe('§13.2 — one shared mirror rebuild, reused by every writer', () => {
   });
 });
 
-describe('§14.5 — the methods this task declares but does not implement', () => {
-  it('names their owning task rather than failing obscurely', async () => {
+describe('§14.5 — every method the interface declares is now implemented', () => {
+  it('routes the migration passes through §13.3’s latch like every other writer', async () => {
+    // T17 replaced the two `NotImplementedHereError` stubs that stood here.
+    // What is worth keeping is that they did not arrive as a side door: a
+    // session that could not read the user's progress must not write over it,
+    // and a migration is the largest unattended write in the system.
     const store = freshStore();
-    await expect(store.applyLineage()).rejects.toThrow('T17');
-    await expect(store.applyMoves()).rejects.toThrow('T17');
-    // `export` and `import` landed with T16; their tests are in
-    // `export.test.ts` and `import.test.ts`.
+    progress.writable = false;
+
+    await expect(store.applyLineage(tinyTree(), () => 0)).rejects.toThrow(NotWritableError);
+    await expect(store.applyMoves({})).rejects.toThrow(NotWritableError);
   });
 });

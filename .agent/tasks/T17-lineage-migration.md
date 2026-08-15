@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete — 2026-08-14 |
 | **Phase** | 1 |
 | **Cluster** | runtime-io |
 | **Blocked by** | T09, T11b |
@@ -447,3 +447,70 @@ ordinary-open honesty pass (typically a no-op immediately after migration).
 **F22 — this task is explicitly unchanged**, which is worth stating because F22 touches its
 neighbours. The migration passes do not move; the `moved` map's durability is a CI concern
 (§6.4 check 8, T23) rather than a runtime one.
+
+---
+
+## Completion — 2026-08-14
+
+Verified against the criteria above: **653 app tests** (77 of them in `lineage.test.ts`, 8
+in the two component tests), `npm run typecheck` clean over 514 files, `npm run lint`
+clean, `npm run build` clean, and the S1 gate holds. Both grep gates in the criteria
+return what they should: the only IndexedDB `.delete(` in `lineage.ts` removes the uids the
+fold produced as consumed-or-orphaned, and `grep -rn "ORPHAN\|orphan" app/src/lib/scoring`
+returns nothing.
+
+**What shipped**
+
+```
+app/src/lib/state/lineage.ts                     foldLineage (pure) + applyLineage (the transaction)
+app/src/lib/state/moves.ts                       applyMoves — the cold-start cross-tree pass
+app/src/lib/state/lineage-types.ts               the fold's own shapes; re-exports §14.5's two
+app/src/lib/state/orphans.ts                     the MILESTONE → ORPHAN conversion
+app/src/lib/state/fixtures/lineage/index.ts      v1 → v2 → v3, with an accumulating ledger
+app/src/lib/components/MigrationSummary.svelte   §12.5's one dismissible summary
+app/src/lib/components/RetiredAchievements.svelte the orphan list, moved out of /data
+```
+
+**The pass is split in two, and that is the main structural decision.** `foldLineage` is
+arithmetic over records with no database in sight; `applyLineage` is the one transaction
+that writes what it decided. §12.5's twelve table cells, its four fold rules and F14's
+composition guarantee are all properties of the arithmetic, so testing them through
+IndexedDB would have tested the transaction twelve times and the dispositions once each.
+`applyFoldToRecords` is the shared applier that lets the property test compose two folds
+without a store.
+
+**Three calls §12.5 does not make, resolved toward its stated reasons.** They are worth
+knowing about because each is a place a future reader may think the code has drifted:
+
+1. **The unknown sweep also drops the uid from the frozen sets.** §12.5 names only
+   `retired` and `moved` as the deviations that remove rather than carry. But an orphaned
+   record can never read `complete` in this tree again either, so leaving its uid in a set
+   makes the set permanently unverifiable — the exact failure the two named deviations
+   exist to prevent, reached by a third route.
+2. **A `merged` group only partly present in a frozen set has those uids removed.** §12.5
+   says the successor replaces the predecessors "only if all predecessors were in the set",
+   and says nothing about the leftovers. Their records are consumed or orphaned either way,
+   so the same reasoning as (1) applies. The successor is still granted into the set only on
+   the all-present branch, exactly as written.
+3. **A merged successor inherits the *latest* predecessor's `at` and `note`.** §12.5 fixes
+   the carry for `split` and leaves it open for `merged`. The merged thing was not done
+   until the last of its parts was, and dating it to the earliest would put the achievement
+   before it existed.
+
+**F21 is closed by `LineageGrammarError`**, thrown from inside the transaction: a malformed
+`into` aborts the pass and leaves user state exactly as it was, rather than writing a record
+onto a tree id that does not exist. A `split` successor the current bundle does not contain
+is *not* an error — file order lets a later entry retire or move what an earlier one
+created — and it inherits the predecessor's snapshot for the moments it exists.
+
+**Wiring.** `tree-session.svelte.ts` runs `applyLineage` before `reconcileAttainedLevel`
+(F26's order) and exposes `session.migration`; `SkillPage.svelte` renders
+`MigrationSummary` above the tree. `/data` now renders `RetiredAchievements` rather than an
+inline list, so the only writer of orphans and the only page that shows them cannot drift
+about what an orphan looks like. The `Shell.svelte` notice for `applyMoves` is unchanged —
+T14 owns it, and it is a different statement from the per-tree summary.
+
+**Property-test caveat, deliberate.** The composition property splits ledgers at *release*
+boundaries, never mid-entry. Fold rule 2 makes an n-into-one merge one atomic disposition
+and §6.4 check 6 makes the ledger append-only per release, so a boundary can never fall
+inside a merge group. Splitting there would assert against a state no bundle can be in.

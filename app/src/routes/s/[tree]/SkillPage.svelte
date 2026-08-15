@@ -20,6 +20,7 @@
 	import TreeView from '$lib/components/TreeView.svelte';
 	import SkillHeader from '$lib/components/SkillHeader.svelte';
 	import AssessmentFlow from '$lib/components/AssessmentFlow.svelte';
+	import MigrationSummary from '$lib/components/MigrationSummary.svelte';
 	import { TREE_NARROW_BELOW } from '$lib/components/breakpoints.js';
 	import type { MilestoneIntent } from '$lib/components/intents.js';
 	import { openTreeSession, type TreeSession } from '$lib/actions/tree-session.svelte.js';
@@ -141,6 +142,18 @@
 		{/if}
 		{#if notice !== null}
 			<p class="notice" data-page-notice role="status">{notice}</p>
+		{/if}
+
+		{#if session !== null && session.migration !== null}
+			<!--
+				§12.5's one dismissible summary, above the tree: it says what a
+				content release did to the user's own records, and reading it after
+				scrolling past the thing it explains would be too late.
+			-->
+			<MigrationSummary
+				report={session.migration}
+				ondismiss={() => session?.dismissMigration()}
+			/>
 		{/if}
 
 		{#if session !== null && positions !== null}
