@@ -32,6 +32,8 @@ describe('lst CLI', () => {
     expect(names).toContain('lint');
     expect(names).toContain('status');
     expect(names).toContain('new');
+    expect(names).toContain('baseline');
+    expect(names).toContain('version');
   });
 
   it('keeps validate free of git operations', () => {

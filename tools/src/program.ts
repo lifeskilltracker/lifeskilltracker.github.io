@@ -1,10 +1,12 @@
 import { Command } from 'commander';
 
+import { baselineCommand } from './baseline/index.js';
 import { idsCommand } from './ids/index.js';
 import { lintCommand } from './lint/index.js';
 import { newCommand } from './new/index.js';
 import { statusCommand } from './status/index.js';
 import { validateCommand } from './validate/index.js';
+import { versionCommand } from './version/index.js';
 import { compileCommand } from './compile/index.js';
 
 export function createProgram(): Command {
@@ -27,6 +29,24 @@ export function createProgram(): Command {
     .argument('[files...]', 'tree files to update')
     .action((files: string[]) => {
       process.exit(idsCommand(files));
+    });
+
+  program
+    .command('baseline')
+    .description('uid immutability and contentVersion vs. the baseline ref (§6.4)')
+    .option('--against <ref>', 'baseline ref to compare against', 'origin/main')
+    .option('--fix', "apply check 4's alias patch to the working tree", false)
+    .action((options: { against: string; fix: boolean }) => {
+      process.exit(baselineCommand({ against: options.against, fix: options.fix }));
+    });
+
+  program
+    .command('version')
+    .description('Bump contentVersion in place where compiled output changed (§6.1)')
+    .argument('[files...]', 'tree files to consider; defaults to every tree')
+    .option('--against <ref>', 'baseline ref to compare against', 'origin/main')
+    .action((files: string[], options: { against: string }) => {
+      process.exit(versionCommand(files, { against: options.against }));
     });
 
   program

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete — 2026-08-15 |
 | **Phase** | 1 |
 | **Cluster** | cli-toolchain |
 | **Blocked by** | T03, T04 |
@@ -145,44 +145,44 @@ lineage:
 
 ## Acceptance criteria
 
-- [ ] Each of the eight checks has a fixture pair (baseline state + head state) that
+- [x] Each of the eight checks has a fixture pair (baseline state + head state) that
       violates only that check and fails, and a pair that changes the same thing correctly
       (with a `lineage` disposition or an `aliases` entry, as applicable) and passes.
-- [ ] Check 1: a uid present in the baseline and absent from the head with no `lineage`
+- [x] Check 1: a uid present in the baseline and absent from the head with no `lineage`
       entry naming it fails; the same removal with a `lineage` entry giving it a
       disposition (`split` / `merged` / `retired` / `moved`) passes.
-- [ ] Check 2: a uid whose slug, title, and position all change but which still refers to
+- [x] Check 2: a uid whose slug, title, and position all change but which still refers to
       "the same" milestone passes (uid stability under revision is the whole point of
       D-05); a uid that reappears attached to a materially different milestone slug with
       no lineage `split`/`moved` entry fails.
-- [ ] Check 6: a fixture whose head ledger **appends** to the baseline's passes; one that
+- [x] Check 6: a fixture whose head ledger **appends** to the baseline's passes; one that
       inserts an entry in the middle, reorders two entries, or edits an existing entry's
       `op` or `into` fails, naming the position. (T26/F14.)
-- [ ] Check 7: a fixture whose head **appends** a lineage entry naming a uid that was never
+- [x] Check 7: a fixture whose head **appends** a lineage entry naming a uid that was never
       in the baseline fails. A fixture whose baseline ledger already contains an entry
       naming a uid long since gone from the baseline **passes** — this is the regression
       test for F7's time bomb, and a check that re-evaluates the whole ledger fails it and
       would block every future PR on that tree forever. (T26/F7.)
-- [ ] A test asserts the baseline resolves to `origin/main`'s **tip**, not the merge-base:
+- [x] A test asserts the baseline resolves to `origin/main`'s **tip**, not the merge-base:
       seed a fixture repo where `main` has advanced past the branch point with a
       `contentVersion` bump on the same tree, and assert check 5 fails. Against the
       merge-base it passes, which is the bug. (T26/F6.)
-- [ ] A test asserts an unresolvable baseline ref (simulating a depth-1 clone) **errors**
+- [x] A test asserts an unresolvable baseline ref (simulating a depth-1 clone) **errors**
       rather than passing every check vacuously.
-- [ ] Check 3: a fixture where a retired slug (per a `lineage` `retired` entry) is reused
+- [x] Check 3: a fixture where a retired slug (per a `lineage` `retired` entry) is reused
       by a *different* uid in the head fails.
-- [ ] Check 4: a fixture where a milestone's `id` changed between baseline and head with
+- [x] Check 4: a fixture where a milestone's `id` changed between baseline and head with
       no corresponding `aliases` entry fails; the same change with the old slug recorded
       in `aliases` passes.
-- [ ] `lst baseline --fix` (or equivalent) against a check-4-only violation produces a
+- [x] `lst baseline --fix` (or equivalent) against a check-4-only violation produces a
       patch that adds the missing `aliases` entry, verifiable by inspecting the patched
       file; `lst baseline` without the fix flag still reports the violation and exits
       nonzero.
-- [ ] A tree fixture with no baseline state at all (simulating a tree that has never been
+- [x] A tree fixture with no baseline state at all (simulating a tree that has never been
       merged to `main`) passes trivially with no findings.
-- [ ] `lst baseline` exits nonzero when any of checks 1–3 fail unfixed, and exits 0 when
+- [x] `lst baseline` exits nonzero when any of checks 1–3 fail unfixed, and exits 0 when
       all eight checks pass.
-- [ ] The baseline ref is overridable via a CLI flag, exercised in tests against a
+- [x] The baseline ref is overridable via a CLI flag, exercised in tests against a
       constructed git fixture rather than the real `main`.
 
 ## Verification
@@ -293,3 +293,46 @@ so a deleted source file would silently drop its entries.
 
 Acceptance: a fixture PR deleting a merged tree file fails check 8; a fixture PR renaming
 one fails it too; the failure message names the missing id.
+
+## Completion state — 2026-08-15
+
+All twelve acceptance criteria met. `tools/` 264 tests (26 in `baseline/`, 6 in `version/`);
+root `npm test`, `npm run typecheck` and `npm run lint` clean.
+
+**`lst version` shipped here too**, per this doc's own F8 hazard note — it consumes the
+identical comparison as check 5 (compile both sides, elide the field, diff the bytes) and
+would have been a second copy of that machinery anywhere else. It writes; it does not gate.
+
+Deliverables landed as `tools/src/baseline/{index,diff,checks,autofix}.ts` plus
+`tools/src/version/index.ts`. The planned `tools/test/fixtures/baseline/` corpus was **not**
+created: every fixture pair is built in-test on a real temporary git repository, because each
+check is a claim about history and a fixture pair sitting on disk cannot express "the
+baseline commit said X". `withGitRepo` does `git init`, commits the baseline, and leaves the
+head in the working tree.
+
+Three readings the spec left to the implementer:
+
+- **Check 2 is detectable in exactly one shape**: the uid now carries a slug the baseline
+  gave to a *different* uid. The acceptance criterion asks that a uid whose slug, title and
+  level all change still pass, and that a uid "attached to a materially different milestone"
+  fail — structurally those are the same diff unless the new slug has a prior owner. Anything
+  beyond that is **R-03**, which no mechanism can catch and none here tries to.
+- **A slug is retired the moment it stops belonging to its uid** — whether the entry was
+  removed or renamed with the old value moved to `aliases`. Both are the same event to a deep
+  link, which is what §5.4's protobuf `reserved` rule protects.
+- **Check 6 compares ledger entries with object keys sorted.** Key order in YAML is not
+  meaning, and reformatting `op:` above `uid:` must not read as an edit to a published
+  disposition. Array order inside `into` is preserved, since that *is* content.
+
+Two behaviours worth not regressing:
+
+- **The head is the working tree.** In CI that is the merge commit `actions/checkout`
+  produces for a PR — the PR *merged into* the baseline, which is what §6.4 asks for, not the
+  branch alone. T25 must not switch this to the PR branch ref.
+- **An unresolvable ref throws `BaselineUnavailableError` and exits nonzero.** The depth-1
+  trap is the reason: at depth 1 every check passes on nothing, and a skipped-looking green
+  tick is indistinguishable from a real one at the branch-protection level.
+
+`--fix` applies check 4's patch through the YAML AST and re-runs before deciding the exit
+code, so a run that repairs everything it found exits 0. Landing that patch as a commit is
+still T25's.
