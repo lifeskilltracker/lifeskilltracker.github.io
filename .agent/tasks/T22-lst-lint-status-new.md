@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete — 2026-08-15 |
 | **Phase** | 1 |
 | **Cluster** | cli-toolchain |
 | **Blocked by** | T03 |
@@ -144,28 +144,28 @@ provenance:
 
 ## Acceptance criteria
 
-- [ ] Each of the seven lint rules has a fixture that trips it and a clean fixture that
+- [x] Each of the seven lint rules has a fixture that trips it and a clean fixture that
       does not.
-- [ ] `lst lint` against a fixture tripping all seven rules at once still exits **0** —
+- [x] `lst lint` against a fixture tripping all seven rules at once still exits **0** —
       the direct D-15 regression test.
-- [ ] `professionalization-tier` does **not** flag "teach a certification course" phrased
+- [x] `professionalization-tier` does **not** flag "teach a certification course" phrased
       as a legitimately advanced milestone when it is not the specific pattern the rule
       targets outside levels 9–10 — a test named for the exact `docs/PRIOR-ART.md` §7.3
       case the spec cites, so this specific false positive cannot silently regress.
-- [ ] `track-overuse` fires on 5 tracks and does not fire on 4.
-- [ ] `lonely-track` fires on a 2-milestone track and does not fire on a 3-milestone track.
-- [ ] `group-shape-drift` fires on a tree with 4 distinct requirement-group shapes and
+- [x] `track-overuse` fires on 5 tracks and does not fire on 4.
+- [x] `lonely-track` fires on a 2-milestone track and does not fire on a 3-milestone track.
+- [x] `group-shape-drift` fires on a tree with 4 distinct requirement-group shapes and
       does not fire on 3.
-- [ ] `lst status` run against a corpus of tree fixtures with varying `provenance` blocks
+- [x] `lst status` run against a corpus of tree fixtures with varying `provenance` blocks
       produces a file with one row per tree and authored / review 1 / review 2 columns
       matching each tree's `provenance`.
-- [ ] `lst status` exits nonzero when `content/REVIEW-STATUS.md` differs from the freshly
+- [x] `lst status` exits nonzero when `content/REVIEW-STATUS.md` differs from the freshly
       generated content, and exits 0 when they match.
-- [ ] `lst status`'s exit code is driven **only** by drift — a fixture corpus with zero
+- [x] `lst status`'s exit code is driven **only** by drift — a fixture corpus with zero
       reviews recorded anywhere still exits 0 as long as the committed table matches.
-- [ ] `lst new demo-skill` produces a file whose `id` is `demo-skill`, contains no `uid:`
+- [x] `lst new demo-skill` produces a file whose `id` is `demo-skill`, contains no `uid:`
       lines, and passes `lst validate`'s Layer 1 schema check (T03) as-is.
-- [ ] `tools/` remains free of application dependencies after this task, matching T01's
+- [x] `tools/` remains free of application dependencies after this task, matching T01's
       and T03's boundary.
 
 ## Verification
@@ -202,3 +202,37 @@ drift and only drift.
 - `lst new`'s scaffold intentionally omits `uid` lines — running `lst ids` (T03) on the
   scaffold's output is the expected next authoring step, not something `lst new` does
   itself.
+
+## Completion state — 2026-08-15
+
+All eleven acceptance criteria met. `tools/` 234 tests; root `npm test`, `npm run
+typecheck` and `npm run lint` clean. `content/REVIEW-STATUS.md` is generated and committed.
+
+Five things §6.3 left to the implementer, decided here and worth knowing before anyone
+edits a rule:
+
+- **A requirement-group "shape" is `rule` plus, for `n_of`, its `n`** — `all`, `any`,
+  `n_of:2`, `n_of:3`. Deliberately *not* the group's size. D14's worry is a reader holding
+  several different rules in mind, and `n_of: 2` over three milestones and over five is one
+  rule applied twice. Counting size would fire on almost every real tree and say nothing.
+- **`level-pacing` fires at a deviation of ≥ 3 from the mean of a level's immediate
+  neighbours.** F8 bounds a level at 4–8 milestones, so the widest gap the schema permits is
+  4; a threshold of 3 cannot fire on a tree that varies by one or two and always fires on
+  the 4-versus-8 jump.
+- **An orphan is a milestone off the prerequisite graph in *both* directions** — it requires
+  nothing *and* nothing requires it. The literal reading of §6.3 ("referenced by no other
+  milestone's `requires`") would flag every level-10 milestone in every tree that uses
+  prerequisites at all, since nothing is ever a prerequisite of the top. Mastery `requires`
+  counts as a reference.
+- **`lst status` writes the regenerated file before it fails.** §6.1 says it gates on drift
+  and T22's verification line pipes it into `git diff --exit-code`; writing-then-failing
+  satisfies both and gives the author the fix in the working tree, which is the same
+  ergonomics as `lst ids` and §6.4 check 5's `lst version`.
+- **`vague-milestone` flags the bare word "practice".** §6.3 names it explicitly, so it
+  ships as specified — but it is the noisiest of the seven on real content: it fires nine
+  times on `mental-health.yaml`, where "practice" is the domain's own vocabulary rather than
+  an effort quantity. That is not a bug to fix quietly; it is exactly the false-positive
+  evidence **R-04** asks a maintainer to weigh, and it is the reason D-15 made lint
+  advisory. Recorded here so the first maintainer to look at R-04 has the case in hand.
+
+Real-corpus behaviour at completion: 17 findings across the three trees, exit code 0.

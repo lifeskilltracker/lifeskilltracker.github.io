@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { stringify } from 'yaml';
 
@@ -69,4 +70,23 @@ export function writeTreeFixture(dir: string, name: string, tree: Tree): string 
   const filePath = path.join(dir, name);
   writeFileSync(filePath, stringify(tree), 'utf8');
   return filePath;
+}
+
+/**
+ * A throwaway repository holding nothing but `content/trees/`. Enough for the
+ * tree-local tools — `lst lint`, `lst status`, `lst new` — none of which read
+ * taxonomy. Tests needing taxonomy resolution copy the validate fixtures in.
+ */
+export function withTempContentRepo(
+  prefix: string,
+  run: (repoRoot: string, treesDir: string) => void,
+): void {
+  const repoRoot = mkdtempSync(path.join(tmpdir(), `lst-${prefix}-`));
+  const trees = path.join(repoRoot, 'content/trees');
+  mkdirSync(trees, { recursive: true });
+  try {
+    run(repoRoot, trees);
+  } finally {
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
 }

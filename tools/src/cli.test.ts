@@ -29,6 +29,9 @@ describe('lst CLI', () => {
     expect(names).toContain('validate');
     expect(names).toContain('ids');
     expect(names).toContain('compile');
+    expect(names).toContain('lint');
+    expect(names).toContain('status');
+    expect(names).toContain('new');
   });
 
   it('keeps validate free of git operations', () => {

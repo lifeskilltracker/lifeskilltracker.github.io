@@ -58,6 +58,33 @@ export interface Track {
   title: string;
 }
 
+export interface Author {
+  name: string;
+  github?: string;
+  /** §6.6: the original author has no role; later revisers append themselves. */
+  role?: 'reviser';
+  since?: string;
+}
+
+export interface Review {
+  round: number;
+  reviewer: string;
+  date: string;
+}
+
+export interface Source {
+  title: string;
+  url?: string;
+  adapted?: 'structure' | 'sequencing' | 'none';
+}
+
+export interface Provenance {
+  authors: Author[];
+  reviews?: Review[];
+  sources?: Source[];
+  copyleftDerived?: boolean;
+}
+
 export interface Tree {
   schemaVersion: number;
   contentVersion: number;
@@ -70,12 +97,7 @@ export interface Tree {
   facets?: string[];
   archetype?: string;
   tracks?: Track[];
-  provenance: {
-    authors: Array<{ name: string; github?: string }>;
-    copyleftDerived?: boolean;
-    reviews?: unknown[];
-    sources?: unknown[];
-  };
+  provenance: Provenance;
   levels: AuthoredLevel[];
   mastery?: MasteryEntry[];
   lineage?: LineageEntry[];
