@@ -40,9 +40,15 @@ docs/      PRD, ARCHITECTURE, contributor docs
 ## Root scripts
 
 ```bash
-npm test          # Vitest in all workspaces
-npm run typecheck # tsc/svelte-check per workspace
-npm run build     # tools compile, then app build
+npm test             # Vitest in all workspaces
+npm run typecheck    # tsc/svelte-check per workspace
+npm run build        # tools compile, then app build
+npm run check:s1     # §14.7 grep gate — no `archetype` in layout/scoring/components
+npm run check:budget # §17.1 bundle budget, Brotli, against app/build
 ```
+
+CI is `.github/workflows/ci.yml` (seven gating jobs, one advisory) and
+`.github/workflows/deploy.yml` (push to `main` → GitHub Pages). Every gate has a
+local equivalent; see `docs/CONTRIBUTING.md` §3.
 
 Node ≥ 20.19.0 (see `.nvmrc` and root `engines`). ESLint rules for import boundaries are in root `eslint.config.js` (T06/T11a extend it).

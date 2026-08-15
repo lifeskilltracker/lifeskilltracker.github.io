@@ -1,0 +1,80 @@
+# D-12: merge to `main` *is* the release process. There is no staging
+# environment, no release train, and no manual publish step — which is exactly
+# why all the rigour lives in ci.yml's pre-merge gates, and why this file is
+# short. Everything it could usefully check has already been checked on the PR.
+#
+# It runs on push to `main` only. A pull_request trigger here would publish
+# unreviewed content to the live site, which is the one failure mode a
+# single-environment setup has no way to recover from quietly.
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a deploy in flight: the site is the artifact, and a half-uploaded
+# one is worse than an old one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      - name: Resolve the base path
+        id: base
+        # §4.4's first constraint. A project site is served from
+        # /<repo-name>/, so `kit.paths.base` must match or every asset URL is
+        # wrong by one path segment; a user/organisation site
+        # (<owner>.github.io) is served from the root and must have an empty
+        # base. T01's svelte.config.js reads BASE_PATH; this is where it is set.
+        run: |
+          repo="${{ github.event.repository.name }}"
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          if [ "$(echo "$repo" | tr '[:upper:]' '[:lower:]')" = "${owner}.github.io" ]; then
+            echo "path=" >> "$GITHUB_OUTPUT"
+          else
+            echo "path=/${repo}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        env:
+          BASE_PATH: ${{ steps.base.outputs.path }}
+        run: npm run build
+
+      # Cheap, and it is the last moment anything can look at the artifact
+      # before it becomes the site.
+      - name: 'Pages constraints — .nojekyll and the 404 fallback'
+        run: bash tools/ci/check-pages-output.sh
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/build
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

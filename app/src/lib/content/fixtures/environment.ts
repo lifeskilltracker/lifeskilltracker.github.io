@@ -68,9 +68,12 @@ export interface Route {
 
 export function fakeFetch(routes: Record<string, Route>) {
   const calls: string[] = [];
-  const fetcher = (async (input: RequestInfo | URL) => {
+  /** Per-call request init, so a test can assert §4.4's manifest revalidation. */
+  const inits: Array<{ url: string; init?: RequestInit }> = [];
+  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     calls.push(url);
+    inits.push({ url, init });
     const route = routes[url];
     if (route === undefined || route.networkError === true) {
       throw new TypeError(`network failure for ${url}`);
@@ -85,7 +88,9 @@ export function fakeFetch(routes: Record<string, Route>) {
   return {
     fetch: fetcher,
     calls,
+    inits,
     countFor: (url: string) => calls.filter((c) => c === url).length,
+    initsFor: (url: string) => inits.filter((entry) => entry.url === url).map((entry) => entry.init),
     routes,
   };
 }

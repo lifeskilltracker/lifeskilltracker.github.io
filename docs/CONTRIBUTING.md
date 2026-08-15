@@ -138,6 +138,32 @@ it prints nothing, it found nothing.
 **`lst lint` never fails.** Its exit code is 0 no matter how many findings it reports. The
 findings are prompts for a reviewer, not gates, and you are free to disagree with any of
 them — see `docs/ARCHITECTURE.md` §6.3 for why that is deliberate rather than unfinished.
+On a pull request they arrive as inline annotations on the diff rather than as a red X.
+
+### Which CI job is telling you off
+
+A tree-only PR runs five jobs and none of them build the app, so your feedback loop is
+seconds rather than minutes. If a check goes red, this is the command it ran:
+
+| Job | Command | Required to merge? |
+|---|---|---|
+| `content: validate` | `npx lst validate` | yes |
+| `content: compile` | `npx lst compile` | yes |
+| `content: baseline` | `npx lst baseline --against origin/main` | yes |
+| `content: status` | `npx lst status` | yes |
+| `content: lint` | `npx lst lint --format github` | **no** — annotations only |
+| `app: typecheck` | `npm run typecheck && npx eslint .` | yes, when the PR touches app code |
+| `app: test` | `npm test` | yes, when the PR touches app code |
+| `app: build` | `npm run build` plus the §14.7 and §17.1 gates | yes, when the PR touches app code |
+
+The three `app:` jobs report **skipped** on a content-only PR. That is the path filter doing
+its job, not a check that failed to run.
+
+One CI-only requirement worth knowing before you push: **your branch must be up to date with
+`main`**. `lst baseline` compares your tree against the tip of `origin/main`, and against a
+stale branch two of its checks can both pass while leaving `main` inconsistent — so the
+repository requires the merge to be current. `git fetch origin && git merge origin/main` (or
+a rebase) before pushing is enough.
 
 ## 4. Identifiers: the one thing you cannot undo
 

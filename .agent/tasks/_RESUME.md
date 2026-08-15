@@ -1,6 +1,55 @@
 # RESUME — implementation, phase 1
 
-Updated 2026-08-15 after T22, T23 and T24.
+Updated 2026-08-15 after T25.
+
+# SESSION 19 — T25 COMPLETE. PHASE 1 IS DONE, AND CI EXISTS.
+
+Verified 2026-08-15: **752 app tests + 303 tools tests**, `npm run typecheck` clean over
+530 files, `npx eslint .` clean, every gate command run by hand and green.
+
+**`.github/workflows/ci.yml` and `deploy.yml` exist.** Seven gating jobs, one advisory,
+the path filter as a job-level `if:`, and a merge to `main` that publishes to Pages with
+no manual step (D-12).
+
+**What is now true that was not:**
+
+- **§17.1's budget is enforced, in Brotli, and it is tested by failing.**
+  `tools/src/ci/budget.ts` measures first paint from the *prerendered `index.html`* — the
+  browser's own list of what it fetches — and the lazy tree route as a static-import
+  closure minus that. Fixtures are built from incompressible bytes searched to an exact
+  Brotli size, so each row passes at its budget and fails one byte over. Real figures
+  today: **45.7 / 52, 11.7 / 25, 0.6 / 15, 46.4 / 70 kB**.
+- **The workflows themselves have tests.** `workflows.test.ts` parses both files and
+  asserts the graph, the absence of `always()`, the `fetch-depth: 0` on the two jobs that
+  need it, and that deploy has no `pull_request` trigger. `path-filter.test.ts` runs the
+  filter over real temporary git repositories.
+- **`lst lint --format github`** emits `::warning` workflow commands with repo-relative
+  paths. Chosen over a bot precisely because `::warning` has no failing variant.
+- **§4.4's fourth row turned out to be a gap, not a verification.** Pages serves fixed
+  headers, so `lib/content/manifest.ts` now fetches the manifest with `cache: 'no-cache'`;
+  hashed bundles deliberately still don't.
+
+### Four things need the repository to exist, and none of them are code
+
+There is no git remote and no credentials as of 2026-08-15. Publishing under GitHub user
+**`lifeskilltracker`**. In order:
+
+1. Create the repo, push `main`, and set **Settings → Pages → Source: GitHub Actions**.
+   Under "Deploy from a branch" the deploy workflow succeeds and the site never changes —
+   the one failure mode here that looks exactly like success.
+2. Run `tools/ci/apply-branch-protection.sh` (after `gh auth login`). It requires the seven
+   gating jobs, sets `strict: true`, and leaves `content: lint` unrequired.
+3. Open a content-only PR and confirm `content: compile` is **run, required, green** while
+   the three `app:` jobs are **skipped**. A skipped required check counts as passing, so
+   "the PR was green" is not the assertion.
+4. Confirm the deployed site serves from `/<repo-name>/` — the only end-to-end test of
+   `BASE_PATH`.
+
+**What is left in the repository as a whole:** **T20's manual §15.8 passes** (keyboard and
+screen-reader, now unblocked since T15 and T16 have landed), **T00's owner decisions**, and
+**F29** — §9 draws neither a track title nor a module label, raised by T21 and still open.
+
+# SESSION 18 — T22, T23, T24 COMPLETE. THE CLI IS WHOLE AND THE DOCS EXIST.
 
 # SESSION 18 — T22, T23, T24 COMPLETE. THE CLI IS WHOLE AND THE DOCS EXIST.
 

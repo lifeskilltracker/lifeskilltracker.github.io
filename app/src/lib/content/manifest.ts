@@ -34,7 +34,20 @@ export function createManifestReader(env: LoaderEnvironment): ManifestReader {
   let revalidation: Promise<void> = Promise.resolve();
 
   async function fetchFresh(): Promise<Manifest> {
-    const response = await env.fetch(url);
+    /**
+     * `cache: 'no-cache'` — revalidate with the server every time, and use the
+     * HTTP cache's copy only when the server says it is still current.
+     *
+     * §4.4 lists aggressive asset caching as a GitHub Pages constraint and §7.3
+     * names the manifest as the exception, but Pages serves fixed headers and
+     * offers no way to set a per-file `Cache-Control`. So the exception has to
+     * be asserted from this side: without it the browser's HTTP cache can
+     * satisfy this revalidation from a copy minutes old, and the whole point of
+     * §7.1's small-mutable-index split is that *this* file is the one that must
+     * be current. The bundles need no such flag — their URLs carry a content
+     * hash, so a hit is always correct (§7.4).
+     */
+    const response = await env.fetch(url, { cache: 'no-cache' });
     if (!response.ok) throw new ManifestUnavailableError(`HTTP ${response.status}`);
     // Read from a clone so the original body is still available to cache.
     const body = (await response.clone().json()) as Manifest;

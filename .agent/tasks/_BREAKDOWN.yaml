@@ -527,8 +527,21 @@ tasks:
     status: written
     doc: T25-ci-and-deploy.md
     note: >
-      Carries the §14.7 enforcement gates including the archetype grep gate, which is
-      the mechanical form of S1.
+      Implemented and verified complete 2026-08-15. Carries the §14.7 enforcement gates
+      including the archetype grep gate, which is the mechanical form of S1. Five
+      decisions the document left open: no `gate` job (GitHub's required-check mechanism
+      instead — a gate job cannot be written without the `always()` the criteria forbid);
+      the lint annotation mechanism is native `::warning` workflow commands via a new
+      `lst lint --format github`, chosen because `::warning` has no failing variant;
+      §17.1's runtime and app-JS rows are checked as their sum (52 kB), since the two are
+      not separable after bundling — which means the per-row budgets bind at 67 kB, three
+      before the 70 kB total; the path filter is wider than `app/` and `schema/`, because
+      a false negative merges an unbuilt app behind a green tick; and §4.4's caching row
+      turned out to be a gap rather than a verification — `lib/content/manifest.ts` now
+      revalidates with `cache: 'no-cache'`, which is the only side the constraint can be
+      asserted from on Pages. Four run-level confirmations remain and all need the
+      repository to exist (branch protection, Pages source, a content-only PR, BASE_PATH)
+      — listed in the task doc and in _RESUME.md.
 
   - id: T26
     title: Architecture spec reconciliation

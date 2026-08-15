@@ -14,6 +14,7 @@
     "typecheck": "npm run typecheck --workspaces",
     "lint": "eslint .",
     "check:s1": "bash tools/ci/check-archetype-free.sh",
+    "check:budget": "npm run build:cli --workspace tools && node tools/dist/ci/check-bundle-budget.js",
     "build": "npm run compile --workspace tools && npm run build --workspace app",
     "gen:types": "npm run build:cli --workspace tools && node tools/dist/gen-types.js"
   },

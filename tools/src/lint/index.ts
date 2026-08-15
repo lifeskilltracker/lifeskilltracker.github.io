@@ -3,7 +3,7 @@ import { defaultRepoRoot } from '../shared/paths.js';
 import { EXIT_OK, EXIT_RUNTIME_ERROR } from '../shared/exit-codes.js';
 import { createTreeLintContext } from './context.js';
 import { LINT_RULES } from './rules/index.js';
-import { LintReport } from './report.js';
+import { LintReport, type LintFormat } from './report.js';
 
 function resolveRepoRoot(repoRoot?: string): string {
   return repoRoot ?? process.env.LST_REPO_ROOT ?? defaultRepoRoot;
@@ -44,9 +44,14 @@ export function runLint(options: LintOptions = {}): LintReport {
  * A crash is not a finding, so a tree that cannot be parsed still reports a
  * runtime error — the linter failing to run is not the linter passing.
  */
-export function lintCommand(files: string[], repoRoot?: string): number {
+export function lintCommand(
+  files: string[],
+  repoRoot?: string,
+  format: LintFormat = 'text',
+): number {
+  const root = resolveRepoRoot(repoRoot);
   try {
-    runLint({ repoRoot: resolveRepoRoot(repoRoot), files }).print();
+    runLint({ repoRoot: root, files }).print(format, root);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     return EXIT_RUNTIME_ERROR;
@@ -55,4 +60,4 @@ export function lintCommand(files: string[], repoRoot?: string): number {
 }
 
 export { LintReport };
-export type { LintFinding, LintRuleId } from './report.js';
+export type { LintFinding, LintFormat, LintRuleId } from './report.js';

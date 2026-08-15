@@ -1,0 +1,235 @@
+# §6.5's job graph. Seven gating jobs and one advisory one.
+#
+# Two things in here are easy to "simplify" into bugs, both recorded as T25
+# hazards:
+#
+#   1. The path filter is a **job-level `if:`**, never `on.pull_request.paths`.
+#      The workflow-level form stops the workflow, its required checks never
+#      report at all, and every content-only PR sits in Pending forever. The
+#      job-level form reports `skipped`, which is what §6.5 is drawn against.
+#
+#   2. `content: compile` hangs off `content: validate` alone and therefore
+#      never skips. It used to live inside `app: build`, which meant everything
+#      compile enforces went ungated on exactly the PRs that changed content
+#      (T26/F24). A skipped required check counts as *passing* under branch
+#      protection, so "the PR was green" would have proved nothing.
+#
+# Every `needs:` below is plain. There is no `always()` and no
+# `result == 'skipped'` anywhere in this file, and there should never need to
+# be: after F24 no job depends on something that skips underneath it.
+#
+# Branch protection is a repository setting this file cannot express. The
+# required-check list and the "require branches to be up to date" toggle are in
+# docs/RELEASE-CHECKLIST.md, and tools/ci/apply-branch-protection.sh applies
+# them.
+
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup:
+    name: setup
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The filter below diffs against the base commit, and §6.4's checks
+          # need real history. Depth 1 makes both pass on nothing.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # Primes the npm cache the six parallel jobs then hit warm.
+      - run: npm ci
+      - id: filter
+        name: Decide whether the app jobs run
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash .github/workflows/scripts/app-paths-changed.sh >> "$GITHUB_OUTPUT"
+
+  content-validate:
+    name: 'content: validate'
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:cli --workspace tools
+      # Schema, the sixteen semantic rules, the five taxonomy rules, and
+      # T26/F17's five map-geometry rules (M1–M5).
+      - run: npx lst validate
+
+  content-compile:
+    name: 'content: compile'
+    needs: content-validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:cli --workspace tools
+      # `lst compile` validates every emitted bundle and the manifest against
+      # schema/{compiled-tree,manifest}.schema.json on its way out (T26/F9), so
+      # this one command is the whole of §7.3's output gate.
+      - run: npx lst compile
+
+  content-baseline:
+    name: 'content: baseline'
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Not optional. `lst baseline` compares against the tip of
+          # origin/main; at the default depth of 1 that ref does not exist, and
+          # the tool is written to throw rather than pass vacuously — but only
+          # because this line makes the passing case reachable at all (T26/F6).
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:cli --workspace tools
+      - name: Fetch the baseline ref
+        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+      # All eight §6.4 checks, including check 5's contentVersion bump (T26/F8)
+      # and check 8's tree-removal subset test (T26/F22). The label says
+      # "baseline", not "vs last tag": T23 compares against main, and §6.5's
+      # diagram text is the thing that is out of date (T26/F6).
+      - run: npx lst baseline --against origin/main
+
+  content-status:
+    name: 'content: status'
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:cli --workspace tools
+      # Gating (§6.1): a PR that adds a tree necessarily changes
+      # content/REVIEW-STATUS.md, and this fails when the checked-in table has
+      # drifted from provenance.
+      - run: npx lst status
+
+  content-lint:
+    name: 'content: lint'
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:cli --workspace tools
+      # Advisory, and structurally so: `lst lint` exits 0 whatever it finds
+      # (D-15), and `--format github` emits `::warning` workflow commands, which
+      # have no failing variant. **Do not** wrap this in a step that treats
+      # output as failure — that would turn D-15's advisory linter into a gate
+      # without changing a line of the linter.
+      #
+      # This job is deliberately absent from the required-check list. Its
+      # annotations land on the diff; its result never blocks a merge.
+      - run: npx lst lint --format github
+
+  app-typecheck:
+    name: 'app: typecheck'
+    needs: setup
+    if: needs.setup.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build:cli --workspace tools
+      - run: npm run typecheck
+      # §14.7's import rules — the forbidden edges of §14.1, as
+      # `no-restricted-imports` in the root flat config.
+      - run: npx eslint .
+
+  app-test:
+    name: 'app: test'
+    needs: setup
+    if: needs.setup.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Includes §14.4's monotonicity property tests and the layout/scoring
+      # purity suites, both of which §14.7 names as enforcement rather than
+      # coverage.
+      - run: npm test
+
+  app-build:
+    name: 'app: build'
+    needs: [setup, app-typecheck, app-test, content-compile]
+    if: needs.setup.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      # ---- §14.7, the five enforcement checks -------------------------------
+      # Import rules and the purity/monotonicity suites run in the two app jobs
+      # above; the three that need their own step are here.
+
+      - name: 'S1 — no archetype under layout, scoring, or components'
+        run: npm run check:s1
+
+      - name: 'Type generation — lib/types is generated, not hand-written'
+        run: |
+          npm run gen:types
+          git diff --exit-code -- app/src/lib/types
+
+      - name: Build
+        # Recompiles content rather than consuming `content: compile`'s output:
+        # that is §4.3's pipeline and T01's root script unchanged, and it keeps
+        # inter-job artifact passing — which appears nowhere else in this graph
+        # — out of it.
+        run: npm run build
+
+      # ---- §17.1, the bundle budget ----------------------------------------
+      - name: 'Bundle budget (Brotli)'
+        run: npm run check:budget
+
+      # ---- §4.4, the four GitHub Pages constraints -------------------------
+      - name: 'Pages constraints — .nojekyll and the 404 fallback'
+        run: bash tools/ci/check-pages-output.sh

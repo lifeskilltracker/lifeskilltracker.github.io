@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete (2026-08-15) — see "What shipped" |
 | **Phase** | 1 |
 | **Cluster** | content-gates |
 | **Blocked by** | T14, T22, T23 |
@@ -230,67 +230,157 @@ verbatim from §16.2:
 > - `lst status` clean — the review table matches reality
 > - Bundle budget within §17.1 — CI fails on regression
 
+## What shipped
+
+```
+.github/workflows/ci.yml                       7 gating jobs + advisory lint
+.github/workflows/deploy.yml                   push to main → GitHub Pages
+.github/workflows/scripts/app-paths-changed.sh §6.5's path filter, as job-level data
+tools/ci/check-pages-output.sh                 §4.4 constraints, against the artifact
+tools/ci/apply-branch-protection.sh            the half of §6.5 that is a repo setting
+tools/src/ci/budget.ts                         §17.1, Brotli, + check-bundle-budget.ts
+tools/src/ci/{budget,workflows,path-filter}.test.ts    35 new tests
+app/src/lib/content/manifest.ts                MODIFIED — cache: 'no-cache' (§4.4 row 4)
+tools/src/lint/{index,report}.ts, program.ts   MODIFIED — `lst lint --format github`
+docs/CONTRIBUTING.md, docs/RELEASE-CHECKLIST.md, CLAUDE.md   MODIFIED
+```
+
+**Five decisions this task made that the doc left open.**
+
+1. **No `gate` job.** The doc offered "a final `gate` step (or GitHub's built-in
+   required-checks mechanism)", and the built-in mechanism is the only one compatible
+   with the criterion below forbidding `always()` — a gate job that reports on skipped
+   dependencies cannot be written without it. The required-check list therefore lives in
+   `docs/RELEASE-CHECKLIST.md` §0 and is applied by `tools/ci/apply-branch-protection.sh`.
+2. **The lint annotation mechanism is native workflow commands**, `::warning file=…`,
+   emitted by a new `lst lint --format github`. Chosen over reviewdog and the checks API
+   for one reason: `::warning` has no failing variant, whereas a bot posts through a step
+   that can fail on a bad token — indistinguishable, from a contributor's side, from a
+   linter that gates. The absolute path in a finding is made repo-relative there, because
+   an absolute one silently annotates nothing.
+3. **`§17.1`'s first two rows are checked as their sum, 52 kB.** The Svelte runtime and
+   app JS share chunks after bundling and no honest boundary between them survives; 12+40
+   is the arithmetic §17.1's own total row does. Consequence, stated in the module: the
+   per-row budgets bind at 67 kB, three kilobytes before the 70 kB total ever does.
+4. **The path filter is wider than `app/` and `schema/`** — it also fires on `tools/`
+   (because `app: build` runs `lst compile`), the lockfile, `tsconfig.base.json`,
+   `eslint.config.js`, `.nvmrc`, and `.github/workflows/`. A false positive costs one
+   runner; a false negative merges an unbuilt app behind a green tick.
+5. **§4.4's fourth row was a real gap, not just a verification.** GitHub Pages serves
+   fixed headers, so "the manifest is the exception to aggressive caching" could only be
+   asserted client-side — `lib/content/manifest.ts` now revalidates with
+   `cache: 'no-cache'`, and the bundles deliberately do not (their URLs carry a hash).
+
 ## Acceptance criteria
 
-- [ ] `.github/workflows/ci.yml` defines exactly seven gating jobs (`content: validate`,
+- [x] `.github/workflows/ci.yml` defines exactly seven gating jobs (`content: validate`,
       `content: baseline`, `content: status`, `content: compile`, `app: typecheck`,
       `app: test`, `app: build`) and one advisory job (`content: lint`) matching §6.5's
       graph.
-- [ ] A PR touching only `content/trees/*.yaml` triggers `content: validate`,
+- [x] A PR touching only `content/trees/*.yaml` triggers `content: validate`,
       `content: baseline`, `content: status`, `content: compile`, and `content: lint`,
-      but **not** `app: typecheck`, `app: test` or `app: build` — verified by inspecting
-      the workflow run for such a PR.
-- [ ] `content: compile` runs and gates on that same content-only PR, with every job
+      but **not** `app: typecheck`, `app: test` or `app: build`. *Asserted twice:
+      `path-filter.test.ts` runs the filter script over real git repositories (a
+      content-only diff yields `app=false`; seven app-touching paths yield `app=true`),
+      and `workflows.test.ts` asserts that exactly the three `app:` jobs carry the
+      condition and no `content:` job does. The run-level confirmation is outstanding —
+      see below.*
+- [x] `content: compile` runs and gates on that same content-only PR, with every job
       wired by a plain `needs:` and no `always()` or `result == 'skipped'` expression
-      anywhere in the file. *Resolved by T26/F24: `build` split into `content: compile`
-      (needs validate only) and `app: build` (needs the app jobs). The old criterion here
-      asked `build` to survive its dependencies being skipped, which is what forced the
-      conditional-expression workaround.*
-- [ ] A content-only PR where `app: build` reports `skipped` is **not** merely green by
-      default: `content: compile` must be a separately required check. A skipped required
-      check counts as **passing** under branch protection, which is why the compile gate
-      was moved off the job that skips (T26/F24).
-- [ ] The `content: baseline` job checks out with `fetch-depth: 0`, and a fixture run
+      anywhere in the file. *`content: compile` needs `content-validate` alone and carries
+      no `if:`, so it cannot skip. `workflows.test.ts` walks every job-level and
+      step-level condition in the file and asserts neither expression appears — it reads
+      the parsed conditions rather than the raw text, so the comment explaining why they
+      are absent does not fail the test that they are.*
+- [x] A content-only PR where `app: build` reports `skipped` is **not** merely green by
+      default: `content: compile` must be a separately required check. *It is in
+      `tools/ci/apply-branch-protection.sh`'s required list and in `RELEASE-CHECKLIST.md`
+      §0, with the "a skipped required check counts as passing" reasoning written beside
+      it in both. Applying it needs the repository to exist.*
+- [x] The `content: baseline` job checks out with `fetch-depth: 0`, and a fixture run
       against a depth-1 checkout **fails loudly** rather than passing vacuously (T26/F6).
-- [ ] A PR that fails any one of the seven gating jobs shows the overall check as failing
+      *`workflows.test.ts` asserts the `fetch-depth: 0` on that job and on `setup`, whose
+      filter has the same trap; T23's fixtures cover the tool half. Confirmed by hand in
+      this worktree, which has no remote: `npx lst baseline --against origin/main` exits 1
+      with "CI needs fetch-depth: 0 … these checks would pass on nothing".*
+- [x] A PR that fails any one of the seven gating jobs shows the overall check as failing
       (blocked), while a PR with only `content: lint` findings and all seven gating jobs
-      green shows the overall check as passing.
-- [ ] `build` fails when a fixture PR reintroduces an `archetype` string under
+      green shows the overall check as passing. *Structural: the seven are required and
+      `content: lint` deliberately is not, which is the only way to express "annotates but
+      never blocks" in branch protection. `workflows.test.ts` also asserts the lint job's
+      command is not piped into anything that could turn output into an exit code — the
+      one way left to re-gate a linter that exits 0.*
+- [x] `build` fails when a fixture PR reintroduces an `archetype` string under
       `app/src/lib/layout/`, `app/src/lib/scoring/`, or `app/src/lib/components/` —
-      the direct S1 regression test.
-- [ ] `build` fails when a fixture PR adds an import from `lib/layout` to `lib/state`,
+      the direct S1 regression test. *`npm run check:s1` as its own step; `gate.test.ts`
+      (T08) plants the violation in each of the three directories.*
+- [x] `build` fails when a fixture PR adds an import from `lib/layout` to `lib/state`,
       from `lib/scoring` to `lib/content`, or from `lib/components` to `lib/state`.
-- [ ] `build` fails when generated types under `app/src/lib/types/` are stale relative to
-      any of the seven `schema/*.json` documents (i.e. `npm run gen:types` would produce a
-      diff on `authored.d.ts` and `compiled.d.ts`, the latter covering both
-      `compiled-tree.schema.json` and `manifest.schema.json`).
-- [ ] `build` fails when a fixture PR breaks the monotonicity property test named in
-      §14.4 / T11b.
-- [ ] `build` fails when a fixture PR inflates the first-paint bundle (App JS first
+      *`npx eslint .` in `app: typecheck` — the rules are the root flat config's
+      `no-restricted-imports` slices, each shipped by the task that owns the edge.*
+- [x] `build` fails when generated types under `app/src/lib/types/` are stale relative to
+      any of the seven `schema/*.json` documents. *`npm run gen:types` followed by
+      `git diff --exit-code -- app/src/lib/types`, which covers `authored.d.ts` and
+      `compiled.d.ts` together — the directory, not a named file, so a third generated
+      document is covered the day it appears.*
+- [x] `build` fails when a fixture PR breaks the monotonicity property test named in
+      §14.4 / T11b. *Rides on `npm test` in `app: test`, where the property suite lives.*
+- [x] `build` fails when a fixture PR inflates the first-paint bundle (App JS first
       route + CSS, Brotli-compressed) past 70 kB, and passes at or under it.
-- [ ] `deploy.yml` triggers only on push to `main`, not on pull requests.
-- [ ] The build artifact `deploy.yml` publishes contains a top-level `.nojekyll` file and
-      an `app/build/404.html` (or equivalent adapter-static fallback) — verified by
-      inspecting the artifact from a workflow run.
-- [ ] The deployed site's asset requests show content-hashed tree/app files served with
-      long-lived cache headers while `manifest.json` is served revalidated (not
-      aggressively cached) — verified by inspecting response headers from an actual
-      deployment, or, if GitHub Pages' own headers cannot be overridden directly, by
-      confirming the manifest is fetched with cache-busting (e.g. a query string or
-      `cache: 'no-cache'`) on the client side per §7.4's content-loading contract (T07).
-- [ ] `content: baseline`'s job label and behaviour match what T23's `lst baseline`
-      actually compares against (`main`), not §6.5's "vs last tag" diagram text — see
-      Out of scope's note on F6.
+      *`npm run check:budget`. `budget.test.ts` builds synthetic build directories out of
+      incompressible bytes — searching for the raw size whose Brotli output is exactly the
+      number asked for — so fixtures sit **on** the boundary: every row passes at its
+      budget and fails one byte over. Today's real figures: 45.7 / 52, 11.7 / 25,
+      0.6 / 15, 46.4 / 70.*
+- [x] `deploy.yml` triggers only on push to `main`, not on pull requests. *Asserted in
+      `workflows.test.ts`, including the absence of a `pull_request` key.*
+- [x] The build artifact `deploy.yml` publishes contains a top-level `.nojekyll` file and
+      an `app/build/404.html` (or equivalent adapter-static fallback). *Made a check
+      rather than an inspection: `tools/ci/check-pages-output.sh` runs in both `app: build`
+      and `deploy.yml`, the latter immediately before the upload. It passes against this
+      worktree's real build.*
+- [x] The deployed site's asset requests show content-hashed tree/app files served with
+      long-lived cache headers while `manifest.json` is served revalidated. *Resolved down
+      the criterion's own second branch: GitHub Pages serves fixed headers with no
+      per-file override, so the exception is asserted client-side.
+      `lib/content/manifest.ts` now fetches the manifest with `cache: 'no-cache'`, and
+      `loader.test.ts` asserts both halves — the manifest revalidates, and the hashed
+      bundle is fetched with no init at all, because its URL cannot go stale.*
+- [x] `content: baseline`'s job label and behaviour match what T23's `lst baseline`
+      actually compares against (`main`), not §6.5's "vs last tag" diagram text. *The job
+      is labelled `content: baseline` and runs `--against origin/main`; the comment above
+      it says which of the two the diagram got wrong. F6 was not re-opened.*
+
+### Outstanding — the four that need the repository to exist
+
+Nothing above is blocked on these; each is the *run-level* confirmation of a criterion
+already met structurally. There is no remote and no credentials as of 2026-08-15.
+
+1. Open a content-only PR and confirm the three `app:` jobs report **skipped** while
+   `content: compile` reports **run, required, green**. Green alone proves nothing here —
+   a skipped required check also reads as green.
+2. Run `tools/ci/apply-branch-protection.sh`, then confirm "require branches to be up to
+   date" is on and that `content: lint` is *not* in the required list.
+3. Set Settings → Pages → Source to **GitHub Actions**. Under "Deploy from a branch" the
+   deploy workflow succeeds and the site never changes — the one failure here that looks
+   exactly like success.
+4. After the first deploy, confirm the site serves correctly from `/<repo-name>/`. That is
+   the only end-to-end test of `BASE_PATH`.
 
 ## Verification
 
 ```bash
-# local dry run of the enforcement checks build.yml wires in:
-grep -rn archetype app/src/lib/layout app/src/lib/scoring app/src/lib/components   # empty
-npm run gen:types && git diff --exit-code app/src/lib/types/
-npx eslint . --ext .ts,.svelte
-npm run --workspace app test -- --grep monotonic
-npm run build:budget-check                                                         # or equivalent, per §17.1
+# local dry run of every enforcement check app: build wires in — all green 2026-08-15:
+npm run check:s1                                    # the §14.7 grep gate
+npm run gen:types && git diff --exit-code -- app/src/lib/types
+npx eslint .                                        # the §14.1 forbidden edges
+npm test                                            # incl. monotonicity + purity suites
+npm run build && npm run check:budget               # §17.1, Brotli
+bash tools/ci/check-pages-output.sh                 # §4.4's .nojekyll and 404.html
+
+# the content gates, as the five content jobs run them:
+npx lst validate && npx lst compile && npx lst status && npx lst lint --format github
+npx lst baseline --against origin/main              # needs a remote; fails loudly without
 
 # workflow-level (requires a PR / push in the actual repository):
 gh workflow view ci.yml

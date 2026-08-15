@@ -4,6 +4,7 @@ import { baselineCommand } from './baseline/index.js';
 import { idsCommand } from './ids/index.js';
 import { lintCommand } from './lint/index.js';
 import { newCommand } from './new/index.js';
+import { EXIT_RUNTIME_ERROR } from './shared/exit-codes.js';
 import { statusCommand } from './status/index.js';
 import { validateCommand } from './validate/index.js';
 import { versionCommand } from './version/index.js';
@@ -53,8 +54,13 @@ export function createProgram(): Command {
     .command('lint')
     .description('Advisory coherence and style warnings (§6.3) — never gates')
     .argument('[files...]', 'tree files to lint; defaults to every tree')
-    .action((files: string[]) => {
-      process.exit(lintCommand(files));
+    .option('--format <format>', 'text | github (workflow-command annotations)', 'text')
+    .action((files: string[], options: { format: string }) => {
+      if (options.format !== 'text' && options.format !== 'github') {
+        console.error(`lst lint: unknown --format "${options.format}" (expected text or github)`);
+        process.exit(EXIT_RUNTIME_ERROR);
+      }
+      process.exit(lintCommand(files, undefined, options.format));
     });
 
   program

@@ -219,6 +219,20 @@ describe('§7.4 — manifest, stale-while-revalidate, and honest offline state',
 
     expect(net.countFor(MANIFEST_URL)).toBe(1);
   });
+
+  it('revalidates the manifest with the server, and only the manifest (§4.4, T25)', async () => {
+    const { env, net } = environment(happyRoutes());
+    const loader = createContentLoader(env);
+
+    await loader.loadTree('cooking');
+
+    // GitHub Pages serves fixed cache headers, so §7.3's "the manifest is the
+    // exception to aggressive caching" has to be asserted from the client side.
+    expect(net.initsFor(MANIFEST_URL)).toEqual([{ cache: 'no-cache' }]);
+    // The bundle URL carries a content hash, so revalidating it would be pure
+    // latency for an answer that cannot change.
+    expect(net.initsFor(COOKING_URL)).toEqual([undefined]);
+  });
 });
 
 // ------------------------------------------------------------------ pinning

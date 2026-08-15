@@ -10,6 +10,39 @@ separate publish step, so everything below is a pre-merge gate.
 
 ---
 
+## 0. Once, when the repository is created
+
+**None of this is expressible in `ci.yml`.** These are GitHub repository
+settings, and until they are applied the workflows run but enforce nothing: a
+red check on a PR that anyone can merge anyway.
+
+- [ ] **Settings → Pages → Source: GitHub Actions.** `deploy.yml` publishes
+      through `actions/deploy-pages`; with Pages set to "Deploy from a branch"
+      the workflow succeeds and the site never changes.
+- [ ] **Branch protection on `main`, requiring exactly the seven gating jobs**
+      — `content: validate`, `content: baseline`, `content: status`,
+      `content: compile`, `app: typecheck`, `app: test`, `app: build`. Run
+      `tools/ci/apply-branch-protection.sh` (needs `gh auth login` as the owner)
+      or set them by hand.
+- [ ] **"Require branches to be up to date before merging" ON.** Not a
+      preference. §6.4 checks 5 and 6 are unsound against a stale branch
+      (T26/F6): two PRs in flight can each bump one tree 4 → 5 and each pass,
+      leaving `main` with a version 5 that is not the 5 that shipped, after
+      which §12.5's `>` guard skips that migration for everyone who saw the
+      first. A merge queue is the other acceptable answer.
+- [ ] **`content: lint` is NOT in the required list.** It is advisory by
+      construction (D-15); requiring it would gate merges on findings that are
+      explicitly not merge-blocking.
+- [ ] Confirm `content: compile` appears in the required list **in its own
+      right**. A skipped required check counts as *passing*, and `app: build`
+      skips on every content-only PR — which is why the compile gate was moved
+      off it (T26/F24).
+
+F42's two review rounds are recorded in each tree's `provenance` block and
+checked by `lst validate` and `lst status`. Requiring approving reviews in
+GitHub as well is optional and is what `--reviews 2` does; a solo maintainer
+should leave it off, since the provenance record is the artifact §16.2 asks for.
+
 ## 1. Automated, per release
 
 These fail CI; nothing here is a judgement call.

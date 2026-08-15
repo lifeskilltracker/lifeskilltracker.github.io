@@ -229,6 +229,51 @@ describe('lst lint — advisory, never gating (D-15)', () => {
   });
 });
 
+describe('lst lint — GitHub annotations (§6.5 advisory job, T25)', () => {
+  /** Captures stdout for one call, since the format is a printing concern. */
+  function printed(run: () => number): { lines: string[]; exit: number } {
+    const lines: string[] = [];
+    const original = console.log;
+    console.log = (...args: unknown[]) => void lines.push(args.join(' '));
+    try {
+      return { exit: run(), lines };
+    } finally {
+      console.log = original;
+    }
+  }
+
+  it('emits one ::warning per finding, with a repo-relative path, and still exits 0', () => {
+    withTempContentRepo('lint-github', (repoRoot, treesDir) => {
+      const tree = minimalValidTree({ id: 'annotated' });
+      milestone(tree, 4, 2).title = 'Practice the repertoire';
+      writeTreeFixture(treesDir, 'annotated.yaml', tree);
+
+      const { lines, exit } = printed(() => lintCommand([], repoRoot, 'github'));
+
+      expect(exit).toBe(0);
+      expect(lines.length).toBeGreaterThan(0);
+      for (const line of lines) {
+        // `::warning` is the whole reason this mechanism was chosen: there is
+        // no failing variant of it to reach for by accident.
+        expect(line).toMatch(/^::warning file=content\/trees\/annotated\.yaml,line=\d+,col=\d+,/);
+        expect(line).toContain('title=lst lint (');
+        expect(line).not.toContain('::error');
+      }
+    });
+  });
+
+  it('prints the terminal form by default', () => {
+    withTempContentRepo('lint-text', (repoRoot, treesDir) => {
+      const tree = minimalValidTree({ id: 'plain' });
+      milestone(tree, 4, 2).title = 'Practice the repertoire';
+      writeTreeFixture(treesDir, 'plain.yaml', tree);
+
+      const { lines } = printed(() => lintCommand([], repoRoot));
+      expect(lines.every((line) => !line.startsWith('::'))).toBe(true);
+    });
+  });
+});
+
 describe('lst lint — finding shape', () => {
   it('reports rule, file, and the line of the offending milestone', () => {
     withTempContentRepo('lint-shape', (repoRoot, treesDir) => {
