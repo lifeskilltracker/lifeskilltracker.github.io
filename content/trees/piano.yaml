@@ -1,0 +1,390 @@
+schemaVersion: 1
+contentVersion: 1
+id: piano
+title: Piano
+summary: >-
+  Playing the piano well enough that the instrument stops being in the way, from
+  a first hands-together piece to an hour of music you can hold together in
+  front of an audience. Three lanes run the whole height of the tree —
+  technique, repertoire, and musicianship — and they feed each other constantly:
+  a piece you cannot play is usually a technique you have not built, and a piece
+  you cannot hear is usually a piece you have not analysed.
+domain: making
+subregion: expression
+facets:
+  - performance
+  - teaching
+tracks:
+  - id: technique
+    title: Technique
+  - id: repertoire
+    title: Repertoire
+  - id: musicianship
+    title: Musicianship
+provenance:
+  authors:
+    - name: Ethan Morchy
+  copyleftDerived: false
+lineage: []
+
+levels:
+  - level: 1
+    milestones:
+      - id: sit-and-hand-shape
+        title: Sit at the right height with curved hands and loose shoulders
+        label: Sit well, hand shape held
+        detail: >-
+          Forearms level with the keys, fingertips on the keys rather than flat,
+          and shoulders that stay down through a whole piece.
+        track: technique
+        uid: SDP8T8M0
+      - id: five-finger-position
+        title: Play a five-finger position evenly with each hand separately
+        label: Five fingers, hands apart
+        track: technique
+        uid: 88B4CFBQ
+      - id: single-line-melody
+        title: Play a one-hand melody accurately from the printed score
+        label: A melody from the score
+        track: repertoire
+        requires: [ five-finger-position ]
+        uid: 8HN53EE9
+      - id: first-piece-hands-together
+        title: Play a short piece hands together from beginning to end
+        label: First piece, hands together
+        track: repertoire
+        requires: [ sit-and-hand-shape ]
+        uid: 2KVKQ3FB
+      - id: read-both-staves
+        title: Name any note on the treble and bass staves without counting up
+        label: Read both staves cold
+        track: musicianship
+        uid: BGS0B8KY
+
+  - level: 2
+    milestones:
+      - id: c-major-scale-separately
+        title: Play a C major scale one octave hands separately with thumb-under
+          fingering
+        label: C major, one octave apart
+        track: technique
+        requires: [ five-finger-position ]
+        uid: CWTKMDFZ
+      - id: legato-and-staccato
+        title: Play the same phrase legato and then staccato on demand
+        label: Legato and staccato at will
+        track: technique
+        uid: A9SE1MZ2
+      - id: two-contrasting-pieces
+        title: Learn two pieces of clearly contrasting character and keep both playable
+        label: Two contrasting pieces
+        track: repertoire
+        requires: [ first-piece-hands-together ]
+        uid: PGC7KZZ6
+      - id: short-piece-from-memory
+        title: Play a sixteen-bar piece from memory without the score in the room
+        label: Sixteen bars from memory
+        track: repertoire
+        requires: [ first-piece-hands-together ]
+        uid: RTPAYHCN
+      - id: count-aloud-in-time
+        title: Count a piece aloud in time while you play it
+        label: Count aloud while playing
+        track: musicianship
+        requires: [ read-both-staves ]
+        uid: 5SJEZZQQ
+
+  - level: 3
+    milestones:
+      - id: scale-hands-together
+        title: Play a two-octave scale hands together with even tone and no bump at the
+          thumb
+        label: Scale hands together, even
+        track: technique
+        requires: [ c-major-scale-separately ]
+        uid: FV1G8K1A
+      - id: dynamic-shaping
+        title: Shape a phrase from piano to forte and back under control
+        label: Shape a phrase, p to f
+        track: technique
+        requires: [ legato-and-staccato ]
+        uid: HEXMHWAG
+      - id: pedal-a-piece
+        title: Play a piece with syncopated sustain-pedal changes that leave no blur
+        label: Pedal without blurring
+        track: repertoire
+        requires: [ legato-and-staccato ]
+        uid: ZPSD1H82
+      - id: sight-read-below-level
+        title: Sight-read a piece two grades below your playing level at tempo
+        label: Sight-read two grades down
+        track: repertoire
+        requires: [ read-both-staves ]
+        uid: HZQ1QGSH
+      - id: intervals-by-ear
+        title: Identify thirds, fourths, fifths, and octaves by ear
+        label: Name intervals by ear
+        track: musicianship
+        requires: [ count-aloud-in-time ]
+        uid: VSZNYMME
+
+  - level: 4
+    milestones:
+      - id: arpeggios-one-octave
+        title: Play root-position arpeggios hands together over one octave
+        label: Arpeggios, hands together
+        track: technique
+        requires: [ scale-hands-together ]
+        uid: CT2YV3Z4
+      - id: independent-hands
+        title: Play different articulation in each hand at the same time
+        label: Two articulations at once
+        track: technique
+        requires: [ dynamic-shaping ]
+        uid: DV76D08M
+      - id: baroque-two-part
+        title: Play a two-part Baroque piece with both lines audible as lines
+        label: Two-part Baroque, both lines
+        detail: >-
+          The test is not accuracy but audibility — a listener should be able to
+          follow the left hand on its own if they choose to.
+        track: repertoire
+        requires: [ independent-hands ]
+        uid: KANH0YFH
+      - id: perform-for-friends
+        title: Perform a piece straight through for a small room of friends
+        label: Play for a room of friends
+        track: repertoire
+        requires: [ short-piece-from-memory ]
+        uid: Q9KFJT73
+      - id: transpose-a-melody
+        title: Transpose a simple melody into another key at the keyboard
+        label: Transpose a melody by ear
+        track: musicianship
+        requires: [ intervals-by-ear ]
+        uid: 76YSWM0E
+    requirements:
+      - rule: all
+        milestones: [ arpeggios-one-octave, independent-hands ]
+      - rule: any
+        milestones: [ baroque-two-part, perform-for-friends ]
+      - rule: all
+        milestones: [ transpose-a-melody ]
+
+  - level: 5
+    milestones:
+      - id: all-major-scales
+        title: Play every major scale hands together over two octaves from memory
+        label: All major scales, two octaves
+        track: technique
+        requires: [ scale-hands-together ]
+        uid: ZWPRH6GS
+      - id: voice-melody-over-accompaniment
+        title: Bring the melody out above an accompaniment played by the same hand
+        label: Voice melody over accompaniment
+        track: technique
+        requires: [ independent-hands ]
+        uid: RA3KD4GK
+      - id: romantic-character-piece
+        title: Play a Romantic character piece with pedal and a singing melody line
+        label: A Romantic character piece
+        track: repertoire
+        requires: [ pedal-a-piece, voice-melody-over-accompaniment ]
+        uid: 3D7FFQ7K
+      - id: accompany-a-singer
+        title: Accompany a singer, following their breath and their tempo rather than
+          yours
+        label: Accompany a singer
+        track: repertoire
+        requires: [ count-aloud-in-time ]
+        uid: 6DH0TM4T
+      - id: chord-symbols-from-a-lead-sheet
+        title: Play a song from chord symbols and a melody line with no written left
+          hand
+        label: Play from a lead sheet
+        track: musicianship
+        requires: [ transpose-a-melody ]
+        uid: ZS10S0PT
+
+  - level: 6
+    milestones:
+      - id: minor-scales-and-arpeggios
+        title: Play harmonic and melodic minor scales and their arpeggios hands together
+        label: Minor scales and arpeggios
+        track: technique
+        requires: [ all-major-scales, arpeggios-one-octave ]
+        uid: 5VBA3DH7
+      - id: rotation-and-weight
+        title: Play an octave tremolo with forearm rotation and no forearm ache
+        label: Rotation, not forearm ache
+        track: technique
+        requires: [ voice-melody-over-accompaniment ]
+        uid: 76Z96T34
+      - id: teach-a-first-piece
+        title: Teach a beginner their first hands-together piece
+        label: Teach a first piece
+        detail: >-
+          Teaching sits here rather than at the top of the tree because the
+          skill it tests — breaking a piece into what a beginner can hold in
+          their head — is available years before a recital is.
+        track: repertoire
+        requires: [ first-piece-hands-together, read-both-staves ]
+        uid: YQJ4CMM4
+      - id: full-piece-from-memory
+        title: Play a three-minute piece from memory, recovering if your fingers stall
+        label: Three minutes from memory
+        track: repertoire
+        requires: [ short-piece-from-memory, romantic-character-piece ]
+        uid: 797JRGTR
+      - id: harmonise-a-melody
+        title: Harmonise a folk melody with I, IV, V, and vi in any key you are asked
+          for
+        label: Harmonise a folk melody
+        track: musicianship
+        requires: [ chord-symbols-from-a-lead-sheet ]
+        uid: 4X90YQGG
+
+  - level: 7
+    milestones:
+      - id: octaves-and-chords
+        title: Play octave passages and four-note chords evenly at tempo
+        label: Octaves and chords at tempo
+        track: technique
+        requires: [ rotation-and-weight ]
+        uid: ACCA744A
+      - id: trills-and-ornaments
+        title: Play trills, mordents, and turns in the style of the period
+        label: Ornaments in period style
+        track: technique
+        requires: [ minor-scales-and-arpeggios ]
+        uid: BX3FQRA4
+      - id: three-voice-fugue
+        title: Play a three-voice fugue keeping every entry audible
+        label: A fugue, all voices heard
+        track: repertoire
+        requires: [ baroque-two-part ]
+        uid: 8M3KF8FS
+      - id: improvise-over-changes
+        title: Improvise a chorus over a twelve-bar blues without stopping
+        label: Improvise over the changes
+        track: repertoire
+        requires: [ harmonise-a-melody ]
+        uid: 4NEV0FBM
+      - id: analyse-a-score
+        title: Mark the key areas and cadences of a piece you are learning before you
+          learn it
+        label: Analyse before you learn
+        track: musicianship
+        requires: [ harmonise-a-melody ]
+        uid: ZFWDKEYB
+    requirements:
+      - rule: all
+        milestones: [ octaves-and-chords, trills-and-ornaments, analyse-a-score ]
+      - rule: any
+        milestones: [ three-voice-fugue, improvise-over-changes ]
+
+  - level: 8
+    milestones:
+      - id: rapid-passagework
+        title: Play a fast passage cleanly at a stated metronome mark, not merely nearly
+        label: Fast passage, stated tempo
+        track: technique
+        requires: [ minor-scales-and-arpeggios, octaves-and-chords ]
+        uid: AGK3WXHD
+      - id: half-and-flutter-pedal
+        title: Use half and flutter pedalling to clear a texture without losing the bass
+        label: Half and flutter pedalling
+        track: technique
+        requires: [ pedal-a-piece ]
+        uid: 55X8Y226
+      - id: twenty-minute-set
+        title: Perform a twenty-minute set from memory in one sitting
+        label: Twenty minutes, from memory
+        track: repertoire
+        requires: [ full-piece-from-memory, perform-for-friends ]
+        uid: A3438N34
+      - id: chamber-duo
+        title: Rehearse and perform a duo with another instrumentalist
+        label: Rehearse and play a duo
+        track: repertoire
+        requires: [ accompany-a-singer ]
+        uid: SQXFFAJ8
+      - id: compare-editions
+        title: Compare two editions or recordings and justify the choices you take from
+          each
+        label: Compare editions, then choose
+        track: musicianship
+        requires: [ analyse-a-score ]
+        uid: F8NN1MGX
+
+  - level: 9
+    milestones:
+      - id: practise-by-diagnosis
+        title: Diagnose why a passage fails and design the drill that fixes it
+        label: Diagnose, then drill
+        detail: >-
+          The mark of this level is that practice stops being repetition and
+          becomes a hypothesis about what is wrong.
+        track: technique
+        requires: [ rapid-passagework ]
+        uid: T8M322H4
+      - id: tone-colour-range
+        title: Produce three distinguishable tone colours inside one phrase
+        label: Three colours in a phrase
+        track: technique
+        requires: [ half-and-flutter-pedal, voice-melody-over-accompaniment ]
+        uid: DJ8FDJY2
+      - id: large-scale-work
+        title: Learn a complete sonata or suite and hold its shape across every movement
+        label: A whole sonata, held together
+        track: repertoire
+        requires: [ twenty-minute-set, trills-and-ornaments ]
+        uid: 7905RB2P
+      - id: teach-an-intermediate
+        title: Take an intermediate student through a piece over several weeks
+        label: Teach across several weeks
+        track: repertoire
+        requires: [ teach-a-first-piece ]
+        uid: 8NNRYJ3Z
+      - id: sight-read-at-your-level
+        title: Sight-read at your own playing level well enough to rehearse with others
+        label: Sight-read at your own level
+        track: musicianship
+        requires: [ sight-read-below-level, chamber-duo ]
+        uid: 6RYW3GE3
+
+  - level: 10
+    milestones:
+      - id: full-technical-command
+        title: Play every scale, arpeggio, and double-third exercise at performance
+          speed
+        label: The whole technical set
+        track: technique
+        requires: [ practise-by-diagnosis ]
+        uid: F3VSTZGK
+      - id: voice-a-dense-texture
+        title: Balance four voices in a dense Romantic texture so none of them
+          disappears
+        label: Four voices, none lost
+        track: technique
+        requires: [ tone-colour-range ]
+        uid: 7D1J0P65
+      - id: full-recital
+        title: Perform an hour-long recital from memory and recover from anything that
+          goes wrong
+        label: An hour-long recital
+        track: repertoire
+        requires: [ large-scale-work ]
+        uid: YTPK8WHM
+      - id: record-a-take
+        title: Record and publish a take you are willing to be judged on
+        label: Publish a take you stand by
+        track: repertoire
+        requires: [ large-scale-work, tone-colour-range ]
+        uid: H8B8HK87
+      - id: lead-a-rehearsal
+        title: Lead an ensemble rehearsal, fixing balance and ensemble from the piano
+        label: Lead a rehearsal from the piano
+        track: musicianship
+        requires: [ compare-editions, chamber-duo ]
+        uid: XMTPFA9G

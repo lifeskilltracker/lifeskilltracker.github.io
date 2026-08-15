@@ -1,7 +1,9 @@
 # Spec Findings — Architecture Reconciliation
 
-Decision record for T26. Twenty-eight findings have been raised against
-`docs/ARCHITECTURE.md` during the v1 task breakdown — seventeen from the breakdown itself,
+Decision record for T26, plus findings raised later by implementation. Twenty-nine findings
+have been raised against
+`docs/ARCHITECTURE.md` — twenty-eight during the v1 task breakdown and F29 during T21;
+of the breakdown's twenty-eight, seventeen came from the breakdown itself,
 F18 and F19 found while resolving F3 and F4, F20–F23 found while resolving F12–F14,
 F24–F25 found while resolving F17 and F7, F26 found while resolving F23, and F27 filed last
 to give a verdict to five §8 silences `T06-layout-engine.md` had been carrying. Each gets a
@@ -17,6 +19,12 @@ compared by nothing, and §17.2's manifest budget has no named enforcer), and §
 "the only writer in the system" overclaimed against §14.5's several mutators — narrowed in
 passing to "the only writer of a `MILESTONE` record", but §3.2's single-writer story
 deserves a proper pass.
+
+**F29 is open**, and it is the first finding raised by implementation rather than by the
+breakdown: T21 authored the branching and modular exemplar trees and found that §9 draws
+neither a track title nor a module label, so the modular archetype currently renders as
+though it were linear. It does not block T21 or T24, and it is filed here because §9 as
+drawn has nowhere to put either.
 
 This file is the audit trail. The resolutions themselves live in the spec.
 
@@ -50,6 +58,7 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F26 | amend | 2026-08-06 | `store.reconcileAttainedLevel(treeId, level)`, called by the tree route after `applyLineage` |
 | F27 | amend | 2026-08-06 | §8's five layout silences — narrow is level 1 at top, synthetic column, tunable unit constants, side-gutter geometry, mastery edges dropped |
 | F28 | amend | 2026-08-07 | Rule 9's module half had no registry; T03 validate enforces `track` only; `module` stays a free-form label (T22 lint if desired) |
+| F29 | **open** | 2026-08-15 | §9 draws neither track titles nor module labels; `TreeLayout.columns` and `CompiledMilestone.module` reach the renderer and are dropped |
 
 ---
 
@@ -2280,6 +2289,75 @@ is removed from `tools/src/validate/`.
 
 **T22** may add advisory lint for module label consistency if authors want it. No T26
 reopen; no new blocker.
+
+---
+
+## F29 — §9 never draws a track title or a module label
+
+**Verdict: open.** Raised 2026-08-15 during T21.
+
+### The finding as raised
+
+D-07 states the renderer's shape-sensitive behaviour exactly twice, and the second half is
+not implemented:
+
+> the renderer's only shape-sensitive behaviour is that it draws the number of columns it
+> is given and **renders module labels when modules exist**.
+
+`app/src/lib/components/TreeView.svelte` reads `positions.nodes`, `positions.edges`, and
+`positions.rows`. It never reads `positions.columns`, and `module` appears nowhere in
+`app/src/` outside the generated types. A repository-wide grep finds exactly one consumer of
+`TreeLayout.columns` — an assertion in `TreeView.test.ts` — so `columns[].trackId` and
+`columns[].title` are computed by §8 and dropped on the floor.
+
+The consequence is visible for the first time now that a branching and a modular tree exist:
+
+- **piano** lays out as three real columns (50 nodes, 3 columns, 57 edges), and a user is
+  given no way to learn that the left one is Technique and the right one is Musicianship.
+  The x-positions carry the structure; nothing names it.
+- **mental-health** carries five module labels on 50 milestones, and the choice-based
+  archetype is at present **visually indistinguishable from a linear tree**. Its `n_of`
+  groups change what clears a level, but nothing on screen says which milestones belong to
+  which practice, so the grouping that motivates the electives is invisible.
+
+There is an accessibility half as well, which is T20's rather than T08's. §15.2's grid order
+is `(level, track, lane)` and `keyboard-grid.ts` navigates by track index, but
+`nodeAccessibleName`/`nodeDescription` never name the track — so `↑`/`↓` move "within a
+track" that a screen reader user has never been told exists.
+
+**§9 is complicit, not merely under-implemented.** §9.2's SVG sketch has three groups —
+`edges`, `rows`, `nodes` — and no place for a column header or a module label; §9.3 and §9.5
+never mention either. T08 built §9 as drawn. So this is a spec gap that produced a code gap,
+which is why it is filed here rather than as a T08 bug.
+
+### Why T21 did not fix it
+
+T21's scope forbids it, deliberately: *"Any change to `lib/layout/`, `lib/scoring/`, or
+`lib/components/` themselves… if the renderer cannot handle a legitimate branching or modular
+tree without modification, that is a defect in T06 or T08 to report upstream."* Both trees
+**do** render — every node is positioned, every edge is routed, both viewports pass — so this
+is a legibility defect and not a blocker. Neither tree was bent to avoid it.
+
+### What a resolution has to decide
+
+1. Whether column titles are drawn in the SVG (a header band above row 1, which changes
+   `TreeLayout.height`, so it is §8's decision and not only §9's) or in HTML chrome outside
+   the `viewBox` — the latter costs no layout change and reflows on narrow for free.
+2. What "renders module labels when modules exist" means when modules do **not** align with
+   columns. In mental-health the five modules cut across every level, so a module label
+   cannot be a column header; the candidates are a per-node badge, a legend keyed by colour
+   or glyph, or grouping within the level band. §9.3 already spends fill, border, and glyph
+   on the five node states, so a module encoding must not be a sixth use of colour (N5).
+3. Whether the track name joins the accessible name of every node (T20), which is the half
+   that has a correctness argument rather than an aesthetic one.
+
+### Downstream
+
+**T08** (renderer) and **T06** (if the header band lands inside the layout) for the drawing;
+**T20** for the accessible name; **T24** should not describe module labels as a rendered
+feature until this closes. Does **not** block T21 or T24. It does weaken **S1**'s evidence:
+S1 is satisfied in the sense it is written — one component, no archetype branch, three shapes
+through one pipeline — but the modular shape currently renders as though it were linear.
 
 ---
 

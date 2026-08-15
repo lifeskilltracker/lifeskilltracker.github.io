@@ -9,3 +9,9 @@ facets:
   - id: teaching
     title: Teachable
     note: A mode of engagement orthogonal to level — the skill can be passed on.
+  - id: performance
+    title: Performance
+    note: The output is something done in front of other people, not an object left behind.
+  - id: contemplative
+    title: Contemplative
+    note: Attention, sitting practice, and the inward half of looking after a mind.

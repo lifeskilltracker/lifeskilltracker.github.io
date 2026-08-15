@@ -1,0 +1,380 @@
+schemaVersion: 1
+contentVersion: 1
+id: mental-health
+title: Mental Health
+summary: >-
+  Looking after your own mind deliberately rather than by accident — sleep,
+  attention, emotional regulation, the people around you, and what the whole
+  thing is for. The milestones are grouped into modules rather than lanes, and
+  most levels ask for some of a module rather than all of it: nobody runs every
+  practice here, and a level you cleared by a route somebody else would not have
+  taken is still cleared. It is a tracker for your own practice, not a treatment
+  plan, and nothing in it is a substitute for professional care.
+domain: mind
+facets:
+  - contemplative
+  - practical
+provenance:
+  authors:
+    - name: Ethan Morchy
+  copyleftDerived: false
+lineage: []
+
+levels:
+  - level: 1
+    milestones:
+      - id: steady-sleep-window
+        title: Go to bed and get up within the same hour every day for a week
+        label: A steady sleep window
+        detail: >-
+          The point is the window, not the number of hours. Most of what follows
+          in this tree is harder on four hours of broken sleep.
+        module: Foundations
+        uid: 9EQAXS5Q
+      - id: get-outside-daily
+        title: Get outside and move for twenty minutes on most days of a week
+        label: Twenty minutes outside
+        module: Foundations
+        uid: VRHYCVEG
+      - id: name-one-feeling
+        title: Name what you are feeling in a single word, once a day, for two weeks
+        label: Name one feeling a day
+        module: Attention
+        uid: 8314QZZ8
+      - id: three-minute-breath
+        title: Sit and follow your breath for three minutes without checking the clock
+        label: Three minutes of breathing
+        module: Attention
+        uid: 330D21CY
+      - id: one-honest-conversation
+        title: Tell one person something true about how you are actually doing
+        label: One honest conversation
+        module: Connection
+        uid: 3W0VN3GW
+
+  - level: 2
+    milestones:
+      - id: notice-body-signals
+        title: Notice where a feeling shows up in your body before you name it
+        label: Feel it before you name it
+        module: Attention
+        requires: [ name-one-feeling ]
+        uid: BZPDQHMW
+      - id: ten-minute-sit
+        title: Sit for ten minutes a day for two consecutive weeks
+        label: Ten minutes, two weeks
+        module: Attention
+        requires: [ three-minute-breath ]
+        uid: CW6NA8N6
+      - id: substance-audit
+        title: Track your caffeine and alcohol for two weeks and write down what you
+          find
+        label: Audit caffeine and alcohol
+        module: Foundations
+        uid: 94SKVX55
+      - id: write-what-happened
+        title: Write down what happened and how you reacted, without grading yourself on
+          it
+        label: Write it down, plainly
+        module: Regulation
+        requires: [ name-one-feeling ]
+        uid: JHXB96P8
+      - id: ask-for-something-small
+        title: Ask someone for something small and let them say yes or no
+        label: Ask for something small
+        module: Connection
+        requires: [ one-honest-conversation ]
+        uid: RX821GK2
+
+  - level: 3
+    milestones:
+      - id: name-the-trigger
+        title: Trace a bad hour back to what set it off
+        label: Trace it back to the trigger
+        module: Regulation
+        requires: [ write-what-happened ]
+        uid: CNDZM8J6
+      - id: pause-before-reacting
+        title: Catch yourself between the feeling and the reaction, once, on purpose
+        label: Pause before you react
+        module: Regulation
+        requires: [ notice-body-signals ]
+        uid: SCWE26X6
+      - id: weekly-review
+        title: Sit down once a week and look back at the week honestly
+        label: A weekly look back
+        module: Foundations
+        requires: [ steady-sleep-window ]
+        uid: 8ZT94736
+      - id: body-scan
+        title: Move attention through your whole body once without hurrying it
+        label: A full body scan
+        module: Attention
+        requires: [ ten-minute-sit ]
+        uid: PR6R8F2H
+      - id: say-no-once
+        title: Say no to something you would previously have agreed to
+        label: Say no to one thing
+        module: Connection
+        requires: [ ask-for-something-small ]
+        uid: PGVBRS39
+
+  - level: 4
+    milestones:
+      - id: reframe-a-thought
+        title: Take one recurring harsh thought and write down what else could be true
+        label: Reframe a recurring thought
+        module: Regulation
+        requires: [ name-the-trigger ]
+        uid: D3DV6238
+      - id: repair-after-a-row
+        title: Go back to someone after an argument and repair it yourself
+        label: Repair it yourself, after
+        module: Connection
+        requires: [ pause-before-reacting ]
+        uid: 4MB20C3Z
+      - id: schedule-something-good
+        title: Put one thing you actually value into the week and then do it
+        label: Schedule one good thing
+        module: Foundations
+        requires: [ weekly-review ]
+        uid: RK6956M4
+      - id: loving-kindness-practice
+        title: Run a loving-kindness practice through to the difficult person
+        label: Loving-kindness, all the way
+        module: Attention
+        requires: [ body-scan ]
+        uid: JF5W5WRC
+      - id: name-what-matters
+        title: Write down what you would not want to live without, and keep the list
+        label: Write down what matters
+        module: Meaning
+        uid: 7VNJK9T4
+    requirements:
+      - rule: all
+        milestones: [ reframe-a-thought, repair-after-a-row ]
+      - rule: n_of
+        n: 2
+        milestones: [ schedule-something-good, loving-kindness-practice, name-what-matters ]
+
+  - level: 5
+    milestones:
+      - id: sit-with-discomfort
+        title: Stay with an uncomfortable feeling for ten minutes without fixing it
+        label: Stay with the discomfort
+        module: Attention
+        requires: [ loving-kindness-practice ]
+        uid: 3BSATFZF
+      - id: worry-window
+        title: Keep worry inside a set time of day and postpone the rest of it there
+        label: Keep worry to a window
+        module: Regulation
+        requires: [ reframe-a-thought ]
+        uid: EMWWGYG6
+      - id: ask-for-help-properly
+        title: Ask someone specific for something specific, and then accept it
+        label: Ask properly, accept the help
+        module: Connection
+        requires: [ say-no-once ]
+        uid: D1JHX7B2
+      - id: values-into-a-week
+        title: Turn the list of what matters into things that appear in an actual week
+        label: Values into an actual week
+        module: Meaning
+        requires: [ name-what-matters ]
+        uid: KHAPQNYC
+      - id: track-what-helps
+        title: Track mood and habits long enough to see which one actually moves the
+          other
+        label: Track long enough to see
+        module: Foundations
+        requires: [ weekly-review ]
+        uid: 1FPK98J1
+
+  - level: 6
+    milestones:
+      - id: do-one-avoided-thing
+        title: Do one thing you have been avoiding, on purpose, and notice what happens
+        label: Do one avoided thing
+        module: Regulation
+        requires: [ worry-window ]
+        uid: W3ZBHSH6
+      - id: routine-that-survives
+        title: Build a routine that still runs on a bad week, not only a good one
+        label: A routine for bad weeks
+        module: Foundations
+        requires: [ track-what-helps ]
+        uid: X0FE97X0
+      - id: talk-to-a-professional
+        title: Prepare for and attend a first session with a counsellor, therapist, or
+          GP
+        label: A first professional session
+        detail: >-
+          Deliberately an elective rather than a requirement. It is the right
+          move for many people and not available or not wanted by others, and a
+          tree that gated a level on it would be making a clinical judgement it
+          has no standing to make.
+        module: Connection
+        requires: [ one-honest-conversation ]
+        uid: 0TJR089G
+      - id: longer-daily-sit
+        title: Sit for twenty-five minutes daily across a full month
+        label: Twenty-five minutes, a month
+        module: Attention
+        requires: [ sit-with-discomfort ]
+        uid: 5ZB7FBAK
+      - id: a-practice-you-return-to
+        title: Name the one practice you come back to and say why it is that one
+        label: The practice you return to
+        module: Meaning
+        requires: [ values-into-a-week ]
+        uid: RNP8821P
+    requirements:
+      - rule: all
+        milestones: [ do-one-avoided-thing, routine-that-survives ]
+      - rule: n_of
+        n: 2
+        milestones: [ talk-to-a-professional, longer-daily-sit, a-practice-you-return-to ]
+
+  - level: 7
+    milestones:
+      - id: self-compassion-in-practice
+        title: Talk to yourself after a failure the way you would talk to a friend
+        label: Self-compassion after failure
+        module: Regulation
+        requires: [ reframe-a-thought ]
+        uid: CYVYRAER
+      - id: silent-half-day
+        title: Spend half a day in silence without filling it
+        label: Half a day in silence
+        module: Attention
+        requires: [ longer-daily-sit ]
+        uid: P546S5EG
+      - id: hold-a-boundary
+        title: Hold a boundary with someone who pushes back on it
+        label: Hold it when they push
+        module: Connection
+        requires: [ ask-for-help-properly ]
+        uid: P8W7YGPE
+      - id: write-your-story
+        title: Write the story of a hard period, what it cost, and what it left you with
+        label: Write the hard period down
+        module: Meaning
+        requires: [ a-practice-you-return-to ]
+        uid: EQXC2QX2
+      - id: early-warning-plan
+        title: Write down your own early warning signs and what you do about each one
+        label: Your early warning signs
+        module: Foundations
+        requires: [ routine-that-survives ]
+        uid: MDJZCR0J
+
+  - level: 8
+    milestones:
+      - id: crisis-plan-shared
+        title: Write a plan for a bad episode and give a copy to someone you trust
+        label: A crisis plan, shared
+        module: Connection
+        requires: [ early-warning-plan ]
+        uid: 5TCZKFQ1
+      - id: steady-through-a-hard-month
+        title: Keep the practices running through a month that goes badly
+        label: Hold it through a bad month
+        module: Regulation
+        requires: [ early-warning-plan, self-compassion-in-practice ]
+        uid: J4PEE6QV
+      - id: practice-through-a-season
+        title: Keep a daily practice across a season without a streak counter
+        label: A season of daily practice
+        module: Attention
+        requires: [ silent-half-day ]
+        uid: 3BGN2M1N
+      - id: support-someone-else
+        title: Sit with someone else's distress without trying to fix it
+        label: Sit with someone's distress
+        detail: >-
+          Sits at level 8 rather than the ceiling because it is a skill people
+          reach long before they would call themselves well, and putting it at
+          the top would say something false about who is allowed to do it.
+        module: Connection
+        requires: [ hold-a-boundary ]
+        uid: JYEXSGJ2
+      - id: meaning-in-work-or-service
+        title: Put what matters into something outside yourself — work, service, or care
+        label: Meaning outside yourself
+        module: Meaning
+        requires: [ write-your-story ]
+        uid: 7088JJ6G
+
+  - level: 9
+    milestones:
+      - id: retreat-or-intensive
+        title: Complete a multi-day retreat, intensive, or course of therapy end to end
+        label: A multi-day intensive
+        module: Attention
+        requires: [ practice-through-a-season ]
+        uid: JYC9A6SR
+      - id: relapse-and-return
+        title: Drop the practices entirely, notice, and come back without starting over
+        label: Drop it, notice, come back
+        module: Regulation
+        requires: [ steady-through-a-hard-month ]
+        uid: WPZ7J6GD
+      - id: repair-a-long-relationship
+        title: Repair a relationship that has been wrong for years, or accept that it
+          ends
+        label: Repair the long one
+        module: Connection
+        requires: [ support-someone-else ]
+        uid: AYTDATAT
+      - id: pass-on-a-practice
+        title: Show someone else a practice that works for you, in their terms not yours
+        label: Pass on one practice
+        module: Meaning
+        requires: [ support-someone-else ]
+        uid: XVNF3J9D
+      - id: review-a-year
+        title: Review a full year and change something structural because of what you
+          find
+        label: Review a year, change one thing
+        module: Foundations
+        requires: [ track-what-helps ]
+        uid: ZFMNYTME
+
+  - level: 10
+    milestones:
+      - id: stable-through-a-loss
+        title: Come through a real loss without losing yourself in it
+        label: Steady through a real loss
+        module: Regulation
+        requires: [ relapse-and-return ]
+        uid: JED9WJH0
+      - id: practice-without-a-crisis
+        title: Keep the practice going through a long stretch where nothing is wrong
+        label: Practise with nothing wrong
+        module: Attention
+        requires: [ retreat-or-intensive ]
+        uid: KY5Z65T5
+      - id: a-life-that-holds-it
+        title: Arrange a life whose ordinary shape does the work the practices used to
+        label: A life that holds it up
+        module: Meaning
+        requires: [ meaning-in-work-or-service, review-a-year ]
+        uid: ST1V0A4H
+      - id: others-come-to-you
+        title: Be the person other people come to, and stay well while being it
+        label: Be the one they come to
+        module: Connection
+        requires: [ pass-on-a-practice, repair-a-long-relationship ]
+        uid: MZ4Q7GCP
+      - id: help-someone-plan
+        title: Help someone else write their own early warning and crisis plan
+        label: Help someone write their plan
+        module: Foundations
+        requires: [ crisis-plan-shared, pass-on-a-practice ]
+        uid: J7S7Q1QH
+    requirements:
+      - rule: all
+        milestones: [ stable-through-a-loss, practice-without-a-crisis, a-life-that-holds-it ]
+      - rule: any
+        milestones: [ others-come-to-you, help-someone-plan ]

@@ -209,6 +209,15 @@ this task's scope rules out.
 
 ## Notes and hazards
 
+- **Both worked examples now exist, and one of them has a caveat — F29.** T21 landed
+  `content/trees/piano.yaml` (three tracks, 15 cross-track edges, explicit multi-group
+  `requirements:` at levels 4 and 7) and `content/trees/mental-health.yaml` (five modules,
+  `n_of`/`any` electives at levels 4, 6 and 10). Point the rubric at both. But **do not
+  describe module labels as something the reader will see on screen**: §9 draws neither a
+  track title nor a module label, so as of 2026-08-15 the modular tree renders exactly like
+  a linear one. See F29 in `docs/SPEC-FINDINGS.md`. Modules are real in the data, and
+  worth authoring, and currently invisible — say that rather than implying a picture the
+  contributor will not get.
 - **~~T20 also writes into `docs/CONTRIBUTING.md`~~ — resolved 2026-08-14. The collision is
   gone.** T20 took the other of its two options and put the record in the §16.2 checklist
   location, which it created as **`docs/RELEASE-CHECKLIST.md`**, precisely because this task

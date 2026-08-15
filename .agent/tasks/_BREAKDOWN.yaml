@@ -471,7 +471,16 @@ tasks:
     prd: [S1, F10, R-12]
     status: written
     doc: T21-exemplar-trees-2-3.md
-    note: Runs parallel to the Phase 1 engine work; C4 names authoring as the bottleneck.
+    note: >
+      Implemented and verified complete 2026-08-15. Two trees of 50 milestones each:
+      piano with three tracks (20/20/10) and 15 cross-track requires edges, four of them
+      same-level — the first content in the repository to exercise §8.4's side gutter —
+      and mental-health with five modules and n_of/any electives at levels 4, 6 and 10.
+      No change under lib/layout, lib/scoring or lib/components; the archetype grep is
+      empty. RAISED F29: §9 draws neither a track title nor a module label, so the
+      modular tree currently renders as though it were linear. Filed, not fixed; it does
+      not block T24, and T24 must not describe module labels as a shipped feature.
+      Also extends facets.yaml with `performance` and `contemplative` (§5.9).
 
   - id: T22
     title: lst lint, lst status, lst new

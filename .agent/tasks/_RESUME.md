@@ -1,5 +1,61 @@
 # RESUME — implementation, phase 1
 
+Updated 2026-08-15 after T21.
+
+# SESSION 17 — T21 COMPLETE. S1 HAS ALL THREE SHAPES, AND ONE OF THEM RENDERS WRONG.
+
+T21 (exemplar trees 2 and 3) verified complete 2026-08-15: `npx lst validate` exits 0 over
+the whole repository, **751 app tests + 195 tools tests**, `npm run typecheck` clean over
+530 files, `npx eslint .` clean. No change under `lib/layout`, `lib/scoring` or
+`lib/components`, and the `archetype` grep over those three directories is empty.
+
+**What is now true that was not:**
+
+- **All three trees S1 names exist.** `piano.yaml` — three tracks (technique 20,
+  repertoire 20, musicianship 10), **15 cross-track `requires` edges of which 4 are
+  same-level**, explicit multi-group `requirements:` at levels 4 and 7. `mental-health.yaml`
+  — no tracks, **five modules**, and `n_of`/`any` electives at levels 4, 6 and 10 whose
+  members span three modules. Both are 50 milestones over ten levels, five per level.
+- **§8.4's side gutter has its first real input.** The four same-level cross-track edges are
+  the case the gutter and its bow exist for; before this task nothing in the repository
+  produced one. Piano lays out 620×960 wide with 3 columns and 57 edges; both trees pass
+  through the real `TreeView` with every node drawn, in both viewports.
+- **T10's residue is discharged.** The phase-0 gate recorded that `track`, `order` and
+  `n_of` had the weakest test of anything in the schema. They now have two trees exercising
+  them, and `order` is still untested by design — neither tree needed a tiebreak.
+- **`facets.yaml` gained `performance` and `contemplative`** (§5.9 maintainer PR), kept
+  minimal on purpose; D12 is still open and the full facet vocabulary is still not seeded.
+
+**RAISED: F29, and it is the first finding raised by implementation rather than by the
+breakdown.** §9 draws **neither a track title nor a module label** — `TreeView.svelte` never
+reads `positions.columns`, and `module` appears nowhere in `app/src/` outside the generated
+types. So piano's three columns are unnamed, and the modular tree is currently
+indistinguishable on screen from a linear one. §9.2's SVG sketch has no place to put either,
+which is why it is a spec finding and not a T08 bug. Filed in `docs/SPEC-FINDINGS.md` with
+the three decisions a resolution needs (where column titles live, what a module label even
+is when modules cut across columns, and whether the track name joins the accessible name).
+**S1 is satisfied as written** — one component, no archetype branch, three shapes through
+one pipeline — but its evidence is weaker than the sentence in D-07 implies.
+
+**Three things a later task must not undo:**
+
+- **Neither tree was bent to fit the renderer.** If F29's resolution makes module labels
+  drawable, the answer is to draw them, not to simplify `mental-health.yaml` into
+  something the current renderer flatters.
+- **`talk-to-a-professional` stays an elective.** It sits in an `n_of` at level 6 on
+  purpose: gating a level on professional care would be a clinical judgement the tree has
+  no standing to make.
+- **Teaching and performing stay spread across levels** in both trees (F43) — piano teaches
+  a first piece at level 6 and performs for friends at level 4. T24 points at these as
+  worked examples, so clustering them at the ceiling later would make its rubric a caveat.
+
+**Next up:** **T22, T23, T24, T25 are the only open tasks left.** T24 is unblocked by this
+task and should treat both new trees as its worked examples — but must not describe module
+labels as a rendered feature while F29 is open. T20 remains *partly* complete: §15.8's
+manual passes are still outstanding — see its own *Completion state*.
+
+---
+
 Updated 2026-08-15 after T19.
 
 # SESSION 16 — T19 COMPLETE. `dismissed` IS VERIFIABLY INERT.

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete (2026-08-15) |
 | **Phase** | 1 |
 | **Cluster** | content-gates |
 | **Blocked by** | T10 |
@@ -147,30 +147,30 @@ The layout fields these trees author beyond T05's minimal set, copied verbatim f
 
 ## Acceptance criteria
 
-- [ ] `content/trees/piano.yaml` declares `tracks:` with at least two entries, and at
+- [x] `content/trees/piano.yaml` declares `tracks:` with at least two entries, and at
       least one milestone's `requires:` names a milestone declared under a **different**
       track — verified by reading the file.
-- [ ] `content/trees/piano.yaml` has at least one level whose `requirements:` is
+- [x] `content/trees/piano.yaml` has at least one level whose `requirements:` is
       explicitly authored (not omitted/defaulted), containing at least two requirement
       groups.
-- [ ] `content/trees/mental-health.yaml` has at least one level whose `requirements:`
+- [x] `content/trees/mental-health.yaml` has at least one level whose `requirements:`
       contains an `n_of` or `any` group over milestones spanning more than one `module:`
       value.
-- [ ] `content/trees/mental-health.yaml` uses `module:` on at least two distinct values
+- [x] `content/trees/mental-health.yaml` uses `module:` on at least two distinct values
       across its milestones.
-- [ ] Neither file contains a `uid:` key anywhere — verified by
+- [x] Neither file contains a `uid:` key anywhere — verified by
       `grep -c 'uid:' content/trees/piano.yaml content/trees/mental-health.yaml`
       returning `0` for both.
-- [ ] Both files have exactly ten `level:` entries in order, each with 4–8 milestones.
-- [ ] `npx lst validate` exits 0 for both files, including rule 8 (every milestone in
+- [x] Both files have exactly ten `level:` entries in order, each with 4–8 milestones.
+- [x] `npx lst validate` exits 0 for both files, including rule 8 (every milestone in
       ≥1 requirement group at its level) for the explicitly-authored groups.
-- [ ] `npx lst ids` fills every uid in both files with no repository-wide collisions
+- [x] `npx lst ids` fills every uid in both files with no repository-wide collisions
       against each other, T05's cooking tree, or any other existing tree.
-- [ ] Both trees render via the existing TreeView (T08) and lay out via the existing
+- [x] Both trees render via the existing TreeView (T08) and lay out via the existing
       Layout Engine (T06) with `git diff --stat` showing **no changes** under
       `app/src/lib/layout/`, `app/src/lib/scoring/`, or `app/src/lib/components/` as a
       result of this task.
-- [ ] `grep -rn archetype app/src/lib/layout app/src/lib/scoring app/src/lib/components`
+- [x] `grep -rn archetype app/src/lib/layout app/src/lib/scoring app/src/lib/components`
       returns nothing — the same check T25 will later wire into CI, exercised manually
       here as this task's own proof that its two trees didn't require special-casing.
 
@@ -187,6 +187,55 @@ grep -rn archetype app/src/lib/layout app/src/lib/scoring app/src/lib/components
 
 Passing looks like: both trees valid and id-filled with no collisions, both rendering
 through the unmodified T06/T08 output, and the archetype grep coming back empty.
+
+**Verified 2026-08-15.** Both trees are 50 milestones over ten levels, five per level —
+inside the 4–8 band at every level, and deliberately the same census as each other so T24
+can compare them field by field.
+
+*Draft state, before `lst ids`:* `grep -c 'uid:'` returned **0** for both, and
+`npx lst validate` reported **rule 16 findings only** — nothing from rules 1–15 or M1–M5,
+which is the same standard of draft validity T05 recorded. After
+`npx lst ids content/trees/piano.yaml content/trees/mental-health.yaml`, `npx lst validate`
+over the **whole repository** exits 0, so the 100 new uids collide with nothing here and
+nothing in cooking. `npx lst compile` emits `piano.38d4e54b.json` and
+`mental-health.c8536b32.json` beside cooking's bundle.
+
+The "no `uid:` anywhere" criterion is ticked against that draft state, not against the
+committed files, for exactly the reason T05 recorded: rule 16 is unconditional, so a
+uid-free tree can never also exit 0, and §5.4 makes the id-filled file the mergeable one.
+The two criteria describe two moments in one authoring flow.
+
+*Shape, measured on the compiled bundles rather than claimed:*
+
+| | piano | mental-health |
+|---|---|---|
+| tracks | 3 — technique 20, repertoire 20, musicianship 10 | none (single column, by design) |
+| cross-track `requires` | **15**, of which **4 are same-level** | n/a |
+| modules | none | 5 — Attention 12, Connection 11, Foundations 10, Regulation 10, Meaning 7 |
+| explicit `requirements:` | levels 4 and 7 | levels 4, 6 and 10 |
+| wide layout | 50 nodes, 3 columns, 57 edges, 620×960 | 50 nodes, 1 column, 47 edges, 572×960 |
+| narrow layout | 50 nodes, 1 column, 0 edges, 100×4800 | same |
+
+The four same-level cross-track edges are the ones that matter: those are the case §8.4's
+side gutter and its bow exist for, and before this task nothing in the repository produced
+one. Every node in both trees indexes into a real `columns[node.col]` in both viewports,
+no two nodes share a position, and every routed edge path parses.
+
+*Renderer, unmodified:* both trees were mounted through the real `TreeView` with positions
+from the real Layout Engine and `SkillProgress` from the real Scoring Engine, in a
+throwaway test deleted after it ran; every one of the 50 nodes rendered in each. Full suite
+after the trees landed: **751 app tests and 195 tools tests pass**, `npm run typecheck`
+clean (530 files, 0 errors), `npm run lint` clean.
+`git diff --stat -- app/src/lib/layout app/src/lib/scoring app/src/lib/components` is
+**empty**, and `grep -rn archetype` over those three directories returns nothing.
+
+**One finding, filed rather than fixed — F29.** Both trees render, but §9 draws neither a
+track title nor a module label: `TreeView.svelte` never reads `positions.columns`, and
+`module` appears nowhere in `app/src/` outside the generated types. Piano's three columns
+are therefore unnamed, and the modular tree is at present visually indistinguishable from a
+linear one. This is a §9 gap as much as a T08 gap — §9.2's SVG sketch has no place to put
+either — so it is recorded as **F29 in `docs/SPEC-FINDINGS.md`** with the three decisions a
+resolution needs, and neither tree was bent to avoid it. It does not block T24.
 
 ## Notes and hazards
 
