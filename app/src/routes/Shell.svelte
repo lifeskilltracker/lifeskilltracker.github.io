@@ -32,6 +32,9 @@
 	 */
 	import { resolve } from '$app/paths';
 	import ColdStartFailure from '$lib/components/ColdStartFailure.svelte';
+	import ExportPrompt from '$lib/components/ExportPrompt.svelte';
+	import { dismissExportPrompt, refreshExportPrompt } from '$lib/actions/export-prompt.js';
+	import { exportPrompt } from '$lib/state/export-prompt.svelte.js';
 	import {
 		coldStart,
 		type ColdStart,
@@ -61,6 +64,11 @@
 		const result = await coldStart(contentLoader ?? loader(), userStore ?? store);
 		start = result;
 		report(result);
+		// §12.7's session-start work: poll `navigator.storage.estimate()` and
+		// evaluate the three triggers. It runs after the cold start rather than
+		// beside it because trigger 1 counts completions off §13.2's mirror, which
+		// `hydrate()` is what fills. It never rejects.
+		void refreshExportPrompt();
 	}
 
 	$effect(() => {
@@ -136,6 +144,17 @@
 		<p data-offline role="status">
 			Offline — showing the skill library saved on this device. It may be out of date.
 		</p>
+	{/if}
+
+	<!--
+		§12.7's export prompt, inline with everything else in the host. It is
+		deliberately *here* rather than anywhere that could float over the page:
+		"non-modal, dismissible, never blocking" is only true of something in the
+		flow of the document, and R-18 leaves F39's export as the only mitigation
+		there is, so a prompt users learn to close reflexively costs real data.
+	-->
+	{#if exportPrompt.visible}
+		<ExportPrompt reason={exportPrompt.reason} ondismiss={() => void dismissExportPrompt()} />
 	{/if}
 
 	{#each ui.notices as notice (notice.id)}

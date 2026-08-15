@@ -177,8 +177,13 @@ describe('export and import (§12.6)', () => {
 		expect(entry.querySelector('a')).toBeNull();
 	});
 
-	it('reports the app version and the library build (T26/F8)', () => {
+	it('reports the app version and the library build (T26/F8)', async () => {
 		const { container } = render(DataPage, {});
+		// T18 moved the versions into §16.5's storage panel, which renders once the
+		// estimate resolves.
+		await vi.waitFor(() => {
+			expect(container.querySelector('[data-versions]')).not.toBeNull();
+		});
 		const versions = container.querySelector('[data-versions]')!.textContent ?? '';
 
 		expect(versions).toContain(APP_VERSION);

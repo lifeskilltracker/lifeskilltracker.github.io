@@ -1,5 +1,54 @@
 # RESUME — implementation, phase 1
 
+Updated 2026-08-15 after T18.
+
+# SESSION 15 — T18 COMPLETE. THE runtime-io CLUSTER IS CLOSED.
+
+T18 (durability, quota, and export prompting) verified complete 2026-08-15: **730 app tests
++ 195 tools tests**, `npm run typecheck` clean over 528 files, `npx eslint .` clean, and
+§15.8's axe gate green over `/data` with the prompt rendered.
+
+**What is now true that was not:**
+
+- **R-18 has its mitigation.** Browser storage is not durable and nothing in the app makes
+  it so; F39's prompting is the whole answer, and until now it did not exist. All three of
+  §12.7's triggers are implemented and each is tested firing on its boundary and silent one
+  step below it — ten completions with no export, thirty days with new activity since,
+  sixty percent of quota.
+- **`navigator.storage.persist()` is requested once, after the first committed user-data
+  write**, and nothing anywhere branches on the answer. A test runs the same sequence
+  against all four outcomes — granted, denied, thrown, absent — and asserts the app behaves
+  identically. "Request it, do not depend on it" is mechanically true rather than intended.
+- **A quota-failed write is no longer a silent success.** `SkillPage` was firing intents
+  through a bare `void`, so an IndexedDB rejection vanished. `tree-session.apply` now raises
+  §16.3's notice and the export prompt and still rethrows; the in-memory mirror was already
+  safe, because §12.4 refreshes it only on commit.
+- **Dismissal is persisted in `META`, per trigger** (T26/F15). `never-exported` never
+  re-arms, `stale-export` costs one window, `quota-pressure` re-arms ten points past a
+  stored watermark. A dismissal never writes `lastExportAt` — the app must not claim a
+  backup it did not take.
+- **`/data` shows §16.5's four facts through one component**, and presents the figures as
+  estimates rather than exact numbers.
+
+**Three things a later task must not undo:**
+
+- **The triggers never consult the persistence grant.** `persist()` is effectively
+  unavailable on Safari, which is also where ITP's seven-day eviction bites; a prompt gated
+  on a denied grant would be silent on Chrome and useful nowhere.
+- **The prompt stays in flow in §13.4's notice host.** No dialog, no backdrop, no focus
+  management, no fixed positioning — `ExportPrompt.test.ts` asserts the absence of each,
+  including in the component's source, because an overlay renders as an ordinary element.
+- **`storageStatus()` keeps reading the estimate through `durability.pollEstimate()`.**
+  Both Storage API fields are optional; read as `undefined` they become `NaN`, and
+  `NaN > 60` is false — a trigger that never fires and never says why.
+
+**Next up:** phase 1's runtime-io cluster is done (T07, T09, T13, T14, T16, T17, T18).
+**T19, T21, T22, T23, T24, T25 remain open**, and T00 still awaits owner decisions. See
+T18's own doc for the five calls §12.7 does not make that the implementation resolved,
+and for the correction to its Verification block — there is no `test:a11y` script.
+
+---
+
 Updated 2026-08-14 after T17.
 
 # SESSION 14 — T17 COMPLETE. `UserStateStore` HAS NO STUBS LEFT.

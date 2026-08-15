@@ -34,6 +34,7 @@ import { estimateMilestones, scoreSkill, type SkillProgress } from '$lib/scoring
 import { NotWritableError, store } from '$lib/state/store.js';
 import type { CompiledTree, MigrationReport } from '$lib/types';
 import type { MilestoneIntent, UncheckConsequence } from '$lib/components/intents.js';
+import { reportWriteFailure } from './export-prompt.js';
 import { placementConsequenceOf, uncheckConsequenceOf } from './uncheck-consequence.js';
 
 export interface TreeSession {
@@ -139,7 +140,17 @@ class Session implements TreeSession {
 	#queue: Promise<void> = Promise.resolve();
 
 	apply(intent: MilestoneIntent): Promise<void> {
-		const next = this.#queue.then(() => this.#applyOne(intent));
+		const next = this.#queue.then(() => this.#applyOne(intent)).catch((error: unknown) => {
+			// §16.3's quota row, and every other write failure with it (T18). The
+			// page fires intents and forgets them, so a rejection that stopped at
+			// the caller would be a milestone the user watched fail to tick with
+			// nothing on screen to say why — and §16.3's recurring rule is that a
+			// read or write failure never becomes a silent success. A read-only
+			// session is not one of these: §13.3 refuses those writes by design and
+			// says so in a banner the shell already renders.
+			if (!(error instanceof NotWritableError)) reportWriteFailure(error);
+			throw error;
+		});
 		// The chain must survive a rejected write — one failed milestone must not
 		// wedge every later one — while the caller still sees its own failure.
 		this.#queue = next.catch(() => undefined);

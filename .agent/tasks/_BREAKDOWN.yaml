@@ -396,6 +396,25 @@ tasks:
     note: >
       Not in §16.4's diagram either; §12.7 specifies it as mandatory rather than
       optional, because no browser storage mechanism is durable.
+      Implemented and verified complete 2026-08-15. Five decisions the document did not
+      make: §12.7's message lives in `lib/components/durability-copy.ts` rather than beside
+      the triggers, because §14.1's ESLint rule refuses a component importing `lib/state`
+      and the wording and the thresholds change for different reasons; the prompt's
+      on-screen state is a fourth rune store rather than a `ui.notices` entry, since F15's
+      dismissal is recorded against the trigger that raised it and the notice array would
+      discard that reason; §16.3's quota row is a fourth prompt reason (`write-failed`) and
+      deliberately not an `ExportTrigger`, with no re-arming rule and nothing persisted; the
+      failed write is reported from `tree-session.apply` rather than the page, which was
+      swallowing quota rejections in a bare `void` — §16.3's silent success exactly — and
+      still rethrows so the write queue behaves as before; and `storageStatus()` now reads
+      the estimate through `durability.pollEstimate()`, so `/data` and trigger 3 cannot
+      disagree and the degrade-to-zeroes rule is written once (both Storage API fields are
+      optional, and `NaN > 60` is false, so the trigger would otherwise never fire and never
+      say why). `persist()` is requested from every committed user-data writer and from
+      neither `hydrate` nor `recordManifest`, the latter because it runs on every cold start
+      and writes no user data. The task doc's Verification block cites a
+      `test:a11y` script that does not exist; T20 shipped the gate as ordinary
+      `*.a11y.test.ts` Vitest files, and `routes/data/data-page.a11y.test.ts` is this task's.
 
   - id: T19
     title: Dismissed state end to end

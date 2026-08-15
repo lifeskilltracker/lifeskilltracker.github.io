@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete — 2026-08-15 |
 | **Phase** | 1 |
 | **Cluster** | runtime-io |
 | **Blocked by** | T16 |
@@ -130,43 +130,43 @@ The §16.3 row this task implements, verbatim:
 
 ## Acceptance criteria
 
-- [ ] A test asserts `navigator.storage.persist()` is called exactly once, after the first
+- [x] A test asserts `navigator.storage.persist()` is called exactly once, after the first
       successful write of the session, and not on hydration or on session start alone.
-- [ ] A test asserts the app behaves **identically** whether `persist()` resolves `true`,
+- [x] A test asserts the app behaves **identically** whether `persist()` resolves `true`,
       resolves `false`, rejects, or is `undefined` on the `navigator.storage` object — same
       writes, same prompts, no thrown error. "Request it, do not depend on it" must be
       mechanically true, not merely intended.
-- [ ] A test asserts `navigator.storage.estimate()` is called on session start and that a
+- [x] A test asserts `navigator.storage.estimate()` is called on session start and that a
       missing `navigator.storage` degrades to `storageStatus()` returning zeroes rather than
       throwing.
-- [ ] Trigger 1 fires: `META.lastExportAt` absent and 10 completions → prompt. Does not fire
+- [x] Trigger 1 fires: `META.lastExportAt` absent and 10 completions → prompt. Does not fire
       at 9 completions.
-- [ ] Trigger 2 fires: `lastExportAt` 31 days ago with a `MILESTONE.at` newer than it →
+- [x] Trigger 2 fires: `lastExportAt` 31 days ago with a `MILESTONE.at` newer than it →
       prompt. Does not fire at 31 days with **no** activity since, and does not fire at 29
       days with activity.
-- [ ] Trigger 3 fires: `estimate()` reporting usage at 61% of quota → prompt. Does not fire
+- [x] Trigger 3 fires: `estimate()` reporting usage at 61% of quota → prompt. Does not fire
       at 59%.
-- [ ] A test asserts the prompt does not fire when `lastExportAt` is recent and usage is low
+- [x] A test asserts the prompt does not fire when `lastExportAt` is recent and usage is low
       — the "does not nag a user who is already exporting" clause of §12.7.
-- [ ] A component test asserts `ExportPrompt.svelte` renders inline in the notice host
+- [x] A component test asserts `ExportPrompt.svelte` renders inline in the notice host
       (§13.4's `+layout.svelte`), is dismissible, and traps no focus — it must not be a
       modal and must not block interaction underneath.
-- [ ] A test asserts dismissal suppresses the prompt for the remainder of the session and
+- [x] A test asserts dismissal suppresses the prompt for the remainder of the session and
       that dismissal is **not** persisted as an export — `lastExportAt` is untouched.
-- [ ] A test asserts a completed export (T16) clears the prompt condition immediately by
+- [x] A test asserts a completed export (T16) clears the prompt condition immediately by
       writing `lastExportAt`.
-- [ ] A test asserts a quota-failed `setMilestoneState` leaves the in-memory mirror
+- [x] A test asserts a quota-failed `setMilestoneState` leaves the in-memory mirror
       unchanged, surfaces an error to the user, and raises the export prompt — the §16.3
       row, and §16.3's recurring rule that a read or write failure never becomes a silent
       success.
-- [ ] `StorageStatus.svelte` renders storage estimate, last export, content version, and app
+- [x] `StorageStatus.svelte` renders storage estimate, last export, content version, and app
       version, per §16.5's list of what `/data` must show.
-- [ ] The durability copy is factual: a test asserts the rendered text names the three ways
+- [x] The durability copy is factual: a test asserts the rendered text names the three ways
       storage can be lost — cleared by the browser, private-mode expiry, cleared by the user
       — and that it contains no urgency wording. The wording lives in one string constant so
       this is a single readable assertion.
-- [ ] `npx tsc --noEmit` and `npm run --workspace app check` pass.
-- [ ] The axe gate (§15, **T20**) passes on `/data` with the prompt rendered.
+- [x] `npx tsc --noEmit` and `npm run --workspace app check` pass.
+- [x] The axe gate (§15, **T20**) passes on `/data` with the prompt rendered.
 
 ## Verification
 
@@ -240,3 +240,82 @@ been dismissing and re-ticking has unbacked-up work like anyone else.
 **T3 is labelled phase 2 in the spec now**, so the existing note about not treating a
 never-observed branch as dead code stands and is now backed by §12.7 itself rather than by
 this doc's inference.
+
+---
+
+## Completion — 2026-08-15
+
+Verified against the criteria above: **730 app tests** and **195 tools tests**,
+`npm run typecheck` clean over 528 files, `npx eslint .` clean at the repo root, and the
+whole of §15.8's axe gate green including the new run over `/data` with the prompt
+rendered.
+
+**One correction to this document's Verification block:** there is no
+`npm run --workspace app test:a11y` script and never has been. T20 shipped the axe gate as
+ordinary Vitest files named `*.a11y.test.ts`, so the criterion is met by
+`src/routes/data/data-page.a11y.test.ts` inside the normal run rather than by a separate
+command.
+
+**What shipped**
+
+```
+app/src/lib/state/durability.ts                  persist() once, estimate() with a degrade-to-zeroes rule
+app/src/lib/state/export-prompt.ts               §12.7's three triggers + F15's dismissal arithmetic (pure)
+app/src/lib/state/export-prompt.svelte.ts        whether the prompt is up, and why
+app/src/lib/actions/export-prompt.ts             the sequence: gather, evaluate, dismiss, report a failed write
+app/src/lib/components/ExportPrompt.svelte       the non-modal notice
+app/src/lib/components/StorageStatus.svelte      §16.5's four facts
+app/src/lib/components/durability-copy.ts        §12.7's message, one constant
+```
+
+**Five structural decisions this document did not make.**
+
+1. **The message lives in `lib/components`, not beside the triggers.** The obvious home was
+   `lib/state/export-prompt.ts`, and §14.1's ESLint rule refused it: a component may not
+   import `lib/state` at all. That is the right refusal — the sentence a user reads and the
+   thresholds that decide whether to show it change for different reasons — so
+   `durability-copy.ts` sits beside the component and the state module knows nothing about
+   wording.
+
+2. **The reactive half is a fourth rune store rather than a `ui.notices` entry.** A notice
+   is transient by construction and carries no memory, while F15's dismissal is persisted
+   **against the trigger that raised it**; pushing the prompt through the notice array would
+   discard the reason at exactly the moment the dismissal needs it.
+
+3. **§16.3's quota row is a fourth reason, deliberately not an `ExportTrigger`.** The three
+   triggers are conditions §12.7 evaluates; a failed write is an event that already
+   happened. It has no re-arming rule and nothing to persist, and it is raised regardless of
+   the three — a user whose writes are failing needs an export whether or not they exported
+   last week. `refreshExportPrompt` will not overwrite one.
+
+4. **The failed write is reported from `tree-session.apply`, not from the page.**
+   `SkillPage` fires intents and forgets them, so before this task a quota rejection was
+   swallowed by a bare `void` — §16.3's silent success in its purest form. The session now
+   raises the notice and the prompt and still rethrows, so the queue's existing
+   one-failure-does-not-wedge-the-rest behaviour is unchanged, and the page claims the
+   rejection it has already been told about. `NotWritableError` is excluded: §13.3 refuses
+   those writes by design and the shell already banners it.
+
+5. **`storageStatus()` now goes through `durability.pollEstimate()`.** It previously called
+   `navigator.storage.estimate()` itself. One reading means `/data` and trigger 3 cannot
+   disagree, and the degrade-to-zeroes rule is written once — which matters more than it
+   looks: `usage`/`quota` are both optional in the spec, and read as `undefined` they become
+   `NaN`, and `NaN > 60` is false, so the trigger would never fire and never say why.
+
+**`persist()` is requested from every committed user-data writer and from none of the
+others.** `hydrate` is a read; `recordManifest` writes §7.2's build stamp and no user data,
+and it runs on every cold start — requesting persistence there would be requesting it on
+session start, which the criteria forbid. The latch is a promise assigned before the first
+await rather than a boolean set after it, because §12.4 gives each write its own transaction
+and two trees can commit concurrently.
+
+**Trigger 3 is unreachable in phase 1 and is tested anyway**, exactly as the hazard note
+asks. jsdom implements no Storage API, so the component and route tests that need real
+figures stub `navigator.storage.estimate` and the rest exercise the zeroes path — which is
+the honest phase 1 case rather than a workaround.
+
+**One test-suite hazard worth knowing about.** The shell and `/data` both reach for the
+singleton store, so those cases share one IndexedDB database — and `META` holds both
+`lastExportAt` and F15's dismissals. Without dropping the database between cases, one test's
+dismissal silences the next test's trigger: the feature working correctly and the suite
+lying. `export-prompt-wiring.test.ts` and `data-page.a11y.test.ts` delete it in `beforeEach`.

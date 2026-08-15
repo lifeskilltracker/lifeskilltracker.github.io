@@ -106,7 +106,13 @@
 	function onintent(intent: MilestoneIntent): void {
 		// Fire and forget: §12.4's write is a transaction, and the mirror refresh
 		// on commit is what redraws the tree (T26/F23).
-		void session?.apply(intent);
+		//
+		// The rejection is claimed rather than handled. §16.3's "surface
+		// immediately" is done by the session, which raises the notice and §12.7's
+		// export prompt before rethrowing (T18); what is left here is keeping a
+		// failure the user has already been told about from also surfacing as an
+		// unhandled rejection.
+		session?.apply(intent).catch(() => undefined);
 	}
 </script>
 

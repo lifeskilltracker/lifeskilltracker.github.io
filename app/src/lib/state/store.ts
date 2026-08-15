@@ -21,7 +21,13 @@ import { APP_VERSION } from '$lib/version.js';
 import { BY_TREE, STORES, openDatabase, type Database } from './db.js';
 import { evaluateAttainedLevel as defaultEvaluator } from './default-evaluator.js';
 import type { AttainedLevelEvaluator } from './default-evaluator.js';
+import { durability } from './durability.js';
 import { buildExportFile } from './export.js';
+import {
+  EXPORT_PROMPT_DISMISSALS_KEY,
+  readDismissals,
+  type Dismissals,
+} from './export-prompt.js';
 import { planImport } from './import.js';
 import { applyLineage } from './lineage.js';
 import type { MigrationReport } from './lineage-types.js';
@@ -56,6 +62,9 @@ export interface UserStateStore {
   export(): Promise<ExportFile>;
   import(file: ExportFile, mode: 'merge' | 'replace'): Promise<ImportReport>;
   storageStatus(): Promise<{ usage: number; quota: number; lastExportAt?: string }>;
+  /** T18: what the user has already waved away, per §12.7 trigger (T26/F15). */
+  exportPromptDismissals(): Promise<Dismissals>;
+  recordExportPromptDismissal(dismissals: Dismissals): Promise<void>;
   readonly hydrated: boolean;
   readonly writable: boolean;
 }
@@ -132,6 +141,20 @@ export function createUserStateStore(options: StoreOptions = {}) {
       if (open.tree.milestones.some((m) => m.uid === uid)) return open;
     }
     throw new TreeNotOpenError(uid);
+  }
+
+  /**
+   * §12.7's "on first successful write, request `navigator.storage.persist()`"
+   * (T18). Called after a transaction commits, never before, and never from
+   * `hydrate` or `recordManifest` — a session that only read, or only wrote the
+   * manifest stamp, has not produced a byte of user data worth protecting, and
+   * requesting persistence there would be requesting it on session start.
+   *
+   * `durability` is idempotent and never rejects, so this is one line at each
+   * commit rather than a branch (§12.7: request it, do not depend on it).
+   */
+  function noteWrite(): Promise<void> {
+    return durability.noteSuccessfulWrite();
   }
 
   /** §12.4 step 2, from the object store rather than the mirror — see below. */
@@ -287,6 +310,7 @@ export function createUserStateStore(options: StoreOptions = {}) {
         throw error;
       }
 
+      await noteWrite();
       await refreshProgressMirror(handle);
     },
 
@@ -312,6 +336,7 @@ export function createUserStateStore(options: StoreOptions = {}) {
       }
       await tx.done;
 
+      await noteWrite();
       await refreshProgressMirror(handle);
     },
 
@@ -335,6 +360,7 @@ export function createUserStateStore(options: StoreOptions = {}) {
       await skills.put({ ...skill, attainedLevel });
       await tx.done;
 
+      await noteWrite();
       await refreshProgressMirror(handle);
       return true;
     },
@@ -343,14 +369,43 @@ export function createUserStateStore(options: StoreOptions = {}) {
       const handle = await database();
       const meta = await handle.get(STORES.meta, LAST_EXPORT_AT_KEY);
 
-      const estimate = await globalThis.navigator?.storage?.estimate?.();
+      // T18 moved the Storage API call into `./durability.js` so the estimate
+      // this reports and the one §12.7's trigger 3 compares against are the same
+      // reading, and so the degrade-to-zeroes rule is written once.
+      const estimate = await durability.pollEstimate();
       const lastExportAt = typeof meta?.value === 'string' ? meta.value : undefined;
 
       return {
-        usage: estimate?.usage ?? 0,
-        quota: estimate?.quota ?? 0,
+        usage: estimate.usage,
+        quota: estimate.quota,
         ...(lastExportAt === undefined ? {} : { lastExportAt }),
       };
+    },
+
+    /**
+     * §12.7's dismissal record (T26/F15). In `META` rather than in session
+     * memory: a session-scoped dismissal re-prompts on every reload, which is
+     * the nagging §12.7's `lastExportAt` sentence exists to prevent.
+     */
+    async exportPromptDismissals(): Promise<Dismissals> {
+      const handle = await database();
+      const record = await handle.get(STORES.meta, EXPORT_PROMPT_DISMISSALS_KEY);
+      return readDismissals(record?.value);
+    },
+
+    /**
+     * Best-effort, and **not** guarded by `requireWritable()`. A read-only
+     * session (§13.3) is exactly the session most in need of an export, so a
+     * failure to remember the dismissal must not stop the user dismissing it;
+     * the prompt is cleared from screen either way and returns next session.
+     */
+    async recordExportPromptDismissal(dismissals: Dismissals): Promise<void> {
+      if (!progress.writable || hydrationFailed) return;
+      const handle = await database();
+      await handle.put(STORES.meta, {
+        key: EXPORT_PROMPT_DISMISSALS_KEY,
+        value: dismissals,
+      });
     },
 
     /**
@@ -375,7 +430,10 @@ export function createUserStateStore(options: StoreOptions = {}) {
       const report = await applyLineage(handle, tree, evaluateAttainedLevel);
       // T26/F23: without this the first paint after a migration renders
       // pre-migration state, which is the paint §12.5 exists to make correct.
-      if (report.changed) await refreshProgressMirror(handle);
+      if (report.changed) {
+        await noteWrite();
+        await refreshProgressMirror(handle);
+      }
       return report;
     },
 
@@ -384,7 +442,10 @@ export function createUserStateStore(options: StoreOptions = {}) {
       requireWritable();
       const handle = await database();
       const reports = await applyMoves(handle, moved);
-      if (reports.length > 0) await refreshProgressMirror(handle);
+      if (reports.length > 0) {
+        await noteWrite();
+        await refreshProgressMirror(handle);
+      }
       return reports;
     },
 
@@ -513,6 +574,7 @@ export function createUserStateStore(options: StoreOptions = {}) {
       // T26/F23: every writer refreshes §13.2's mirror on commit. `import`
       // rewrites MILESTONE rows wholesale, so the alternative is stale progress
       // on the first paint after a restore.
+      await noteWrite();
       await refreshProgressMirror(handle);
       return report;
     },

@@ -18,7 +18,9 @@
 	 */
 	import { resolve } from '$app/paths';
 	import RetiredAchievements from '$lib/components/RetiredAchievements.svelte';
+	import StorageStatus from '$lib/components/StorageStatus.svelte';
 	import { joinDomainRows } from '$lib/actions/domain-scores.js';
+	import { refreshExportPrompt } from '$lib/actions/export-prompt.js';
 	import { content } from '$lib/content/store.svelte.js';
 	import { exportFileName, serializeExportFile } from '$lib/state/export.js';
 	import { progress } from '$lib/state/progress.svelte.js';
@@ -54,8 +56,6 @@
 
 	let orphans = $derived(Object.values(progress.orphans));
 
-	const megabytes = (bytes: number): string => `${(bytes / 1024 / 1024).toFixed(2)} MB`;
-
 	// ── Export ────────────────────────────────────────────────────────────────
 
 	let exportError = $state<string | null>(null);
@@ -73,8 +73,11 @@
 			// Revoked on the next task: revoking synchronously races the download in
 			// some browsers, and the object outlives this function either way.
 			setTimeout(() => URL.revokeObjectURL(url), 0);
-			// Re-read, so the "last export" line reflects what just happened.
+			// Re-read, so the "last export" line reflects what just happened — and
+			// so §12.7's prompt comes down: `lastExportAt` is what both halves read,
+			// and a suggestion to back up that survives the backup is nagging.
 			storage = await store.storageStatus();
+			await refreshExportPrompt();
 		} catch (error) {
 			exportError = error instanceof Error ? error.message : String(error);
 		}
@@ -124,27 +127,32 @@
 <main>
 	<h1>Your data</h1>
 
-	<section aria-labelledby="storage-heading">
-		<h2 id="storage-heading">Storage</h2>
-		{#if !progress.hydrated}
-			<p data-storage-unknown>
-				Your saved progress could not be read on this device this session, so nothing
-				below reflects what is stored. Reloading is the way to try again.
-			</p>
-		{/if}
-		{#if storage !== null}
-			<p data-storage>
-				Using {megabytes(storage.usage)} of {megabytes(storage.quota)} available.
-			</p>
-			<p data-last-export>
-				{storage.lastExportAt === undefined
-					? 'You have never exported your progress.'
-					: `Last export: ${storage.lastExportAt}`}
-			</p>
-		{:else if storageError !== null}
+	{#if !progress.hydrated}
+		<p data-storage-unknown>
+			Your saved progress could not be read on this device this session, so nothing below
+			reflects what is stored. Reloading is the way to try again.
+		</p>
+	{/if}
+	{#if storage !== null}
+		<!--
+			§16.5's four facts, in one component (T18): storage estimate, last export,
+			content version, app version. It is a component rather than markup here
+			because the same figures are what §12.7's trigger 3 compares against, and
+			one place to read them is one place for them to be wrong.
+		-->
+		<StorageStatus
+			usage={storage.usage}
+			quota={storage.quota}
+			lastExportAt={storage.lastExportAt}
+			appVersion={APP_VERSION}
+			libraryBuilt={content.manifest?.generated ?? 'unknown'}
+		/>
+	{:else if storageError !== null}
+		<section aria-labelledby="storage-heading">
+			<h2 id="storage-heading">Storage</h2>
 			<p class="detail" data-storage-error>{storageError}</p>
-		{/if}
-	</section>
+		</section>
+	{/if}
 
 	<section aria-labelledby="export-heading">
 		<h2 id="export-heading">Export</h2>
@@ -291,19 +299,6 @@
 			</ul>
 		</section>
 	{/if}
-
-	<section aria-labelledby="versions-heading">
-		<h2 id="versions-heading">Versions</h2>
-		<!--
-			T26/F8: there is no library-wide content counter (§7.2, §16.1). The
-			manifest's `generated` stamp is what tells a human which build they are
-			looking at, and it is the value every export carries. Per-tree
-			`contentVersion`s are per tree and belong beside their trees.
-		-->
-		<p data-versions>
-			App {APP_VERSION} · library built {content.manifest?.generated ?? 'unknown'}
-		</p>
-	</section>
 
 	<p><a href={resolve('/about')}>About this project</a></p>
 </main>
