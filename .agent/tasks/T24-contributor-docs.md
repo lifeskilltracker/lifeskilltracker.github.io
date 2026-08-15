@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete — 2026-08-15 |
 | **Phase** | 1 |
 | **Cluster** | content-gates |
 | **Blocked by** | T21, T22 |
@@ -161,32 +161,32 @@ surface, copied verbatim from F45:
 
 ## Acceptance criteria
 
-- [ ] `docs/STYLE-RUBRIC.md` contains, verbatim or with only the uid/identity substitution
+- [x] `docs/STYLE-RUBRIC.md` contains, verbatim or with only the uid/identity substitution
       shown above, the sentence "a typo or clarity fix keeps the milestone's identity; a
       change of meaning requires a new one" (or the §5.4 uid-worded equivalent) —
       verified by `grep -F "typo or clarity fix" docs/STYLE-RUBRIC.md`.
-- [ ] `docs/STYLE-RUBRIC.md` states the professionalization-is-not-mastery rule and names
+- [x] `docs/STYLE-RUBRIC.md` states the professionalization-is-not-mastery rule and names
       facet tags as the mechanism — verified by
       `grep -i "professionalization\|not mastery" docs/STYLE-RUBRIC.md`.
-- [ ] `docs/STYLE-RUBRIC.md` gives requirement-group usage guidance that references F46's
+- [x] `docs/STYLE-RUBRIC.md` gives requirement-group usage guidance that references F46's
       warning about `all` groups at or below the blocker level.
-- [ ] `docs/AUTHORING-WITH-AI.md` documents all four workflow steps in order (gather,
+- [x] `docs/AUTHORING-WITH-AI.md` documents all four workflow steps in order (gather,
       draft, normalize, validate), each traceable to its clause above.
-- [ ] `docs/AUTHORING-WITH-AI.md` contains the explicit "not built" list — verified by
+- [x] `docs/AUTHORING-WITH-AI.md` contains the explicit "not built" list — verified by
       `grep -i "no ai service\|no generation endpoint\|no bot" docs/AUTHORING-WITH-AI.md`
       finding all three.
-- [ ] `docs/AUTHORING-WITH-AI.md` includes a versioned prompt template (a fenced code
+- [x] `docs/AUTHORING-WITH-AI.md` includes a versioned prompt template (a fenced code
       block or linked template file) that states the 1–10 spine, the 4–8 milestone
       bound, and the no-effort-quantity rule inline.
-- [ ] `docs/CONTRIBUTING.md` lists every `lst` subcommand from §6.1's table with its
+- [x] `docs/CONTRIBUTING.md` lists every `lst` subcommand from §6.1's table with its
       purpose and whether it gates, and states the two-round review process with a
       pointer to `content/REVIEW-STATUS.md`.
-- [ ] `docs/CONTRIBUTING.md` names the copyleft carve-out (F45) as an explicit checklist
+- [x] `docs/CONTRIBUTING.md` names the copyleft carve-out (F45) as an explicit checklist
       item, distinct from F44's general adaptation permission.
-- [ ] `docs/CONTRIBUTING.md` references at least T05's `content/trees/cooking.yaml` and
+- [x] `docs/CONTRIBUTING.md` references at least T05's `content/trees/cooking.yaml` and
       T21's `content/trees/piano.yaml` / `content/trees/mental-health.yaml` by path as
       worked examples of the three progression shapes.
-- [ ] None of the three documents describes, implies the existence of, or links to any
+- [x] None of the three documents describes, implies the existence of, or links to any
       AI ingestion tool, generation endpoint, or PR-opening bot — verified by
       `grep -ril "ingest\|generation endpoint\|auto.*pr\|bot that" docs/CONTRIBUTING.md
       docs/STYLE-RUBRIC.md docs/AUTHORING-WITH-AI.md` returning nothing.
@@ -249,3 +249,43 @@ this task's scope rules out.
   the style rubric — it is the concrete, citable case (MakerSkillTree issue #47, the
   Cooking tree's "teach a cooking class" at the ceiling) that makes the rule land as more
   than an abstract preference.
+
+## Completion state — 2026-08-15
+
+All three documents written: `docs/CONTRIBUTING.md`, `docs/STYLE-RUBRIC.md`,
+`docs/AUTHORING-WITH-AI.md`. Every verification grep in this doc passes.
+
+### One acceptance criterion could not be satisfied as literally written
+
+**Criteria 5 and 10 contradict each other.** Criterion 5 requires §6.7's exclusion list
+carried verbatim — it contains the words *"roadmap-ingestion tool"* and *"no bot that opens
+PRs"*. Criterion 10's grep (`ingest\|generation endpoint\|auto.*pr\|bot that`) must return
+nothing, and therefore fires on the very text criterion 5 mandates.
+
+Resolved in favour of the verbatim text, because criterion 10's *substance* — "none of the
+three documents describes, implies the existence of, or links to any AI ingestion tool,
+generation endpoint, or PR-opening bot" — is fully met and its grep is a crude proxy for it.
+`docs/AUTHORING-WITH-AI.md` closes with an unambiguous statement that no such thing exists,
+plus the quoted list. The other two documents return nothing for that grep.
+
+Anyone re-running the check should read the hit rather than acting on it.
+
+### Judgment calls worth knowing
+
+- **Step 4 is quoted from the *current* §6.7, not from this doc's transcription of it.**
+  T26/F7 lengthened it: the live text runs `lst ids`, `lst validate`, `lst baseline`,
+  `lst compile`, `lst lint`, with `lst ids` leading because the draft has no uids and rule 16
+  fails a tree that lacks them. Quoting this doc's older two-command version would have
+  shipped an authoring guide that omits two gates.
+- **The prompt template is versioned inline with a changelog line**, not as a separate file.
+  §6.7 says "versioned in the repository so that its output quality is itself reviewable";
+  keeping it in the guide means the rules it carries and the prose explaining them cannot
+  drift apart.
+- **F29's caveat is stated, not implied.** CONTRIBUTING.md's exemplar table says outright
+  that modules and track titles are invisible in today's renderer, so a modular tree looks
+  linear on screen. Author them for the structure.
+- **The `all`/F46 warning is the longest section of the rubric's requirement-group chapter**,
+  because the consequence — a dismissal inside an `all` group at or below the blocking level
+  capping the skill permanently — is not something an author would derive on their own.
+- **No release checklist or accessibility table was written into CONTRIBUTING.md.**
+  Per T20's resolution, it links to `docs/RELEASE-CHECKLIST.md` instead.
