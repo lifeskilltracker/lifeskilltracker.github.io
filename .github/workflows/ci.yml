@@ -189,6 +189,14 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # `app/static/content/` is a compile artifact and is gitignored, so a
+      # fresh checkout does not have one. `domains.test.ts` reads the manifest
+      # out of it to check the eight domains against real compiled content,
+      # which is the point of that test and not something to stub. Without
+      # these two steps it fails at collection with ENOENT — and passes on any
+      # developer machine, because everyone has a compiled manifest on disk.
+      - run: npm run build:cli --workspace tools
+      - run: npx lst compile
       # Includes §14.4's monotonicity property tests and the layout/scoring
       # purity suites, both of which §14.7 names as enforcement rather than
       # coverage.
