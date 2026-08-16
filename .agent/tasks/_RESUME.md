@@ -1,6 +1,73 @@
-# RESUME — implementation, phase 1
+# RESUME — implementation
 
-Updated 2026-08-15 after T25.
+Updated 2026-08-16: phase 2 exists.
+
+# SESSION 20 — `docs/UI-SPEC.md` IS COMMITTED, AND PHASE 2 IS BROKEN DOWN.
+
+`docs/UI-SPEC.md` v1.0 landed (commit `23cd203`) and **T27–T35 are written**. Phase 2 is
+"the interface" — the thing the architecture deliberately declined to specify (§15.9) and
+PRD **D19** had left open since v1.1.
+
+**What UI-SPEC decides.** Eleven decisions, U-01 to U-11. The load-bearing ones:
+
+- **U-02 Survey / Ordnance** — ink-on-paper cartography. Chosen over three alternatives on
+  one hard constraint: it is the only direction that carries **eight saturated hues as one
+  document**, and it survives both themes as a token swap.
+- **U-03 hue is identity and never encodes score.** Score is a ruled **water line** at
+  `1 − fill`, plate at full strength above and below. Opacity-as-fill was in the design's
+  own first draft and is wrong: most domains are low-scoring most of the time, so it drains
+  the map of exactly the per-region identity F21 asks for.
+- **U-01 a two-level stepped camera**, both levels URLs, Back as the breadcrumb. Declined a
+  free camera on LOD scaling — the reference implementation's global LOD boolean works at 42
+  nodes and this library is projected at 164 and eventually 500.
+- **U-04 skill positions are derived, append-only, frozen at publish.** The one genuinely
+  new mechanism. F13 forbids authored coordinates and N11 forbids reflow, which together
+  rule out both the authored answer and the semantic one.
+
+**Seven amendments to ARCHITECTURE.md (A1–A7)** are named in UI-SPEC §9 and **not yet
+landed**. Until T28 runs, §10.7 still reads "no pan, no zoom, no camera" — an implementer
+working from the architecture alone will build the wrong map. That is why T28 gates T30.
+
+### Start here
+
+Three tasks have no blockers and are genuinely parallel:
+
+| | Why now |
+|---|---|
+| **T28** | Spec-only. Nothing visual is correct to build until A1–A7 are in the architecture. |
+| **T27** | Everything visual consumes its tokens. Also decides UI-SPEC **Q1** (the display face). |
+| **T29** | `tools/` only, no app dependency, and the longest single piece of new logic. |
+
+Then **T27 → T30 → T31 → T33 → T35** is the critical path, with T32 and T34 falling off
+T27 in parallel.
+
+### The traps, stated so they are not rediscovered
+
+- **`cellDivisor` is frozen the moment the placement ledger has its first commit.** UI-SPEC
+  **Q2** must be settled against the real `map.yaml` first; raising it later reflows every
+  region, which is the exact N11 failure T29 exists to prevent.
+- **T30 must paint to the resting frame.** T35's reveal layers onto it; a map that animates
+  itself into place leaves T35 nothing coherent to hand over to.
+- **Reduced motion means *skipped*, not shortened** — a 100 ms reveal is still a reveal.
+- **`a11y:manual` must keep passing unchanged.** It was written against roles and accessible
+  names only, with no CSS selector, no pixel and no screenshot, specifically so the UI could
+  be reworked without breaking it. A failure is a regression, not test churn.
+- **The `accent` half of each domain palette has no answer yet.** UI-SPEC §4.2 gives one hex
+  per domain per theme; `domains.yaml` carries `{ base, accent }`. T27 must not silently
+  reuse the Chakra accents against the new bases.
+
+### Open questions with no owner
+
+UI-SPEC §12 **Q3** (next-step selection rule — recency ships, the alternative waits for
+three trees), **Q4** (D25's remainder: how a Curious Browser reaches a compelling *tree*
+without starting one) and **Q5** (does Find's highlight survive a camera move — T33 decides
+and records it). Q4 is the only one with no task at all.
+
+### Still true from session 19
+
+The four run-level confirmations below still need the repository to exist. None is code.
+
+---
 
 # SESSION 19 — T25 COMPLETE. PHASE 1 IS DONE, AND CI EXISTS.
 
