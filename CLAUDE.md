@@ -45,7 +45,14 @@ npm run typecheck    # tsc/svelte-check per workspace
 npm run build        # tools compile, then app build
 npm run check:s1     # §14.7 grep gate — no `archetype` in layout/scoring/components
 npm run check:budget # §17.1 bundle budget, Brotli, against app/build
+
+npm run a11y:manual --workspace app   # §15.8 keyboard pass; needs a build first
 ```
+
+`a11y:manual` drives the four core flows keyboard-only in Chromium against
+`app/build`. Not a CI gate — it is a release checklist item, recorded in
+`docs/RELEASE-CHECKLIST.md`. It asserts roles and accessible names only, never
+markup, so restyling the UI does not break it.
 
 CI is `.github/workflows/ci.yml` (seven gating jobs, one advisory) and
 `.github/workflows/deploy.yml` (push to `main` → GitHub Pages). Every gate has a

@@ -159,6 +159,20 @@ seconds rather than minutes. If a check goes red, this is the command it ran:
 The three `app:` jobs report **skipped** on a content-only PR. That is the path filter doing
 its job, not a check that failed to run.
 
+One check is deliberately **not** in CI:
+
+| | Command | Required to merge? |
+|---|---|---|
+| §15.8's keyboard pass | `npm run build && npm run a11y:manual --workspace app` | no — a release checklist item |
+
+It drives browse → place → complete → export keyboard-only through a real browser against
+the production build, and asserts roles and accessible names rather than markup, so a
+restyle does not break it. It is a release item rather than a merge gate because it needs a
+full build and a browser download; `docs/RELEASE-CHECKLIST.md` is where its result is
+recorded. **Run it if you touch anything a keyboard user traverses** — it catches the
+class of defect the axe gate structurally cannot, axe being mounted on components in jsdom
+where there is no document head, no focus order across a page, and no navigation.
+
 One CI-only requirement worth knowing before you push: **your branch must be up to date with
 `main`**. `lst baseline` compares your tree against the tip of `origin/main`, and against a
 stale branch two of its checks can both pass while leaving `main` inconsistent — so the

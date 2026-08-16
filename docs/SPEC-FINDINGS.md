@@ -9,7 +9,7 @@ F24–F25 found while resolving F17 and F7, F26 found while resolving F23, and F
 to give a verdict to five §8 silences `T06-layout-engine.md` had been carrying. Each gets a
 verdict of **amend**, **tolerate**, or **not a defect**, with a reason and a date.
 
-**All twenty-eight are resolved.** The 2026-08-06 session resolved F19, F22, F24, F25 and
+**All twenty-nine are resolved.** The 2026-08-06 session resolved F19, F22, F24, F25 and
 F26, then F15, F18 and F27, and folded eight further defects into those resolutions rather
 than appending them as new findings — three into F24 and five into F22, at the owner's
 direction, on the ground that each was a cause or a consequence of the finding it landed
@@ -20,11 +20,10 @@ compared by nothing, and §17.2's manifest budget has no named enforcer), and §
 passing to "the only writer of a `MILESTONE` record", but §3.2's single-writer story
 deserves a proper pass.
 
-**F29 is open**, and it is the first finding raised by implementation rather than by the
-breakdown: T21 authored the branching and modular exemplar trees and found that §9 draws
-neither a track title nor a module label, so the modular archetype currently renders as
-though it were linear. It does not block T21 or T24, and it is filed here because §9 as
-drawn has nowhere to put either.
+**F29 is resolved (2026-08-15).** It was the first finding raised by implementation rather
+than by the breakdown: T21 authored the branching and modular exemplar trees and found that
+§9 draws neither a track title nor a module label, so a tree grouped into modules rendered
+as though it were linear. **All twenty-nine findings are now resolved.**
 
 This file is the audit trail. The resolutions themselves live in the spec.
 
@@ -58,7 +57,7 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F26 | amend | 2026-08-06 | `store.reconcileAttainedLevel(treeId, level)`, called by the tree route after `applyLineage` |
 | F27 | amend | 2026-08-06 | §8's five layout silences — narrow is level 1 at top, synthetic column, tunable unit constants, side-gutter geometry, mastery edges dropped |
 | F28 | amend | 2026-08-07 | Rule 9's module half had no registry; T03 validate enforces `track` only; `module` stays a free-form label (T22 lint if desired) |
-| F29 | **open** | 2026-08-15 | §9 draws neither track titles nor module labels; `TreeLayout.columns` and `CompiledMilestone.module` reach the renderer and are dropped |
+| F29 | amend | 2026-08-15 | Track titles as HTML above the `viewBox`; module labels as text on the node; both named in §15.2's description, and the track clause is the correctness half |
 
 ---
 
@@ -2294,7 +2293,7 @@ reopen; no new blocker.
 
 ## F29 — §9 never draws a track title or a module label
 
-**Verdict: open.** Raised 2026-08-15 during T21.
+**Verdict: amend.** Raised 2026-08-15 during T21, resolved 2026-08-15.
 
 ### The finding as raised
 
@@ -2338,26 +2337,56 @@ tree without modification, that is a defect in T06 or T08 to report upstream."* 
 **do** render — every node is positioned, every edge is routed, both viewports pass — so this
 is a legibility defect and not a blocker. Neither tree was bent to avoid it.
 
-### What a resolution has to decide
+### The resolution
 
-1. Whether column titles are drawn in the SVG (a header band above row 1, which changes
-   `TreeLayout.height`, so it is §8's decision and not only §9's) or in HTML chrome outside
-   the `viewBox` — the latter costs no layout change and reflows on narrow for free.
-2. What "renders module labels when modules exist" means when modules do **not** align with
-   columns. In mental-health the five modules cut across every level, so a module label
-   cannot be a column header; the candidates are a per-node badge, a legend keyed by colour
-   or glyph, or grouping within the level band. §9.3 already spends fill, border, and glyph
-   on the five node states, so a module encoding must not be a sixth use of colour (N5).
-3. Whether the track name joins the accessible name of every node (T20), which is the half
-   that has a correctness argument rather than an aesthetic one.
+**1. Column titles are HTML above the `viewBox`, not a header band inside it.** The header
+band was the more "correct by construction" option — titles positioned by the same engine
+that positions the nodes cannot drift from them — and it was declined on cost, not on taste.
+It changes `TreeLayout.height` *and* `width`, which reopens every layout stability and purity
+test in T06 for a change that draws no node. The alignment objection against HTML turns out
+not to apply here: `.tree` renders at `width: 100%; height: auto`, so with the default
+`xMidYMid meet` the element box has the viewBox's own aspect ratio and there is no
+letterboxing to absorb. A percentage of `positions.width` is therefore exactly the same
+fraction of the drawn SVG, and the heads are positioned from `columns[].x` and `.w`
+directly — the same numbers §8.2 step 2 computed and §9 had been discarding. §8.2's comment
+already said an empty `trackId` was the marker meaning "draw no header", so the layout had
+anticipated this and only the renderer was missing.
+
+**2. Module labels are text on the node.** Both cheap channels were already spent: §9.3
+gives each of the five node states a fill, a border style **and** a glyph, so a glyph-keyed
+legend collides with state and a colour-keyed one is the sixth meaning on colour that N5
+forbids. That leaves text, and text is also the option that needs no legend and no lookup.
+The label is drawn quiet — small, uppercase, reduced opacity, above the title — because it
+is orientation rather than the thing the node *is*.
+
+Sub-grouping within the level band was the alternative worth taking seriously, since it
+shows the grouping rather than merely asserting membership, and it is what the `n_of`
+electives actually motivate. It was declined for the same reason as the header band: it is a
+§8 ordering change, and a module absent from a given level leaves that band ragged in a way
+the equal-cell geometry of §8.2 has no rule for.
+
+**3. The track joins the *description*, not the name — and this is the correctness half.**
+§15.2's grid order is `(level, track, lane)` and `keyboard-grid.ts` navigates `↑`/`↓` by
+track index, so a screen-reader user was moving through a structure that no string in the
+application ever named. The finding proposed the accessible *name*; that was declined
+against `node-description.ts`'s own stated contract that the name is the authored title in
+full and nothing else. Prefixing every name with its track makes a fifty-milestone list read
+as fifty repetitions of three strings before any entry says what it is. The description is
+read after the name and is where the other orientation facts already live, so track and
+module sit beside the level — all three answer *where am I*.
+
+**In narrow the two collapse into one per-node line.** Narrow has a single synthetic column
+and so no header to carry the track, and §8.5 sorts the stack by
+`(level, trackIndex, order, slug)` — so without it the track boundaries inside a level are
+invisible in precisely the view §15.1 makes primary for assistive technology.
 
 ### Downstream
 
-**T08** (renderer) and **T06** (if the header band lands inside the layout) for the drawing;
-**T20** for the accessible name; **T24** should not describe module labels as a rendered
-feature until this closes. Does **not** block T21 or T24. It does weaken **S1**'s evidence:
-S1 is satisfied in the sense it is written — one component, no archetype branch, three shapes
-through one pipeline — but the modular shape currently renders as though it were linear.
+Amended **§9.2** (the structure sketch, and the two rules above), **§9.5** (the narrow
+per-node line) and **§15.2** (the worked example and the track clause). Implemented in
+**T08**'s renderer and `node-description.ts`; **T06** is untouched, which was the point of
+decision 1. **S1** is unaffected and its evidence is now stronger: the three shapes still go
+through one component with no shape branch, and the modular one no longer *looks* linear.
 
 ---
 

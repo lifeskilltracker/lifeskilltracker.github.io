@@ -64,13 +64,20 @@ accessibility pass, which is why section 2 exists and is not optional.
 ## 2. Manual, per release touching the app
 
 - [ ] Keyboard-only traversal of **browse → place → complete → export** (§15.8)
+      — `npm run build && npm run a11y:manual --workspace app` drives all four
+      against the production build in Chromium and exits non-zero on failure.
+      Read the summary; a green run is the evidence for this line.
 - [ ] Screen-reader spot check on **one desktop reader** and **one mobile
-      reader** (§15.8)
+      reader** (§15.8). **Not covered by the script**, which reads the
+      accessibility tree but cannot tell you how a reader behaves over it.
+      Record the reader-and-browser pair used, below.
 - [ ] The app viewed once under `forced-colors: active` (Windows High Contrast,
       or Firefox's `browser.display.document_color_use`), confirming every
-      milestone state is still distinguishable by glyph and border (§15.4)
+      milestone state is still distinguishable by glyph and border (§15.4) —
+      the script covers the Chromium half of this
 - [ ] The app viewed once with **reduced motion** on, confirming nothing is lost
-      when the fill animation and edge transitions stop (§15.5)
+      when the fill animation and edge transitions stop (§15.5) — also driven by
+      the script
 
 ## 3. Manual, per schema bump
 
@@ -82,6 +89,60 @@ accessibility pass, which is why section 2 exists and is not optional.
 
 §15.8 asks for a dated record naming the reader-and-browser combination used.
 Newest first. An entry is only complete when every flow in it has a verdict.
+
+### 2026-08-15 — the keyboard pass, driven; screen readers still outstanding
+
+**Status: the keyboard half of §15.8 is complete for all four flows. The
+screen-reader spot check is NOT done and is not claimed.**
+
+| Flow | Keyboard-only | Screen reader | Note |
+|---|---|---|---|
+| Browse | **pass** | not run | Map → Library → skill, Tab and Enter only. |
+| Place | **pass** | not run | T15 has landed; §15.6 is reachable and was driven. |
+| Complete | **pass** | not run | Full §15.2 key table, panel open/close, live region. |
+| Export | **pass** | not run | T16 has landed; export produced a real file from `Enter`. |
+
+**Environment.** Chromium 151.0.7922.34 via Playwright 1.62.1, driving the
+production build (`npm run build`) served the way GitHub Pages serves it, with
+`404.html` as the SPA fallback — so the `/s/<tree>` routes were exercised through
+the same fallback path they take in production, not through the dev server.
+Wide pass at 1280×900, narrow at 390×844.
+
+**Reproduce with `npm run a11y:manual --workspace app`** after a build. 43
+checks; the script exits non-zero on any failure and prints a per-flow summary.
+It asserts **roles and accessible names only** — no CSS selector, no pixel
+measurement, no screenshot — so it survives a restyle and fails only when the
+§15 semantics actually change, which is the property that makes it worth keeping
+across the UI work that follows.
+
+**What it found.** Two defects, both fixed in this pass, and both invisible to
+the axe gate for the same structural reason:
+
+- **`/s/<tree>` and `/s/<tree>/m/<slug>` had no `<title>`** — WCAG 2.4.2, level
+  A, on the two most-visited routes in the app. Every other route set one. Axe
+  cannot see this: it runs on components mounted in jsdom, where there is no
+  document head to have an opinion about. Fixed in `SkillPage.svelte`, so both
+  routes get it from the one component they already share.
+- **F29's track and module labels were absent**, which the same run now covers
+  positively: piano draws its three track heads, mental-health draws all five
+  distinct module labels, and both reach the reader through the node
+  description in both viewports.
+
+**Two harness assumptions were wrong and are recorded so they are not
+re-litigated.** §15.2's "one shared live region" is the *tree's*, not the
+document's — the page also composes an assessment flow, a notice host and a
+storage status, each with its own deliberate `role="status"`. And the one
+`aria-live="assertive"` on the page is SvelteKit's `#svelte-announcer`, which
+states the new page title after a client-side navigation; that is the correct
+SPA pattern, not a violation, and removing it would leave a reader with no
+notification that the page changed at all.
+
+**Still outstanding: the screen-reader spot check on one desktop and one mobile
+reader.** The run above reads the accessibility tree, which is the data a reader
+consumes, but not its behaviour over that tree — browse-mode versus focus-mode
+differences, rotor navigation, what actually gets interrupted, and whether the
+announcement lands before the focus move are none of them derivable from a
+snapshot. **T20 stays open on this item alone.**
 
 ### 2026-08-14 — T20, the accessibility pass
 
@@ -115,6 +176,10 @@ Outstanding, and why:
 So the manual half of §15.8 needs one pass now for browse and complete, and a
 second pass once T15 and T16 land. **T20 stays open on that basis** — §15.8's
 manual items are load-bearing acceptance criteria, not follow-up.
+
+> **Superseded 2026-08-15.** T15 and T16 have since landed, so the two "not
+> possible yet" rows were stale; all four flows were driven in the entry above.
+> The keyboard column is now complete and the screen-reader column is not.
 
 ### R-07 — accepted, with its mitigation
 

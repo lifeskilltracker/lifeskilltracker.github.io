@@ -706,3 +706,122 @@ describe('§9.6 — the level readouts cannot collide with the tier name (T10)',
 		}
 	});
 });
+
+/**
+ * F29 — §9 computed `columns[].title` and `CompiledMilestone.module` and drew
+ * neither, so a three-column tree gave the reader its structure in x-positions
+ * with nothing naming them, and a tree grouped into modules rendered exactly
+ * like a plain linear one.
+ *
+ * These assert the two channels are *drawn*, and that they stay off trees that
+ * declare neither — a track-less tree gets §8.2's synthetic column, whose empty
+ * `trackId` is precisely the marker that says "draw no header".
+ */
+function trackedTree(): CompiledTree {
+	return makeScoringTree({
+		id: 'f29-tracks',
+		tracks: ['technique', 'musicianship'],
+		track: { t1: 'technique', t2: 'musicianship', t3: 'technique' },
+		levels: [
+			{ level: 1, milestones: ['t1', 't2'] },
+			{ level: 2, milestones: ['t3'] }
+		]
+	});
+}
+
+/** `makeScoringTree` has no `module` field; §5 makes it optional per milestone. */
+function withModules(tree: CompiledTree, modules: Record<string, string>): CompiledTree {
+	for (const [slug, name] of Object.entries(modules)) {
+		tree.milestones.find((m) => m.id === slug)!.module = name;
+	}
+	return tree;
+}
+
+describe('F29 — track titles are drawn', () => {
+	it('draws one head per declared track, carrying the authored title', () => {
+		const tree = trackedTree();
+		const { container } = mountTree(tree, {});
+
+		const heads = [...container.querySelectorAll('.column-head')];
+		expect(heads.map((h) => h.textContent?.trim())).toEqual(['technique', 'musicianship']);
+	});
+
+	it('aligns each head to its column as a percentage of the same width the viewBox maps', () => {
+		const tree = trackedTree();
+		const { container } = mountTree(tree, {});
+		const positions = layoutTree(tree, 'wide');
+
+		const heads = [...container.querySelectorAll('.column-head')];
+		positions.columns.forEach((column, index) => {
+			const style = heads[index].getAttribute('style') ?? '';
+			expect(style).toContain(`left: ${(column.x / positions.width) * 100}%`);
+			expect(style).toContain(`width: ${(column.w / positions.width) * 100}%`);
+		});
+	});
+
+	it('hides the strip from assistive technology, since every node names its own track', () => {
+		const tree = trackedTree();
+		const { container } = mountTree(tree, {});
+
+		expect(container.querySelector('.column-heads')?.getAttribute('aria-hidden')).toBe('true');
+	});
+
+	it('draws no head for a track-less tree, whose synthetic column has an empty trackId', () => {
+		const tree = fiveStateTree();
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		expect(container.querySelector('.column-heads')).toBeNull();
+	});
+
+	it('draws no head in narrow, which has one synthetic column and no track geometry', () => {
+		const tree = trackedTree();
+		const { container } = mountTree(tree, {}, { viewport: 'narrow' });
+
+		expect(container.querySelector('.column-heads')).toBeNull();
+	});
+});
+
+describe('F29 — module labels are drawn', () => {
+	it('labels each node with its module in wide', () => {
+		const tree = withModules(fiveStateTree(), { a1: 'Foundations', open: 'Attention' });
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		expect(node(container, tree, 'a1').querySelector('.node-module')?.textContent?.trim()).toBe(
+			'Foundations'
+		);
+		expect(node(container, tree, 'open').querySelector('.node-module')?.textContent?.trim()).toBe(
+			'Attention'
+		);
+	});
+
+	it('omits the label on a milestone that declares no module', () => {
+		const tree = withModules(fiveStateTree(), { a1: 'Foundations' });
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		expect(node(container, tree, 'b1').querySelector('.node-module')).toBeNull();
+	});
+
+	it('uses neither colour nor glyph for the module, both being spent on §9.3 state (N5)', () => {
+		const tree = withModules(fiveStateTree(), { a1: 'Foundations' });
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+		const label = node(container, tree, 'a1').querySelector('.node-module')!;
+
+		// Text only: no fill/stroke of its own, and no <use> pulling in a glyph.
+		expect(label.getAttribute('fill')).toBeNull();
+		expect(label.querySelector('use')).toBeNull();
+		expect(label.textContent?.trim()).toBe('Foundations');
+	});
+
+	it('carries track and module together in narrow, which has no column header', () => {
+		const tree = withModules(trackedTree(), { t1: 'Foundations' });
+		const { container } = mountTree(tree, {}, { viewport: 'narrow' });
+
+		expect(node(container, tree, 't1').querySelector('.node-meta')?.textContent?.trim()).toBe(
+			'technique · Foundations'
+		);
+		// Track alone when the milestone declares no module.
+		expect(node(container, tree, 't2').querySelector('.node-meta')?.textContent?.trim()).toBe(
+			'musicianship'
+		);
+	});
+});

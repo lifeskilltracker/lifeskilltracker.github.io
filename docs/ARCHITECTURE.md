@@ -1310,6 +1310,11 @@ This makes S1 mechanically verifiable rather than a matter of assertion: `archet
 ### 9.2 SVG structure
 
 ```html
+<!-- F29: track titles, outside the viewBox. Omitted entirely when the tree
+     declares no tracks, which §8.2 step 2 marks with an empty `trackId`. -->
+<div class="column-heads" aria-hidden="true">
+  <div class="column-head" data-track="technique" style="left:0%; width:40%">Technique</div>
+</div>
 <svg viewBox="0 0 {W} {H}" role="group" aria-labelledby="tree-title">
   <g class="edges" aria-hidden="true">      <!-- decorative; §15 carries the semantics -->
     <path class="edge" d="…" data-from="k7m2qp9x" data-to="m3xk90ab"/>
@@ -1320,13 +1325,23 @@ This makes S1 mechanically verifiable rather than a matter of assertion: `archet
   <g class="nodes">
     <g class="node is-complete" data-uid="k7m2qp9x"
        tabindex="0" role="button" aria-describedby="ms-k7m2qp9x-desc">
-      <rect …/><text …/><use class="state-glyph" href="#glyph-complete"/>
+      <rect …/><use class="state-glyph" href="#glyph-complete"/>
+      <foreignObject …>                     <!-- F29: module label, then title -->
+        <span class="node-module">Foundations</span>
+        <span class="node-title">…</span>
+      </foreignObject>
     </g>
   </g>
 </svg>
 ```
 
 Edges carry `aria-hidden`: a screen reader cannot usefully consume a drawn line, and §15 conveys prerequisites as text on the node instead. Marking them hidden is the honest choice, not a shortcut.
+
+**Track titles are drawn as HTML above the `viewBox`, not as a header band inside it.** D-07 states the renderer "draws the number of columns it is given and renders module labels when modules exist", and `columns[].title` reached the renderer and was dropped, so a three-column tree published its structure as x-positions with nothing naming them (F29). Keeping the titles outside the SVG leaves §8's `width` and `height` untouched — a header band inside would change both and reopen every layout stability test — and the alignment is exact rather than approximate: the tree is rendered at `width: 100%; height: auto` with the default `xMidYMid meet`, so there is no letterboxing and a percentage of `positions.width` is the same fraction of the drawn SVG. The strip is `aria-hidden`, because §15.2's description already names each node's track individually; spoken here the titles would be labels floating free of anything they name.
+
+**Module labels are text on the node.** They cannot be column headers — modules cut across every level rather than partitioning the tree vertically, which is exactly why a modular tree needs them — and they cannot be colour or glyph, because §9.3 below has already spent fill, border **and** glyph on the five node states and N5 forbids a sixth meaning on colour. Text is the one channel left. Absent `module`, nothing is drawn.
+
+In narrow (§9.5) the two collapse into one line per node carrying track and module together, since narrow has a single synthetic column and therefore no header to hang the track on.
 
 ### 9.3 Node state and its visual encoding
 
@@ -1358,6 +1373,8 @@ State is applied as a **CSS class on an already-positioned node**. Toggling a mi
 ### 9.5 Narrow presentation
 
 Driven by `layoutTree(tree, 'narrow')` (§8.5): one column, level bands as headings, no drawn edges. Prerequisites appear on each node as text — *"Requires: Draw a square taper"* — which is strictly more useful than an undrawable line and is the same presentation §15 gives screen readers at every viewport.
+
+**Track and module appear per node here**, on one line, rather than in the column strip §9.2 draws for wide. Narrow has one synthetic column and no header to carry the track, and §8.5 sorts the stack by `(level, trackIndex, order, slug)` — so without the per-node line the track boundaries inside a level are invisible in the one view §15.1 makes primary for assistive technology.
 
 The breakpoint is a CSS container query on the tree's own container, not a global media query, so the same component behaves correctly if it is ever embedded in a narrow panel on a wide screen.
 
@@ -2488,12 +2505,14 @@ Consequently the SVG edges carry `aria-hidden` (§9.2). A drawn line conveys not
 
 ```
 name:        "Forge a J hook"
-description: "Level 2. Available. Requires: light a fire and bring stock to
-              forging heat; draw a square taper on the anvil — both complete.
-              Counts toward: all of Level 2's core group."
+description: "Level 2. Heat track. Available. Requires: light a fire and bring
+              stock to forging heat; draw a square taper on the anvil — both
+              complete. Counts toward: all of Level 2's core group."
 ```
 
-The description states level, state, prerequisites *and whether they are met*, and which requirement group the milestone serves. That last part is the piece a sighted user reads off the layout for free and a screen-reader user otherwise cannot recover at all.
+The description states level, **track and module**, state, prerequisites *and whether they are met*, and which requirement group the milestone serves. The last part is the piece a sighted user reads off the layout for free and a screen-reader user otherwise cannot recover at all.
+
+**The track clause is load-bearing, not decoration** (F29). The grid order below is `(level, track, lane)` and `↑`/`↓` move *within a track*, so without it a reader is navigating by a structure they have never been given a word for. It belongs to the description rather than the name: the name stays the authored title alone, because prefixing fifty milestones with three track names makes a list read as fifty repetitions before any entry says what it is. The module clause follows the same rule and appears only when the milestone declares one — both sit beside the level, because all three answer *where am I*.
 
 **Keyboard model.** Nodes are in a single tab stop with roving `tabindex`; arrows move within the grid, so a tree of eighty milestones does not cost eighty tabs.
 

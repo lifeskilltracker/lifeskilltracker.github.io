@@ -116,6 +116,24 @@
 	}
 </script>
 
+<!--
+	WCAG 2.4.2 (Page Titled, level A). Every other route sets a title and these
+	two — the most-visited pages in the app — set none, so the browser showed the
+	bare URL and a screen reader announced nothing on arrival.
+
+	Found by T20's §15.8 manual pass and invisible to the axe gate by
+	construction: axe runs on components mounted in jsdom, so there is no document
+	head for it to have an opinion about. It is exactly the "roughly two thirds"
+	§15.8 says automated checks do not catch.
+
+	It lives here rather than in the two `+page.svelte` files for the reason those
+	files already give for sharing this component: duplicating a page to vary one
+	value is how the two drift.
+-->
+<svelte:head>
+	<title>{data.tree?.title ?? 'Skill unavailable'} — Life Skill Tracker</title>
+</svelte:head>
+
 {#if data.tree === null}
 	<main>
 		<h1>Skill unavailable</h1>

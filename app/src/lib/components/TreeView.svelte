@@ -22,7 +22,13 @@
 	import { cappedLevel, dismissalWarning, uncheckWarning } from './consequences.js';
 	import type { MilestoneIntent, UncheckConsequence } from './intents.js';
 	import { focusTarget, gridOrder, isGridKey } from './keyboard-grid.js';
-	import { levelSectionName, nodeAccessibleName, nodeDescription } from './node-description.js';
+	import {
+		levelSectionName,
+		moduleOf,
+		nodeAccessibleName,
+		nodeDescription,
+		trackTitleOf,
+	} from './node-description.js';
 	import { hitRect, presentationFor } from './node-state.js';
 	import { attainmentLabel, bandTier } from './tiers.js';
 
@@ -389,6 +395,37 @@
 	<p class="visually-hidden announcer" aria-live="polite" role="status">{announcement}</p>
 
 	{#if viewport === 'wide'}
+		<!--
+			F29 — the track titles. `columns[].trackId` and `.title` were computed by
+			§8.2 step 2 and drawn nowhere, so a three-column tree gave a reader the
+			structure in x-positions and no way to learn what the columns were.
+
+			HTML above the `viewBox` rather than a header band inside it, so §8 keeps
+			its `height` and every layout stability test stands. The alignment is
+			exact rather than approximate: `.tree` is `width: 100%; height: auto`, so
+			with the default `xMidYMid meet` there is no letterboxing and the viewBox
+			maps onto the element box one-to-one — a percentage of `positions.width`
+			is therefore the same fraction of the rendered SVG.
+
+			`aria-hidden`, because this is a second presentation of a fact every node
+			already carries in its own description (F29's other half). Spoken here it
+			would be three labels floating free of anything they name.
+		-->
+		{#if positions.columns.some((column) => column.trackId !== '')}
+			<div class="column-heads" aria-hidden="true">
+				{#each positions.columns as column (column.trackId)}
+					<div
+						class="column-head"
+						data-track={column.trackId}
+						style="left: {(column.x / positions.width) * 100}%; width: {(column.w /
+							positions.width) *
+							100}%"
+					>
+						{column.title}
+					</div>
+				{/each}
+			</div>
+		{/if}
 		<svg
 			class="tree"
 			viewBox="0 0 {positions.width} {positions.height}"
@@ -532,6 +569,25 @@
 						>
 							<div class="node-label-inner" xmlns="http://www.w3.org/1999/xhtml">
 								<!--
+									F29 — the module label. `module` reached the renderer and was
+									dropped, which left a tree grouped into modules looking
+									exactly like a plain linear one: mental-health's `n_of`
+									groups change what clears a level, and nothing on screen said
+									which milestones belonged to which practice.
+
+									**Text, not colour and not a glyph.** §9.3 has already spent
+									fill, border *and* glyph on the five node states, so both of
+									the cheap channels are taken, and N5 forbids adding a sixth
+									meaning to colour. Text is the one channel still free.
+
+									No track label here — in wide the column header above says it
+									once for the whole column, and repeating it on all fifty
+									nodes is the noise that header exists to avoid.
+								-->
+								{#if moduleOf(tree, positioned.uid) !== ''}
+									<span class="node-module">{moduleOf(tree, positioned.uid)}</span>
+								{/if}
+								<!--
 									Centred against the glyph, which sits at `h / 2`. Top-aligned,
 									a one-line label left the glyph alone on the line below it,
 									where it read as a bullet belonging to nothing.
@@ -608,6 +664,21 @@
 									<svg class="node-glyph" viewBox="0 0 16 16" aria-hidden="true">
 										<use class="state-glyph" href={look.glyph} width="16" height="16" />
 									</svg>
+									<!--
+										F29 in narrow. The **track** appears per node here, unlike
+										wide: narrow has one synthetic column and therefore no
+										header to hang it on, and §8.5 sorts the stack by
+										`(level, trackIndex, order, slug)`, so without this the
+										track boundaries inside a level are invisible in the one
+										view §15.1 makes primary for assistive technology.
+									-->
+									{#if trackTitleOf(tree, positioned.uid) !== '' || moduleOf(tree, positioned.uid) !== ''}
+										<span class="node-meta" aria-hidden="true">
+											{[trackTitleOf(tree, positioned.uid), moduleOf(tree, positioned.uid)]
+												.filter((part) => part !== '')
+												.join(' · ')}
+										</span>
+									{/if}
 									<span class="node-title">{labelOf(positioned.uid)}</span>
 									{#if prerequisitesOf(positioned.uid).length > 0}
 										<span class="requires">
@@ -821,7 +892,31 @@
 	.node-label-inner {
 		height: 100%;
 		display: flex;
-		align-items: center;
+		/*
+			Column since F29 put the module label above the title. `justify-content`
+			keeps the pair centred against the glyph at `h / 2`, which is what
+			`align-items: center` was doing when this was a single row.
+		*/
+		flex-direction: column;
+		justify-content: center;
+		overflow: hidden;
+	}
+
+	/*
+		F29's module label. Deliberately quiet — it is orientation, not the thing
+		the node is, so it must not out-weigh the title. Uppercase and letter-spaced
+		rather than coloured, because §9.3 has spent fill, border and glyph on the
+		five node states and N5 bars a sixth meaning on colour.
+	*/
+	.node-module {
+		font-size: 8px;
+		line-height: 1.2;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		opacity: 0.7;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
 	}
 
 	.node-title {
@@ -832,6 +927,38 @@
 		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 3;
 		line-clamp: 3;
+	}
+
+	/* The narrow-viewport counterpart, carrying track and module on one line. */
+	.node-meta {
+		font-size: 10px;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		opacity: 0.7;
+	}
+
+	/*
+		F29's track titles, aligned to the SVG below by percentage. `position:
+		relative` on the strip makes each head's `left`/`width` a fraction of the
+		same box the viewBox maps onto, so the two stay locked at any width.
+	*/
+	.column-heads {
+		position: relative;
+		height: 1.4em;
+		margin-bottom: 0.2em;
+	}
+
+	.column-head {
+		position: absolute;
+		top: 0;
+		font-size: 11px;
+		font-weight: 600;
+		text-align: center;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		border-bottom: 1px solid currentcolor;
+		opacity: 0.75;
 	}
 
 	.row-label,
