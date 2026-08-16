@@ -30,8 +30,8 @@ import MapPage from './+page.svelte';
 /** Two regions is enough; §10's geometry has its own tests (T12, T13). */
 const TAXONOMY = {
 	domains: [
-		{ id: 'home', title: 'Home', blurb: 'home', palette: { base: '#123456', accent: '#abcdef' } },
-		{ id: 'body', title: 'Body', blurb: 'body', palette: { base: '#654321', accent: '#fedcba' } }
+		{ id: 'home', title: 'Home', blurb: 'home', palette: { light: { base: '#123456', accent: '#abcdef' }, dark: { base: '#123456', accent: '#abcdef' } } },
+		{ id: 'body', title: 'Body', blurb: 'body', palette: { light: { base: '#654321', accent: '#fedcba' }, dark: { base: '#654321', accent: '#fedcba' } } }
 	],
 	facets: [],
 	map: {

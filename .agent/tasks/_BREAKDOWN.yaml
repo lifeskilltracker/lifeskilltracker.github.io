@@ -607,6 +607,22 @@ tasks:
     status: written
     doc: T27-design-tokens-and-theme.md
     note: >
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-16; task-doc status remains lifecycle
+      metadata. UI-SPEC Q1 resolved: ALEGREYA SC, 6.7 kB subsetted, OFL, self-hosted.
+      Decided on measurement, not taste - the 12 kB budget never bound (all eleven
+      candidates subset to 4.2-8.9 kB), and the real filters are hairline survival at
+      23 px (every face above ~3:1 stroke contrast renders its thinnest stem under one
+      device pixel; no weight of Cormorant fixes it) and a TRUE small-caps design
+      (Libre Caslon Text, Spectral SC and EB Garamond have none; synthesis scales caps
+      to 0.75 and thins strokes with them). `accent` lost its only consumer to A3 and is
+      now the plate-open composite of `base` over that theme's paper - reversible, one
+      data edit per domain, revisit in T31. The face is co-located with tokens.css
+      rather than in static/, because static/ is root-addressed and BASE_PATH is
+      non-empty on a project-page deploy. MapRenderer.test.ts passes unchanged;
+      MapRenderer.a11y.test.ts had one assertion adjusted (plates are now per-domain
+      tokens, so two regions' styles differ by IDENTITY rather than recency).
+      Verified: 782 app + 306 tools tests, budget 53.9/82 kB.
+      Original plan note follows. >
       The Survey/Ordnance vocabulary: --paper/--ink/--rule, plate opacities, and the eight
       domain plates in light and dark sourced from domains.yaml (amendment A7) rather than
       from a parallel CSS table. Also the subsetted display face and A4's budget rise,

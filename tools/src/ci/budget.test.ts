@@ -31,6 +31,12 @@ afterEach(() => {
 interface Fixture {
   /** Exact Brotli sizes for the modules the map route preloads. */
   firstPaintJs: number[];
+  /**
+   * A4's display face, in raw bytes. Written beside the stylesheet and referenced
+   * from an `@font-face` rule, because that reference — not the file's presence —
+   * is what makes it first-paint cost.
+   */
+  fontBytes?: number;
   /** Exact Brotli sizes for its stylesheets. */
   firstPaintCss?: number[];
   /**
@@ -69,9 +75,18 @@ function fakeBuild(fixture: Fixture): { buildDir: string; routeManifest: string 
     writeFileSync(join(immutable, name), incompressible(bytes));
     return name;
   });
+  if (fixture.fontBytes !== undefined) {
+    writeFileSync(join(immutable, 'assets', 'display.woff2'), randomBytes(fixture.fontBytes));
+  }
+  const fontRule =
+    fixture.fontBytes === undefined
+      ? ''
+      : "@font-face{font-family:'D';src:url('./display.woff2') format('woff2');}";
   const styles = (fixture.firstPaintCss ?? [200]).map((bytes, index) => {
     const name = `assets/${index}.css`;
-    writeFileSync(join(immutable, name), incompressible(bytes));
+    // The rule goes in the first stylesheet only; the discovery walks them all.
+    const rule = index === 0 ? Buffer.from(fontRule) : Buffer.alloc(0);
+    writeFileSync(join(immutable, name), Buffer.concat([rule, incompressible(bytes)]));
     return name;
   });
 
@@ -114,7 +129,7 @@ describe('§17.1 — the bundle budget gate', () => {
       buildDir: join(REPO_ROOT, 'app/build'),
       routeManifest: join(REPO_ROOT, 'app/.svelte-kit/generated/client/app.js'),
     });
-    expect(report.rows).toHaveLength(4);
+    expect(report.rows).toHaveLength(5);
     for (const row of report.rows) expect(row.measured).toBeGreaterThan(0);
   });
 
@@ -123,11 +138,37 @@ describe('§17.1 — the bundle budget gate', () => {
     expect(measureBudget(fixture).violations).toEqual([]);
   });
 
-  it('fails when first paint exceeds 70 kB', () => {
-    const fixture = fakeBuild({ firstPaintJs: [40_000, 25_000], firstPaintCss: [14_000] });
+  it('fails when first paint exceeds the 82 kB total (A4)', () => {
+    const fixture = fakeBuild({ firstPaintJs: [40_000, 28_000], firstPaintCss: [15_000] });
     const violations = measureBudget(fixture).violations.map((row) => row.label);
-    expect(violations).toContain('Total first paint (JS + CSS)');
+    expect(violations).toContain('Total first paint (JS + CSS + font)');
     expect(budgetCommand(fixture)).toBe(1);
+  });
+
+  /**
+   * A4's row, and the two things about it that are easy to get wrong: the font is
+   * found through the stylesheet rather than by globbing the build, and it is
+   * measured raw because woff2 is already Brotli.
+   */
+  it('bills the display face to its own row, discovered from the stylesheet', () => {
+    const fixture = fakeBuild({ firstPaintJs: [20_000], firstPaintCss: [3_000], fontBytes: 6_672 });
+    const report = measureBudget(fixture);
+    const font = report.rows.find((row) => row.label === 'Display face');
+    expect(font?.measured).toBe(6_672);
+    expect(font?.files).toEqual(['_app/immutable/assets/display.woff2']);
+    expect(report.violations).toEqual([]);
+  });
+
+  it('fails a face one byte over its 12 kB row', () => {
+    const fixture = fakeBuild({ firstPaintJs: [20_000], firstPaintCss: [3_000], fontBytes: 12_001 });
+    expect(measureBudget(fixture).violations.map((row) => row.label)).toContain('Display face');
+  });
+
+  it('does not bill a font the stylesheet never references', () => {
+    const fixture = fakeBuild({ firstPaintJs: [20_000], firstPaintCss: [3_000] });
+    writeFileSync(join(fixture.buildDir, '_app', 'immutable', 'assets', 'stray.woff2'), randomBytes(9_000));
+    const font = measureBudget(fixture).rows.find((row) => row.label === 'Display face');
+    expect(font?.measured).toBe(0);
   });
 
   it('passes with every row exactly on its budget, and fails one byte over', () => {

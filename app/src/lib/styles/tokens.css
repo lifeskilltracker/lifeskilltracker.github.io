@@ -1,0 +1,132 @@
+/**
+ * The Survey / Ordnance token sheet (UI-SPEC §4, PRD D19).
+ *
+ * Every colour and every face in the application is named here and nowhere else.
+ * That is not tidiness: §4.3 makes hue *identity* and forbids it from ever encoding
+ * score, which only holds if hue has exactly one source. A component that names a
+ * literal is a second source, and a second source drifts silently — the failure is a
+ * stale colour, not an error.
+ *
+ * The eight domain plates are NOT written here. They live in `content/taxonomy/
+ * domains.yaml` (§5.9, amendment A7) and are injected as `--domain-<id>` at runtime
+ * by `theme.svelte.ts`, because palettes are content (D-03) and a stylesheet cannot
+ * express a palette it has never seen.
+ *
+ * Theme resolution has three states, not two. An explicit choice stamps
+ * `data-theme` on `<html>`; the default "system" setting stamps nothing and leaves
+ * `prefers-color-scheme` to decide. So the bare `:root` block carries the complete
+ * light palette, the media query redefines only tokens (guarded so an explicit light
+ * choice beats a dark OS), and the `[data-theme="dark"]` block redefines them again
+ * so the toggle wins in both directions.
+ */
+
+:root {
+	/* Ground and ink (§4.2). */
+	--paper: #dce1dc;
+	--ink: #0f1516;
+	--rule: rgb(15 21 22 / 18%);
+
+	/**
+	 * Plate opacities (§4.2, §4.6). `--plate-open` is the strength a region shows
+	 * ABOVE its water line; below the line the plate renders at full strength.
+	 * §4.3 forbids reading these as a score ramp — the score is the line's height,
+	 * never the plate's opacity.
+	 */
+	--plate-open: 0.52;
+	--plate-fog: 0.1;
+	--plate-bonus: 0.42;
+
+	/* Line weights, in world units (§5.2, §4.5). */
+	--rule-water: 1.3;
+	--rule-outline-l0: 1.3;
+	--rule-outline-l1: 0.9;
+	--halo-width: 2.8;
+
+	/**
+	 * §4.5. The display face is self-hosted and subsetted; body and data are system
+	 * stacks and cost nothing. The display fallback is metric-adjacent on purpose —
+	 * `font-display: swap` reflows the map otherwise, and the map is the one surface
+	 * where a reflow is most visible.
+	 */
+	--font-display: 'Alegreya SC', 'Palatino Linotype', Palatino, Georgia, serif;
+	--font-body: ui-serif, Georgia, 'Times New Roman', serif;
+	--font-data: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+	/* §4.5's engraved lettering: tracked small caps. */
+	--display-tracking: 0.14em;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		--paper: #11171a;
+		--ink: #cbd4d2;
+		--rule: rgb(203 212 210 / 22%);
+	}
+}
+
+:root[data-theme='dark'] {
+	--paper: #11171a;
+	--ink: #cbd4d2;
+	--rule: rgb(203 212 210 / 22%);
+}
+
+/**
+ * §4.5's knockout halo, shared rather than reimplemented per surface. It is what
+ * lets type survive over saturated ink, and it is load-bearing for accessibility
+ * rather than decorative: label ink against the halo runs 13.9:1 on paper and
+ * 12.0:1 on the dark ground, while the same ink directly on a full-strength plate
+ * falls to 1.45:1 at worst. Nothing downstream may drop it.
+ *
+ * `paint-order: stroke fill` matters — the stroke is painted first and the fill over
+ * it, so the glyph keeps its true shape and thin strokes are not eaten from within.
+ */
+.halo {
+	paint-order: stroke fill;
+	stroke: var(--paper);
+	stroke-width: var(--halo-width);
+	stroke-linejoin: round;
+}
+
+/* The engraved display setting, so no surface re-derives it. */
+.display {
+	font-family: var(--font-display);
+	font-weight: 500;
+	letter-spacing: var(--display-tracking);
+}
+
+html {
+	background: var(--paper);
+	color: var(--ink);
+}
+
+body {
+	margin: 0;
+	background: var(--paper);
+	color: var(--ink);
+	font-family: var(--font-body);
+}
+
+/**
+ * Digits that line up in columns — levels, counts, `n / m` — must not jitter as
+ * they change. §15.4 already depends on those numbers being readable at a glance.
+ */
+.tabular {
+	font-family: var(--font-data);
+	font-variant-numeric: tabular-nums;
+}
+
+/**
+ * The face is co-located with this sheet rather than served from `static/`, and the
+ * URL is relative, so Vite emits it as a hashed bundle asset. That is a correctness
+ * requirement, not a preference: `static/` files are addressed from the site root,
+ * and `kit.paths.base` is non-empty on a project-page deploy (§4.4, deploy.yml), so
+ * an absolute `/fonts/…` would 404 there and fall back to Palatino — a failure that
+ * looks like a styling opinion rather than a broken build.
+ */
+@font-face {
+	font-family: 'Alegreya SC';
+	src: url('./alegreya-sc-subset.woff2') format('woff2');
+	font-weight: 500;
+	font-style: normal;
+	font-display: swap;
+}

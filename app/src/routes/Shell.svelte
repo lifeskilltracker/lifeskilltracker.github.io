@@ -46,6 +46,8 @@
 	import { progress } from '$lib/state/progress.svelte.js';
 	import { store } from '$lib/state/store.js';
 	import { ui } from '$lib/state/ui.svelte.js';
+	import { applyDomainPalettes, initTheme, theme } from '$lib/styles/theme.svelte.js';
+	import '$lib/styles/tokens.css';
 
 	interface Props {
 		children: import('svelte').Snippet;
@@ -75,6 +77,25 @@
 		// Browser-only by construction: `$effect` does not run during prerender,
 		// and neither `caches` nor IndexedDB exists there (§13.3).
 		void run();
+	});
+
+	// §4.1. Reads the stored choice and starts following the media query. The
+	// pre-paint attribute is already set by `app.html`; this is what keeps it in
+	// step afterwards, and the teardown matters because the media listener would
+	// otherwise outlive the component.
+	$effect(() => initTheme());
+
+	/**
+	 * §5.9 / A7 — the eight plates as `--domain-<id>`, re-injected whenever the
+	 * resolved theme changes. Palettes are content and unknown at build time
+	 * (D-03), so this is the one seam between `domains.yaml` and the stylesheet.
+	 * It reads the manifest's taxonomy, so it can only run once the cold start has
+	 * produced one.
+	 */
+	$effect(() => {
+		const domains = content.manifest?.taxonomy.domains;
+		if (domains === undefined) return;
+		applyDomainPalettes(domains, theme.resolved);
 	});
 
 	/**

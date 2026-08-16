@@ -68,6 +68,13 @@ export function loadCompiledRequirementGroupRules(): readonly string[] {
   return readDefEnum('compiled-tree.schema.json', 'requirementGroup', 'rule');
 }
 
+/**
+ * §5.9, amendment A7 — one `{ base, accent }` pair per theme. Hue is identity and
+ * must never encode score (§10.5), which holds only if hue has one source; a
+ * runtime-derived dark variant would be a second one, and the forced separations
+ * (Mind teal against Work navy, Home blue-green against Outdoors olive) do not
+ * survive an algorithmic transform anyway. Both pairs are authored.
+ */
 const SUBREGION_SHAPE = `{
       id: 'expression' | 'objects' | 'systems';
       title: string;
@@ -79,8 +86,8 @@ function buildMakingDomainInterface(name: string): string {
   title: string;
   blurb: string;
   palette: {
-    base: string;
-    accent: string;
+    light: { base: string; accent: string };
+    dark: { base: string; accent: string };
   };
   subregions: [
     ${SUBREGION_SHAPE},
@@ -95,8 +102,8 @@ function buildNonMakingDomainInterface(name: string, idUnion: string): string {
   title: string;
   blurb: string;
   palette: {
-    base: string;
-    accent: string;
+    light: { base: string; accent: string };
+    dark: { base: string; accent: string };
   };
   subregions?: never;
 }`;

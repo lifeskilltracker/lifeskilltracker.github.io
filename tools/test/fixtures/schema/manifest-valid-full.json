@@ -8,8 +8,14 @@
         "title": "Making",
         "blurb": "Craft and fabrication.",
         "palette": {
-          "base": "#AABBCC",
-          "accent": "#DDEEFF"
+          "light": {
+            "base": "#AABBCC",
+            "accent": "#DDEEFF"
+          },
+          "dark": {
+            "base": "#AABBCC",
+            "accent": "#DDEEFF"
+          }
         },
         "subregions": [
           {
@@ -31,8 +37,14 @@
         "title": "Home",
         "blurb": "Household life.",
         "palette": {
-          "base": "#112233",
-          "accent": "#445566"
+          "light": {
+            "base": "#112233",
+            "accent": "#445566"
+          },
+          "dark": {
+            "base": "#112233",
+            "accent": "#445566"
+          }
         }
       }
     ],
@@ -81,7 +93,7 @@
       "id": "fixture-full-feature",
       "contentVersion": 1,
       "title": "Fixture Full Feature Tree",
-      "summary": "Exercises every §5.3 field for schema validation.",
+      "summary": "Exercises every \u00a75.3 field for schema validation.",
       "domain": "making",
       "secondaryDomains": [
         "home"

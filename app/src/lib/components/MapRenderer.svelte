@@ -217,13 +217,23 @@
 				onfocus={() => (focusedDomain = region.id)}
 				onblur={() => (focusedDomain = null)}
 			>
-				<path class="region-base" d={region.path} style="fill: {region.palette.base}" />
+				<!--
+					The plate colour arrives as a token, not as a literal: `lib/styles`
+					injects `--domain-<id>` for the resolved theme (§5.9, A7), so this
+					component names no colour and needs no theme branch. The `--ink`
+					fallback covers the frame before the manifest has landed.
+				-->
+				<path
+					class="region-base"
+					d={region.path}
+					style="fill: var(--domain-{region.id}, var(--ink))"
+				/>
 				{#if !region.fogged}
 					<path
 						class="region-fill"
 						d={region.path}
 						clip-path="url(#{uid}-fill-{region.id})"
-						style="fill: {region.palette.accent}"
+						style="fill: var(--domain-{region.id}-accent, var(--ink))"
 					/>
 				{/if}
 				<path class="region-outline" d={region.path} />

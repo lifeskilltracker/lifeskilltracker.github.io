@@ -234,8 +234,8 @@ export interface CompiledMakingDomain {
   title: string;
   blurb: string;
   palette: {
-    base: string;
-    accent: string;
+    light: { base: string; accent: string };
+    dark: { base: string; accent: string };
   };
   subregions: [
     {
@@ -256,8 +256,8 @@ export interface CompiledNonMakingDomain {
   title: string;
   blurb: string;
   palette: {
-    base: string;
-    accent: string;
+    light: { base: string; accent: string };
+    dark: { base: string; accent: string };
   };
   subregions?: never;
 }
@@ -285,6 +285,10 @@ export interface Taxonomy {
   map: {
     regions: CompiledMapRegion[];
   };
+}
+export interface Dark {
+  base: string;
+  accent: string;
 }
 /**
  * This interface was referenced by `Manifest`'s JSON-Schema

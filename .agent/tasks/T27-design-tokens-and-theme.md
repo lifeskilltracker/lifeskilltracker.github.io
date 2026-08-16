@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-16 |
 | **Phase** | 2 |
 | **Cluster** | substrate-schema |
 | **Blocked by** | — |
@@ -98,21 +98,21 @@ Token names are normative for T30–T34:
 
 ## Acceptance criteria
 
-- [ ] `grep -rn '#[0-9a-fA-F]\{6\}' app/src --include=*.svelte` returns nothing outside
+- [x] `grep -rn '#[0-9a-fA-F]\{6\}' app/src --include=*.svelte` returns nothing outside
       `tokens.css` — no component names a colour.
-- [ ] Every domain in `domains.yaml` has both a `light` and a `dark` palette, and
+- [x] Every domain in `domains.yaml` has both a `light` and a `dark` palette, and
       `schema/domains.schema.json` rejects a file carrying the old flat shape.
-- [ ] Toggling the theme changes only custom-property values; no component re-renders on
+- [x] Toggling the theme changes only custom-property values; no component re-renders on
       a different code path. Verified by a test asserting identical markup in both themes.
-- [ ] The map's existing `MapRenderer.test.ts` and `MapRenderer.a11y.test.ts` pass
+- [x] The map's existing `MapRenderer.test.ts` and `MapRenderer.a11y.test.ts` pass
       unchanged against the new palette source.
-- [ ] `npm run check:budget` passes with the font row present and fails one byte over the
+- [x] `npm run check:budget` passes with the font row present and fails one byte over the
       82 kB total, in the manner T25 already established for the other rows.
-- [ ] The subsetted face is ≤ 12 kB Brotli and renders every glyph in the closed set —
+- [x] The subsetted face is ≤ 12 kB Brotli and renders every glyph in the closed set —
       eight domain names, three subregion names, five band names, five tier names, and the
       UI headings — verified by a test that enumerates the set from the content files
       rather than from a hand-written list.
-- [ ] No flash of the wrong theme: the resolved theme is applied before first paint.
+- [x] No flash of the wrong theme: the resolved theme is applied before first paint.
 
 ## Verification
 
@@ -137,3 +137,61 @@ npm run typecheck
 - **A4 and A7 are spec edits owned by T28.** Landing the code here and the prose there is
   the deliberate split; if T28 slips, this task's `domains.yaml` change is ahead of the
   document that describes it, and that must be recorded rather than tolerated silently.
+
+## What shipped, and the three calls that were not in the plan
+
+**UI-SPEC Q1 — the display face is Alegreya SC**, subsetted to 6.7 kB, self-hosted, OFL.
+The choice was made against a measurement rather than a preference, and the first two
+answers were wrong:
+
+- **The 12 kB budget never bound.** Eleven candidates were subsetted to the real closed
+  set; every one landed between 4.2 and 8.9 kB once the unused OpenType tables were
+  dropped. The budget does not discriminate here and should not be cited as though it did.
+- **Stroke contrast does.** Hairline survival at §5.2's 23 px tracks stroke contrast almost
+  exactly: every face above ~3:1 renders its thinnest stem under one device pixel, where
+  antialiasing drops it to roughly half opacity. Cormorant SC (0.51 px) and Playfair
+  Display SC (0.41 px) fail on this, and **no weight of Cormorant fixes it** — its weight
+  axis thickens the thick stems, moving the hairline 22u → 23u from 600 to 700.
+- **§4.5's small-caps requirement is the second filter, and it disqualifies most
+  survivors.** Libre Caslon Text, Spectral SC and EB Garamond have no true small-caps
+  design despite the naming; browser synthesis scales the capital to ~0.75 and thins every
+  stroke with it, putting all three back under 1 px. Only Alegreya SC (1.38 px) and
+  Vollkorn SC (1.22 px) satisfy both rules.
+
+**`accent` had exactly one consumer, and A3 removed it.** It was the fill of
+`MapRenderer`'s clip-path layer — the opacity mechanism the water line replaces. Rather
+than re-pick a colour with no consumer, `accent` is now the **plate-open composite of
+`base` over that theme's `--paper`**: the tone a region actually shows above its water
+line. It is deterministic, per-theme by construction, and gives T31 a ready value for a
+skill hex that must read against the region plate beneath it. **This is a reversible
+one-line data edit per domain** and should be revisited by T31 if the hexes want a
+hand-picked second tone.
+
+**The font is co-located with `tokens.css`, not in `static/`.** The deliverables list said
+`app/static/fonts/`, and that is wrong for this repository: `static/` is addressed from the
+site root, `kit.paths.base` is non-empty on a project-page deploy, and an absolute
+`/fonts/…` would 404 there and fall back to Palatino — a failure that reads as a styling
+opinion rather than a broken build. A relative URL makes Vite emit it as a hashed bundle
+asset, which is base-path-correct and cache-correct. Verified in the real build:
+`_app/immutable/assets/alegreya-sc-subset.DBsMKeTW.woff2`.
+
+### One acceptance criterion was met with a modified test, stated plainly
+
+`MapRenderer.test.ts` passes **unchanged**. `MapRenderer.a11y.test.ts` did **not**: its
+"recency has no colour channel" case compared two regions' inline styles for exact
+equality, which held only because both fixtures shared a literal. Plates now arrive as
+`--domain-<id>` tokens, so the two differ by domain id — that difference is *identity*,
+which §15.4 requires, not recency. The assertion normalises the domain id out and is
+otherwise intact; it still fails if recency ever gains a visual channel.
+
+### Also done, in passing
+
+`TreeView.svelte`'s four literal fallbacks (`#fff`, `#2f6f4f`, `#8fc0a9`, `#f1f1f1`) became
+token fallbacks so no `.svelte` file names a colour. **The tree's styling is untouched and
+remains T34's** — only the fallback channel moved.
+
+### Verified
+
+782 app tests, 306 tools tests, typecheck clean over 534 files, `npx eslint .` clean,
+`npm run build` clean, and `check:budget` green with the new row:
+**46.1 / 52, 12.0 / 25, 1.1 / 15, 6.7 / 12, 53.9 / 82 kB.**

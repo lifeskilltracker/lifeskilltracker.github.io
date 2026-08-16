@@ -219,8 +219,8 @@ export interface MakingDomain {
   title: string;
   blurb: string;
   palette: {
-    base: string;
-    accent: string;
+    light: { base: string; accent: string };
+    dark: { base: string; accent: string };
   };
   subregions: [
     {
@@ -241,8 +241,8 @@ export interface NonMakingDomain {
   title: string;
   blurb: string;
   palette: {
-    base: string;
-    accent: string;
+    light: { base: string; accent: string };
+    dark: { base: string; accent: string };
   };
   subregions?: never;
 }
@@ -256,6 +256,10 @@ export interface DomainsFile {
    * @minItems 1
    */
   domains: [Domain, ...Domain[]];
+}
+export interface Dark {
+  base: string;
+  accent: string;
 }
 /**
  * This interface was referenced by `DomainsFile`'s JSON-Schema

@@ -109,7 +109,11 @@ export interface DomainsFile {
     id: DomainId;
     title: string;
     blurb?: string;
-    palette?: { base: string; accent: string };
+    /** §5.9, A7 — one authored pair per theme; nothing derives dark from light. */
+    palette?: {
+      light: { base: string; accent: string };
+      dark: { base: string; accent: string };
+    };
     subregions?: Array<{ id: SubregionId; title: string }>;
   }>;
 }

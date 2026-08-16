@@ -6,8 +6,14 @@
       "title": "Home",
       "blurb": "Home life skills.",
       "palette": {
-        "base": "#112233",
-        "accent": "#445566"
+        "light": {
+          "base": "#112233",
+          "accent": "#445566"
+        },
+        "dark": {
+          "base": "#112233",
+          "accent": "#445566"
+        }
       },
       "subregions": [
         {

@@ -16,8 +16,8 @@ import { joinDomainRows, standings, worldScores } from './domain-scores.js';
 
 const TAXONOMY = {
 	domains: [
-		{ id: 'home', title: 'Home', blurb: '', palette: { base: '#000', accent: '#fff' } },
-		{ id: 'body', title: 'Body', blurb: '', palette: { base: '#000', accent: '#fff' } }
+		{ id: 'home', title: 'Home', blurb: '', palette: { light: { base: '#000', accent: '#fff' }, dark: { base: '#000', accent: '#fff' } } },
+		{ id: 'body', title: 'Body', blurb: '', palette: { light: { base: '#000', accent: '#fff' }, dark: { base: '#000', accent: '#fff' } } }
 	],
 	facets: [],
 	map: { regions: [] }

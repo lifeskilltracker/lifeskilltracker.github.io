@@ -28,7 +28,7 @@ function taxonomyOf(...ids: string[]): Taxonomy {
       id,
       title: id,
       blurb: '',
-      palette: { base: '#000000', accent: '#ffffff' },
+      palette: { light: { base: '#000000', accent: '#ffffff' }, dark: { base: '#000000', accent: '#ffffff' } },
     })),
     facets: [],
     map: { regions: [] },

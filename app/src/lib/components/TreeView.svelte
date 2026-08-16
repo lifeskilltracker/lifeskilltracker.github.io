@@ -858,22 +858,25 @@
 		}
 	}
 
+	/* T27 — fallbacks are tokens, not literals: §4.3 gives hue one source, and a
+	   hex here is a second one. The node *styling* is unchanged and remains T34's
+	   to restate in Survey terms; only the fallback channel moves. */
 	.node-box {
-		fill: var(--surface, #fff);
+		fill: var(--surface, var(--paper));
 		stroke: currentColor;
 	}
 
 	.node.is-complete .node-box {
-		fill: var(--domain-accent, #2f6f4f);
+		fill: var(--domain-accent, var(--ink));
 	}
 
 	.node.is-bonus .node-box {
-		fill: var(--domain-accent-light, #8fc0a9);
+		fill: var(--domain-accent-light, var(--rule));
 	}
 
 	.node.is-locked .node-box,
 	.node.is-dismissed .node-box {
-		fill: var(--surface-recessed, #f1f1f1);
+		fill: var(--surface-recessed, var(--paper));
 	}
 
 	/* T19 — a revealed hidden node. Faded, and nothing more: hiding says nothing
