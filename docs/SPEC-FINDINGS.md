@@ -25,6 +25,11 @@ than by the breakdown: T21 authored the branching and modular exemplar trees and
 §9 draws neither a track title nor a module label, so a tree grouped into modules rendered
 as though it were linear. **All twenty-nine findings are now resolved.**
 
+**A separate series, A1–A7, was landed by T28 on 2026-08-16.** Those are not defects: they
+are places where the architecture was correct as written and superseded by `docs/UI-SPEC.md`,
+which settles PRD **D19**. They are tabulated and argued in their own section below, after
+F29. One real defect was found while landing them and is filed there as **A2-D**.
+
 This file is the audit trail. The resolutions themselves live in the spec.
 
 | # | Verdict | Date | Summary |
@@ -58,6 +63,32 @@ This file is the audit trail. The resolutions themselves live in the spec.
 | F27 | amend | 2026-08-06 | §8's five layout silences — narrow is level 1 at top, synthetic column, tunable unit constants, side-gutter geometry, mastery edges dropped |
 | F28 | amend | 2026-08-07 | Rule 9's module half had no registry; T03 validate enforces `track` only; `module` stays a free-form label (T22 lint if desired) |
 | F29 | amend | 2026-08-15 | Track titles as HTML above the `viewBox`; module labels as text on the node; both named in §15.2's description, and the track clause is the correctness half |
+
+## The UI-SPEC amendments (T28)
+
+`docs/UI-SPEC.md` v1.0 settles PRD **D19** — the interface §15.9 deliberately declined to
+specify. UI-SPEC is non-normative outside presentation (its §1), so an amendment that lives
+only there is not an amendment at all: `docs/ARCHITECTURE.md` remains the document CI, the
+tests and every task doc are written against. Its §9 names seven, and **T28 landed all seven
+together** on 2026-08-16, in the manner F1–F29 established. They land in one commit because
+A1, A2 and A6 touch overlapping sections, and three commits over §10.7 would produce three
+intermediate states none of which is coherent.
+
+These carry `A` ids rather than `F` ids because they are not defects. Each is a place where
+the architecture is *correct as written and now superseded* by a design decision made after
+it — a different thing from the twenty-nine above, and worth keeping distinguishable in the
+audit trail.
+
+| # | Verdict | Date | Summary |
+|---|---|---|---|
+| A1 | amend | 2026-08-16 | §10.7's "no pan, no zoom, no camera" replaced by the two-level stepped camera; the list substitution moves from a viewport size to camera level 1 |
+| A2 | amend | 2026-08-16 | §10.1/§10.4 gain the skill-hex sub-lattice and the placement ledger; D-08 is **strengthened**, not excepted |
+| A3 | amend | 2026-08-16 | §10.5's fill is a water line at full plate strength, never an opacity ramp |
+| A4 | amend | 2026-08-16 | §17.1 gains a ≤ 12 kB font row; first paint 70 → **82 kB**, still enforced by failing |
+| A5 | amend | 2026-08-16 | §15.3's convergence claim **restated, not deleted**: same content in the same order, not the same view |
+| A6 | amend | 2026-08-16 | `/d/<domainId>` becomes a camera state over the map surface; both routes stay prerendered; `+layout` gains the four persistent controls |
+| A7 | amend | 2026-08-16 | §5.9's `palette` gains `light` and `dark` variants; additive schema change |
+| A2-D | **defect, filed** | 2026-08-16 | T12's shipped union keys interior-edge cancellation on `toFixed(6)` of pixel floats, not on lattice integers |
 
 ---
 
@@ -2390,9 +2421,329 @@ through one component with no shape branch, and the modular one no longer *looks
 
 ---
 
+## A1 — §10.7 forbade the camera the interface is built on
+
+**Verdict: amend.** 2026-08-16, T28.
+
+§10.7 read **"No pan, no zoom, no camera"** and derived the phone concession from it: the
+whole map fits the viewport at every size, and below a legibility threshold a domain list
+substitutes. UI-SPEC §5.1 adopts a two-level stepped camera instead, both levels routes.
+
+**This is the sharp one.** The other six amendments correct statements that are merely
+stale; this one corrects a statement an implementer would read as normative **and obey**.
+Someone building the map from `ARCHITECTURE.md` alone — which is exactly what every task doc
+instructs — would have built a fixed single-level map and been correct to. That is why T28
+gates T30 and why the amendment could not wait behind the code.
+
+### Resolution
+
+§10.7 is rewritten as *Navigation and the camera*: two levels, `/` at world and
+`/d/<domainId>` at one region, every camera state a URL, browser Back as the breadcrumb and
+no breadcrumb widget.
+
+**Stepped rather than continuous is argued at its own site rather than by reference**, per
+T26's discipline, because it is the claim most likely to be reopened. A single global
+level-of-detail flag works over a 5× zoom range at 42 nodes; this library is projected at 164
+and eventually 500, where one flag yields either a soup of labels or none. Scoping level 1 to
+one domain bounds the labelled-hex count by the largest single domain — Making at 45 —
+however large the library grows. **The bound is structural, not tuned**, which is the whole
+argument, and a free camera does not have it at any amount of care.
+
+Label sizes therefore become fixed world sizes with no per-zoom rules and no fade thresholds:
+a domain label resolving to 22–28 px at level 0, a skill label to below 9 px at level 0 and
+14–18 px at level 1. They are computed from world extent and `hexSize` at build time and
+asserted, never hand-tuned — a hand-tuned size is the same global-flag failure wearing a
+different hat. Outline weight steps 1.3 → 0.9 world units so strokes hold constant *screen*
+weight rather than thickening with the camera.
+
+### The list substitution moved, and that is a product fix
+
+Old: substitute below a viewport threshold, so a phone visitor never saw the map. New: level
+0 is the map on every device; level 1 substitutes the skill list on a phone. Eight labelled
+regions genuinely fit a phone; skill hexes are where labels stop being legible and 44×44 px
+targets stop fitting. Since the Curious Browser is disproportionately on a phone and the map
+is the entire reason they might care (D25), the old threshold denied the map to precisely the
+visitor it was meant to win. The §8.5 concession is unchanged in kind; it lands one level
+deeper.
+
+### Downstream
+
+**T30** (the camera), **T31** (the level-1 layer and the phone list). §15.3's convergence
+sentence depended on the old threshold and is **A5**. §13.1's route table is **A6**.
+
+---
+
+## A2 — the skill-hex sub-lattice, and the temptation to read it as an exception to D-08
+
+**Verdict: amend.** 2026-08-16, T28.
+
+Level 1 draws one hexagon per published tree, and nothing in the architecture knew where a
+skill goes: `map.yaml` assigns tiles to *domains*, not skills to tiles. §10.1, §10.4 and
+D-08 all needed the layer named.
+
+### The amendment is a strengthening, and getting it backwards is the hazard
+
+The wrong version of this edit reads *"the map now has a hex grid"*. It would reopen the
+decision D-08 closed and hand a later implementer written permission to render 500 hexes at
+level 0 — the exact outcome D-08 exists to prevent, arrived at by citing the amendment that
+was supposed to preserve it.
+
+So D-08 gains a **"Still live, and reinforced"** clause rather than an exception, making two
+distinctions explicit. The layer draws for **one** region at level 1 only; level 0 remains
+eight paths. And the layer exists *because* D-08 holds: the union is what keeps level 0 at
+eight elements, and that headroom is the only reason a per-skill layer is affordable at all.
+A map already spending several hundred elements on its regions would have nothing left to
+spend here. The two lattices are also different objects — `map.yaml`'s authored grid still
+has no runtime existence, while the sub-lattice is compiler-derived and is the coordinate
+system for *skills* rather than for domains.
+
+### The placement mechanism, and why both obvious answers are unavailable
+
+**F13** (contributors never author layout coordinates) rules out a `tile:` field on a tree.
+**N11** (a change to one thing shall not visibly reflow the rest) rules out deriving position
+from subregion or facet tags — that clusters related skills beautifully and re-packs every
+neighbour the moment one is added, which is N11's exact failure mode. Between them the
+authored answer and the semantic answer are both gone, which is what makes this the one
+genuinely new mechanism in the design.
+
+§10.4 gains steps 5–7: subdivide at `hexSize / cellDivisor`, enumerate in a spiral from the
+cell nearest the centroid, and assign the lowest-numbered free cell **append-only** into a
+committed ledger, never recomputed. F13 is satisfied because nobody authors anything, and
+**N11 is satisfied by construction rather than by care**. The ledger introduces no new
+concept: §6.4 already runs a committed baseline with CI failing on unauthorized drift, for
+milestone identifier stability (F41).
+
+Three consequences are written down as correct rather than left to be rediscovered as bugs: a
+retired skill **leaves a hole** (filling it would move whoever holds the next cell), a
+domain change frees the old cell and takes a new one (safe *because* assignment is lowest-free
+rather than by count), and editing a region's tiles reflows that domain — the one place N11 is
+knowingly traded, for the ability to grow the map at all.
+
+`cellDivisor` is recorded as **frozen at a region's first committed assignment**. Raising it
+later renumbers the spiral and reflows every skill in that region, which is the precise
+failure the ledger exists to prevent. UI-SPEC **Q2** must therefore be settled against the
+real `map.yaml` before T29's first commit, not after.
+
+### Downstream
+
+**T29** owns the mechanism, **T31** draws it. **T30** must not treat the sub-lattice as
+present at level 0.
+
+---
+
+## A2-D — T12's union keys cancellation on rounded floats, not lattice integers
+
+**Verdict: defect, filed.** Found 2026-08-16 while landing A2. **Not fixed in T28.**
+
+UI-SPEC §9 closes with a compiler correctness note: region corners must be held as **exact
+integers on the hex lattice** — `(2q + r ± 1, 3r ± 1|2)` for pointy-top — and converted to
+pixels only at emit. §10.4 step 1's "snapping to a shared vertex grid" is that rule, and it
+had never been stated precisely enough to implement. T28's own hazard list says the shipped
+implementation must be **checked, not assumed**.
+
+**It was checked, and it does not hold.** `tools/src/compile/map.ts` computes corners in
+pixels via `Math.sqrt(3)`, `Math.cos` and `Math.sin`, then keys interior-edge cancellation on
+`Number(value.toFixed(6))` of those floats — the `toFixed` the note names by name. Its own
+comment is candid about what it is doing: *"adjacent hexes compute their shared corners
+through different arithmetic and land a few ULPs apart."*
+
+**It passes today, and that is the point.** Rounding to 1e-6 does cancel correctly until some
+true corner value falls near a rounding boundary and two tiles round to opposite sides of it;
+that interior edge then survives as a stray boundary edge and the loop fails to close. The
+trigger is the *content* — the tile coordinates and `hexSize` in `map.yaml` — so the failure
+appears when a maintainer edits the map, not when the code is written, and it appears for
+some regions and not others. In the UI-SPEC prototype over these same eight regions, **two of
+the eight failed to close.** This is what "silently half-works" means, and it is why 303
+passing tools tests are not evidence against it.
+
+§10.4 now states the exact-integer rule and names the failure it prevents, so the spec is
+correct. **The implementation is a T12 defect and is filed here rather than fixed quietly**,
+per T28's scope: T28 changes documents, and a compiler change carried in a spec commit is
+exactly the kind of edit that escapes review. It is not urgent — it is latent and content-
+triggered — but it should be fixed before `map.yaml` is edited again, and A2's sub-lattice
+gives it new reach, since the spiral is derived from the same polygon.
+
+### Downstream
+
+A **T12** defect. **T29** builds on `map.ts`'s polygon output and should not layer the
+sub-lattice on top of float-keyed geometry without this closed first.
+
+---
+
+## A3 — fill was an opacity ramp, and §10.5 already contradicted itself about it
+
+**Verdict: amend.** 2026-08-16, T28.
+
+§10.5 encoded fill as "a clip rectangle rising from the region's base". UI-SPEC §4.3 calls
+the water line the single most important rule in the design, and it was wrong in that
+document's own first draft too — which is the strongest available evidence that the obvious
+implementation is genuinely tempting rather than obviously bad.
+
+### Resolution
+
+The plate renders at **full strength at every score**; the score is a horizontal rule across
+the region at height `1 − fill`, plate at full opacity below and at the open plate value
+above, the line ruled in ink and clipped to the region path.
+
+A domain at 18% is *a domain with a low water line*, not *a faded domain*. Because most
+domains are low-scoring most of the time, opacity-as-fill drains the map of colour exactly
+when the map is doing its job, destroying the per-region Lynch-districts identity F21 asks
+for.
+
+**The self-contradiction is the part worth recording.** §10.5 already required that "a
+partly-filled region keeps its full-strength outline and label" — and an opacity ramp
+violates that sentence, in the same section, four lines below the table asserting it. The
+amendment did not introduce a new constraint so much as make the rest of the section agree
+with a requirement it already carried. The SVG sketch is updated with it, since it named a
+`region-fill` element that no longer exists.
+
+`fill` itself is untouched: §11.6's concave `s/(s+k)` curve, never a raw percentage (F34).
+Hue is identity and never encodes score, which is what makes the whole eight-hue palette
+survive in both themes.
+
+### Downstream
+
+**T30** draws it, **T31** reuses it per skill hex (at `attainedLevel / 10`, linear — §11.6's
+`k` is domain-level and does not transfer), **T34** takes the tokens. The glossary entry and
+§11.6's `fill` rationale both described the clip rectangle and are updated.
+
+---
+
+## A4 — §17.1 had no font row
+
+**Verdict: amend.** 2026-08-16, T28.
+
+UI-SPEC §4.5 self-hosts one subsetted display face; §17.1's table had four rows and no
+budget for it, so the first font added would have failed a gate that was right to fail.
+
+### Resolution
+
+A `Display face` row at ≤ 12 kB, and the total rises 70 → **82 kB**, renamed to
+*JS + CSS + font* so the rows visibly sum to it. The face is affordable only because its
+glyph set is closed at roughly forty glyphs, which is why subsetting is part of T27 rather
+than a later optimisation.
+
+**Raising a budget is the move this document should be most suspicious of**, so: it stays
+enforced by failing, the rise is bounded by a stated glyph count rather than by whatever the
+chosen face happens to weigh, and it is the only row added. §7's ajv rationale cited the old
+70 kB figure and is updated with it, since a stale cross-reference to a budget is how a
+budget quietly stops meaning anything.
+
+### Downstream
+
+**T27** implements the row in `tools/src/ci/budget.ts` and picks the face (UI-SPEC **Q1**).
+
+---
+
+## A5 — §15.3's convergence claim, restated rather than deleted
+
+**Verdict: amend.** 2026-08-16, T28.
+
+§15.3 read that below the legibility threshold the map is replaced by a list, "so the
+small-viewport experience and the screen-reader experience converge rather than diverging."
+A1 moves the substitution to camera level 1, and the sentence as written stops being true at
+level 0: the phone now gets the map while the screen reader gets the region list.
+
+**The tempting wrong answer is deletion**, and it is tempting because the sentence is
+literally false after A1. But it is the only place in the spec asserting that the two
+accessible surfaces carry the same content in the same order, and **N5 depends on that
+assertion**, not on the two surfaces looking alike. Deleting it would remove a live
+requirement on the grounds that its justification had changed.
+
+### Resolution
+
+The claim is rewritten to assert the property that is actually load-bearing: *the same
+content in the same order*, not *the same view*. At level 1 both surfaces get the skill list
+and converge outright. At level 0 they differ in form, but every channel a region carries is
+present in both, in the same documented order. The rewrite names A1's threshold move as the
+reason, so a later reader does not re-derive the false version from the old premise.
+
+### Downstream
+
+**T31** (the phone list must carry the same channels in the same order as the region list),
+**T35** (verification across the composed surface).
+
+---
+
+## A6 — `/d/<domainId>` was a separate page
+
+**Verdict: amend.** 2026-08-16, T28.
+
+§13.1 routed `/d/<domainId>` to a "Domain skill listing" and §13.4 composed it as
+`DomainListing → SkillCard[]`. Under A1 it is camera level 1 over the *same* rendered
+surface, which is what makes entering a domain an animation rather than a navigation.
+
+### Resolution
+
+Both routes stay prerendered — eight prerendered documents, one per domain — so a cold
+arrival at a domain URL paints the same first frame as an arrival at `/` and the two differ
+only in where the camera rests. **Prerendering and "not a separate page" are not in
+tension**, and the amendment says so explicitly, because the natural misreading is that a
+camera state cannot be prerendered and the route should become client-only. That would cost
+the domain URLs their first paint for no benefit.
+
+§13.4's tree is rewritten to one `MapSurface` under two routes, with `SkillList` as the
+phone substitution at level 1.
+
+### The layout gains four controls, and they are not decoration
+
+`+layout` takes the **sidebar** (replacing the top nav, which is what gives the map its
+vertical extent back), **Find**, **Info**, and the **next-step card**. They live in the
+layout precisely because they must survive a camera move, which both routes sharing a layout
+delivers for free.
+
+Two are load-bearing rather than convenience. **Find** highlights in place and never moves
+the camera, which is what lets it double as the only filter UI in the application — and its
+match count is exposed as text, since a highlight existing only visually is the colour-only
+encoding N5 forbids. **Info** carries the legend, which is the only place the water line's
+meaning is written down at all, given that F34 forbids showing the percentage. "No legend"
+was also the most concrete criticism the prior-art review returned.
+
+### Downstream
+
+**T30** (the shared surface), **T32** (sidebar and next-step card), **T33** (Find and Info).
+PRD **D28** is adopted by this amendment and is recorded as such in §19.4.
+
+---
+
+## A7 — `domains.yaml`'s palette had one theme
+
+**Verdict: amend.** 2026-08-16, T28.
+
+§5.9's `palette: { base, accent }` predates a dark theme. UI-SPEC §4.2 gives one pair per
+domain per theme.
+
+### Resolution
+
+`palette` becomes `{ light: { base, accent }, dark: { base, accent } }`. Additive, and the
+reader change is mechanical.
+
+**The question the amendment actually settles is where the second palette lives**, not what
+shape it takes. A parallel CSS table would have been less work and is the wrong answer: hue
+is identity and must never encode score (§10.5), which only works if hue has exactly one
+source, and `domains.yaml` is already that source since the map renderer reads it today. Two
+sources drift, and they drift silently — the failure is a domain whose dark hue is stale, not
+an error. Keeping it here means a domain added to the file arrives with both themes or fails
+its schema.
+
+**Nothing derives dark from light at runtime.** The separations that keep eight hues distinct
+— Mind teal against Work navy, Home blue-green against Outdoors olive — are hand-chosen and
+do not survive an algorithmic transform, so both pairs are authored.
+
+### Downstream
+
+**T27** owns the schema change, the migration of existing readers, and the real colours. Note
+UI-SPEC §4.2 tabulates one hex per domain per theme while `palette` carries `{ base,
+accent }`: **the `accent` half has no answer yet** and must not be silently filled from the
+current values, which belong to the superseded direction.
+
+---
+
 ## Also recorded
 
-**PRD D28 — the domain view as a map rather than a list** (§19.4). Raised by the
+**PRD D28 — the domain view as a map rather than a list** (§19.4). **Adopted 2026-08-16 by
+A6**; the note below is kept as the record of how it was priced before it was accepted, and
+every cost it named was paid rather than avoided. Raised by the
 owner during F1's resolution and logged rather than folded in, since it is new design
 rather than reconciliation. `/d/<domainId>` is currently a listing and §10.7 rules out
 pan and zoom; the alternative is a two-level map where a domain opens into its skills

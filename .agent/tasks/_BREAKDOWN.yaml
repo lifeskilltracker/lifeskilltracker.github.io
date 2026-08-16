@@ -539,7 +539,8 @@ tasks:
       `lst lint --format github`, chosen because `::warning` has no failing variant;
       §17.1's runtime and app-JS rows are checked as their sum (52 kB), since the two are
       not separable after bundling — which means the per-row budgets bind at 67 kB, three
-      before the 70 kB total; the path filter is wider than `app/` and `schema/`, because
+      before the 70 kB total (historical — A4 adds a font row and moves the total to
+      82 kB; T27 owns it); the path filter is wider than `app/` and `schema/`, because
       a false negative merges an unbuilt app behind a green tick; and §4.4's caching row
       turned out to be a gap rather than a verification — `lib/content/manifest.ts` now
       revalidates with `cache: 'no-cache'`, which is the only side the constraint can be
@@ -624,7 +625,17 @@ tasks:
     status: written
     doc: T28-ui-spec-reconciliation.md
     note: >
-      T26's pattern applied to the interface: seven amendments (A1–A7) landed in the
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-16; task-doc status remains lifecycle
+      metadata. All seven amendments landed in one commit, with A1-A7 recorded in
+      docs/SPEC-FINDINGS.md as a separate series from F1-F29 (they are supersessions, not
+      defects). PRD is now v1.5: D19 resolved, D25 partially addressed with its remainder
+      named, and D28 adopted by A6 in ARCH 19.4. T13, T14 and T25 carry HISTORICAL banners
+      for the clauses A1/A3/A4/A6 superseded. ONE REAL DEFECT WAS FOUND AND FILED, NOT
+      FIXED: A2-D - tools/src/compile/map.ts keys interior-edge cancellation on
+      toFixed(6) of pixel floats rather than on lattice integers. Latent (303 tools tests
+      pass), content-triggered, and recorded on T12. Fix before map.yaml is next edited;
+      T29 should not layer the sub-lattice on float-keyed geometry.
+      Original plan note follows. T26's pattern applied to the interface: seven amendments (A1–A7) landed in the
       architecture, with SPEC-FINDINGS entries and every stale task doc updated in the same
       commit. A1 is the sharp one — §10.7 currently says "no pan, no zoom, no camera", which
       a T30 implementer working from the architecture alone would obey. A2 must strengthen

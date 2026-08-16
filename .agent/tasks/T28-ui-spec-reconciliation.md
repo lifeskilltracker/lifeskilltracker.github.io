@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-16 |
 | **Phase** | 2 |
 | **Cluster** | judgment |
 | **Blocked by** | — |
@@ -100,21 +100,21 @@ sections themselves:
 
 ## Acceptance criteria
 
-- [ ] `grep -n "no pan, no zoom" docs/ARCHITECTURE.md` returns nothing.
-- [ ] §10.7 describes the two levels, their routes, and the phone list substitution at
+- [x] `grep -n "no pan, no zoom" docs/ARCHITECTURE.md` returns nothing.
+- [x] §10.7 describes the two levels, their routes, and the phone list substitution at
       level 1 rather than at a viewport threshold.
-- [ ] §10.4 states the exact-integer corner rule and names the failure it prevents.
-- [ ] D-08 in the decision log still reads as a live decision, with the sub-lattice named
+- [x] §10.4 states the exact-integer corner rule and names the failure it prevents.
+- [x] D-08 in the decision log still reads as a live decision, with the sub-lattice named
       as a layer over it rather than as an exception to it.
-- [ ] §15.3's convergence sentence is present and asserts the same-content-same-order
+- [x] §15.3's convergence sentence is present and asserts the same-content-same-order
       property, not the same-view property.
-- [ ] §17.1's total reads 82 kB and its rows sum to it.
-- [ ] `docs/SPEC-FINDINGS.md` carries A1–A7 with a verdict, a reason and a date, in the
+- [x] §17.1's total reads 82 kB and its rows sum to it.
+- [x] `docs/SPEC-FINDINGS.md` carries A1–A7 with a verdict, a reason and a date, in the
       form T26's twenty-seven findings established.
-- [ ] Every task doc naming a superseded clause is updated. Verified by
+- [x] Every task doc naming a superseded clause is updated. Verified by
       `grep -rn "no camera\|viewport threshold\|70 kB" .agent/tasks/` returning only
       historical notes explicitly marked as such.
-- [ ] PRD D19 reads resolved and points at UI-SPEC §4; D25 names its remainder.
+- [x] PRD D19 reads resolved and points at UI-SPEC §4; D25 names its remainder.
 
 ## Verification
 

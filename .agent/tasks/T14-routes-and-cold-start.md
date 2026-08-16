@@ -10,6 +10,18 @@
 | **Spec** | ARCHITECTURE §13.1, §13.2, §13.3, §13.4, §16.3 |
 | **PRD** | F23 |
 
+> **HISTORICAL — superseded in part by T28's amendment A6 (2026-08-16).** This document
+> records the phase-1 routes as they shipped. **`/d/<domainId>` is no longer a separate
+> page.** It is a camera state over the same map surface (ARCH §10.7, §13.1), so the
+> `DomainListing → SkillCard[]` composition named below is superseded by one `MapSurface`
+> under both routes, with `SkillList` as the phone substitution at level 1. Both routes
+> stay **prerendered**, which is unchanged. `+layout` also gains the sidebar, Find, Info and
+> the next-step card (§13.4).
+>
+> Everything else here — the cold-start branches, `applyMoves`, §16.3's error states and the
+> `/s/<treeId>` routes — is unchanged and still normative. The live successors are **T30**
+> (the shared surface), **T31** (the level-1 layer and the list) and **T32** (the shell).
+
 ## Goal
 
 `app/src/routes/` holds every route the app serves, wired to the correct prerender flag,

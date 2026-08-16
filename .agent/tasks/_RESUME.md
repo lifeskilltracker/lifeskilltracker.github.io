@@ -85,7 +85,8 @@ no manual step (D-12).
   browser's own list of what it fetches — and the lazy tree route as a static-import
   closure minus that. Fixtures are built from incompressible bytes searched to an exact
   Brotli size, so each row passes at its budget and fails one byte over. Real figures
-  today: **45.7 / 52, 11.7 / 25, 0.6 / 15, 46.4 / 70 kB**.
+  today: **45.7 / 52, 11.7 / 25, 0.6 / 15, 46.4 / 70 kB**. *(Historical as of 2026-08-16 —
+  T28's A4 adds a ≤ 12 kB font row and moves the total to 82 kB. T27 implements it.)*
 - **The workflows themselves have tests.** `workflows.test.ts` parses both files and
   asserts the graph, the absence of `always()`, the `fetch-depth: 0` on the two jobs that
   need it, and that deploy has no `pull_request` trigger. `path-filter.test.ts` runs the
