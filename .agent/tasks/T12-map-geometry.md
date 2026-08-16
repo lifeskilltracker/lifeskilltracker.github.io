@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | **complete** — 2026-08-13. **One open defect: A2-D** (see below) |
+| **Status** | **complete** — 2026-08-13. A2-D fixed 2026-08-16 (see below) |
 | **Phase** | 1 |
 | **Cluster** | content-gates |
 | **Blocked by** | T03, T10 |
@@ -10,7 +10,22 @@
 | **Spec** | ARCHITECTURE §6.2, §10.3, §10.4 |
 | **PRD** | F21, D-08, R-13 |
 
-> **OPEN DEFECT — A2-D, filed 2026-08-16 by T28. Latent, not currently failing.**
+> **A2-D — FIXED 2026-08-16, ahead of T29. The account below is the finding as filed.**
+>
+> `unionTiles` now holds corners as `LatticeVertex` integer pairs from `CORNER_OFFSETS`,
+> keys cancellation on those, and calls `latticeToPixel` only when building the emitted
+> path. `SNAP_DECIMALS`, `snap` and `vertexKey`'s `-0` normalisation are gone; `hexCorners`
+> keeps its signature but is expressed through the same offsets instead of `Math.cos`/`sin`,
+> so there is one description of a corner in the module. **The eight regions and three
+> subregions compile byte-for-byte identically** — verified by running both algorithms over
+> the real `map.yaml` — so nothing reflows and N11 is untouched.
+>
+> The regression test is a solid 3×3 rhombus (22 exterior edges) unioned at `hexSize`
+> 40 / 10 000 / 1 000 000 and again translated 292 tiles from the origin. The translated
+> case is the one that discriminates: under float keying it left **28** edges, not 22. Note
+> what that magnitude means — at the authored `hexSize: 40` with tile coordinates in
+> [−1, 7] the defect was **unreachable**, which is exactly why it was filed as latent
+> rather than failing.
 >
 > §10.4 step 1's "shared vertex grid" now states what it always meant: region corners are
 > **exact integers on the hex lattice** — `(2q + r ± 1, 3r ± 1|2)` for pointy-top — converted

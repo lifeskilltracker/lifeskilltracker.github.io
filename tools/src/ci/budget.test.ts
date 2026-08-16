@@ -11,7 +11,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { brotliCompressSync } from 'node:zlib';
@@ -119,18 +119,40 @@ function fakeBuild(fixture: Fixture): { buildDir: string; routeManifest: string 
   return { buildDir, routeManifest };
 }
 
+const REAL_BUILD = join(REPO_ROOT, 'app/build');
+
 describe('§17.1 — the bundle budget gate', () => {
-  it('measures the real build when one is present', () => {
-    // Not a size assertion: the numbers move with every dependency bump, and
-    // pinning them here would make this suite the thing that fails. What it
-    // proves is that the checker finds this repository's actual output rather
-    // than throwing or measuring nothing.
-    const report = measureBudget({
-      buildDir: join(REPO_ROOT, 'app/build'),
-      routeManifest: join(REPO_ROOT, 'app/.svelte-kit/generated/client/app.js'),
-    });
-    expect(report.rows).toHaveLength(5);
-    for (const row of report.rows) expect(row.measured).toBeGreaterThan(0);
+  // "When one is present" is a real condition, and it is false in CI. The
+  // `app: test` job runs `npm test` off a bare `npm ci` with no build, so this
+  // case throws there while passing on any machine with a stale `app/build` on
+  // disk. Skipping is safe because this is not the gate: `npm run check:budget`
+  // is, and it runs in `app: build` immediately after the build that produces
+  // the directory. What is lost by skipping is a smoke check, not enforcement.
+  it.skipIf(!existsSync(join(REAL_BUILD, 'index.html')))(
+    'measures the real build when one is present',
+    () => {
+      // Not a size assertion: the numbers move with every dependency bump, and
+      // pinning them here would make this suite the thing that fails. What it
+      // proves is that the checker finds this repository's actual output rather
+      // than throwing or measuring nothing.
+      const report = measureBudget({
+        buildDir: REAL_BUILD,
+        routeManifest: join(REPO_ROOT, 'app/.svelte-kit/generated/client/app.js'),
+      });
+      expect(report.rows).toHaveLength(5);
+      for (const row of report.rows) expect(row.measured).toBeGreaterThan(0);
+    },
+  );
+
+  it('refuses to measure an absent build rather than passing vacuously', () => {
+    // The behaviour the skip above relies on being deliberate. Without this,
+    // a missing build would report zero bytes and every budget would pass.
+    expect(() =>
+      measureBudget({
+        buildDir: join(REPO_ROOT, 'app/build-does-not-exist'),
+        routeManifest: join(REPO_ROOT, 'app/.svelte-kit/generated/client/app.js'),
+      }),
+    ).toThrow(/run `npm run build`/);
   });
 
   it('passes a build inside every budget', () => {

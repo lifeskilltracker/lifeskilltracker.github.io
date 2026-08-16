@@ -28,7 +28,8 @@ as though it were linear. **All twenty-nine findings are now resolved.**
 **A separate series, A1–A7, was landed by T28 on 2026-08-16.** Those are not defects: they
 are places where the architecture was correct as written and superseded by `docs/UI-SPEC.md`,
 which settles PRD **D19**. They are tabulated and argued in their own section below, after
-F29. One real defect was found while landing them and is filed there as **A2-D**.
+F29. One real defect was found while landing them, filed there as **A2-D**, and fixed on
+the same day ahead of T29.
 
 This file is the audit trail. The resolutions themselves live in the spec.
 
@@ -88,7 +89,7 @@ audit trail.
 | A5 | amend | 2026-08-16 | §15.3's convergence claim **restated, not deleted**: same content in the same order, not the same view |
 | A6 | amend | 2026-08-16 | `/d/<domainId>` becomes a camera state over the map surface; both routes stay prerendered; `+layout` gains the four persistent controls |
 | A7 | amend | 2026-08-16 | §5.9's `palette` gains `light` and `dark` variants; additive schema change |
-| A2-D | **defect, filed** | 2026-08-16 | T12's shipped union keys interior-edge cancellation on `toFixed(6)` of pixel floats, not on lattice integers |
+| A2-D | **defect, fixed** | 2026-08-16 | T12's shipped union keyed interior-edge cancellation on `toFixed(6)` of pixel floats; now on lattice integers, with the map compiling byte-identically |
 
 ---
 
@@ -2533,7 +2534,9 @@ present at level 0.
 
 ## A2-D — T12's union keys cancellation on rounded floats, not lattice integers
 
-**Verdict: defect, filed.** Found 2026-08-16 while landing A2. **Not fixed in T28.**
+**Verdict: defect, fixed.** Found 2026-08-16 while landing A2, deliberately not fixed in
+T28, and closed the same day ahead of T29. The account below is the finding as filed; the
+resolution is at the end.
 
 UI-SPEC §9 closes with a compiler correctness note: region corners must be held as **exact
 integers on the hex lattice** — `(2q + r ± 1, 3r ± 1|2)` for pointy-top — and converted to
@@ -2567,6 +2570,40 @@ gives it new reach, since the spiral is derived from the same polygon.
 
 A **T12** defect. **T29** builds on `map.ts`'s polygon output and should not layer the
 sub-lattice on top of float-keyed geometry without this closed first.
+
+### The resolution
+
+`unionTiles` runs entirely on integers. A `LatticeVertex` is `(gx, gy)`; a tile's six
+corners are `(2q + r, 3r)` plus the six `CORNER_OFFSETS` `(±1, ±1)` / `(0, ±2)`, listed in
+the 30° + 60°·i angle order so the emitted winding is unchanged. `latticeToPixel` —
+`x = size·√3·gx / 2`, `y = size·gy / 2` — is called once per emitted point, in step 4.
+`SNAP_DECIMALS`, `snap` and `vertexKey`'s `-0` normalisation are deleted: with integers
+there is no rounding and no negative zero to normalise. `hexCorners` keeps its exported
+signature but is expressed through the same offsets rather than `Math.cos`/`Math.sin`, so
+the module holds exactly one description of where a corner is.
+
+**Two things worth recording, because both cut against how the finding reads.**
+
+*The map does not move.* Both algorithms were run over the real `map.yaml` and every one of
+the eight regions and three subregions emits a byte-identical path. The old arithmetic was
+correct to about 1e-14 and `EMIT_DECIMALS` is 3, so the fix could only ever have changed an
+emitted coordinate by rounding across a boundary, and it does not. N11 is untouched and no
+task downstream of T12 needs re-verifying for reflow.
+
+*The defect was unreachable at shipped scale, not merely unlikely.* A divergence needs two
+tiles' floats to straddle a 5e-7 rounding boundary, and at `hexSize: 40` with tile
+coordinates in [−1, 7] the coordinates are O(100) and their ULP is O(1e-14) — eight orders
+of magnitude short. A search found the first genuine failures at `hexSize` 10 000 and
+above. The filed claim that "two of the eight failed to close" in the UI-SPEC prototype is
+therefore **not reproducible against this implementation at this content**, and whatever
+the prototype did differently is not recorded. That does not weaken the case for the fix —
+the class is real, T29's sub-lattice at `hexSize / cellDivisor` puts new arithmetic on the
+same corners, and exact integers cost nothing — but the urgency in the original filing was
+overstated and should not be cited later as evidence that the shipped map was ever wrong.
+
+The regression test is a solid 3×3 rhombus, whose 54 edges cancel to 22 exterior, unioned
+at `hexSize` 40 / 10 000 / 1 000 000 and again translated 292 tiles from the origin. The
+translated case is the discriminating one: under float keying it left 28 edges.
 
 ---
 
