@@ -1,6 +1,63 @@
 # RESUME — implementation
 
-Updated 2026-08-16: phase 2 exists.
+Updated 2026-08-16: **T28 and T27 are complete.** Phase 2 is under way.
+
+# SESSION 21 — T28 AND T27 COMPLETE. THE SPEC AGREES WITH ITSELF AND THE VOCABULARY EXISTS.
+
+Session 19's finished-but-uncommitted work was committed first, on its own, so the
+amendments would land reviewable (`53ca432`).
+
+**T28 — all seven amendments landed in one commit** (`9842a65`). §10.7 no longer says
+"no pan, no zoom, no camera", so an implementer working from the architecture alone now
+builds the right map. A1–A7 are recorded in `docs/SPEC-FINDINGS.md` as their own series,
+deliberately not as `F` findings: they are supersessions, not defects. PRD is **v1.5** —
+D19 resolved, D25 partially addressed with its remainder named, **D28 adopted by A6**
+(§19.4's priced alternative was taken, and every cost it named was paid). T13, T14 and
+T25 carry HISTORICAL banners for the clauses they shipped against.
+
+**T27 — Alegreya SC, and the reasoning matters more than the name** (`1035afb`). The face
+was chosen against measurements, and two plausible answers were falsified on the way:
+
+- **The 12 kB budget never bound.** All eleven candidates subset to 4.2–8.9 kB once
+  unused OpenType tables are dropped. Do not cite the budget as the reason for anything
+  here.
+- **Stroke contrast binds.** Hairline survival at §5.2's 23 px tracks stroke contrast
+  almost exactly — above ~3:1 the thinnest stem lands under one device pixel and
+  antialiasing halves its effective contrast. **No weight of Cormorant fixes this**; its
+  weight axis thickens the thick stems (22u → 23u from 600 to 700).
+- **§4.5's small-caps requirement is a second, independent filter.** Libre Caslon Text,
+  Spectral SC and EB Garamond have **no true small caps** despite the naming, and browser
+  synthesis scales caps to ~0.75 and thins strokes with them. Only Alegreya SC and
+  Vollkorn SC pass both rules.
+- **The knockout halo is an accessibility mechanism, not a flourish.** Ink on the halo is
+  13.9:1 / 12.0:1; the same ink on a full-strength plate is **1.45:1** at worst. Nothing
+  downstream may drop it.
+
+## Carried forward — read before starting T29 or T31
+
+- **A2-D is an open, latent defect in T12.** `tools/src/compile/map.ts` keys interior-edge
+  cancellation on `toFixed(6)` of pixel floats rather than on lattice integers. All 306
+  tools tests pass and that is not evidence against it: the failure is content-triggered
+  and appears when someone edits `map.yaml`. **Fix before the next `map.yaml` edit**, and
+  **T29 should not layer the sub-lattice on float-keyed geometry.** Recorded on
+  `T12-map-geometry.md` and in SPEC-FINDINGS as A2-D.
+- **`cellDivisor` freezes at T29's first committed assignment.** UI-SPEC **Q2** must be
+  settled against the real `map.yaml` first; raising it later renumbers the spiral and
+  reflows every region, which is the exact N11 failure the ledger exists to prevent.
+- **`accent` is now derived** — the plate-open composite of `base` over that theme's
+  paper. A3 removed its only consumer (MapRenderer's clip-path fill), so this is a
+  placeholder with a principled rule rather than a hand-picked colour. **T31 should
+  revisit it** if skill hexes need a real second tone; it is one data edit per domain.
+- **The font lives beside `tokens.css`, not in `static/`.** Deliberate: `static/` is
+  root-addressed and `BASE_PATH` is non-empty on a project-page deploy. Do not "tidy" it
+  into `static/` — that reintroduces a silent fallback to Palatino in production.
+- **`MapRenderer.a11y.test.ts` had one assertion adjusted** (plates are per-domain tokens
+  now, so two regions differ by identity rather than recency). `MapRenderer.test.ts` is
+  unchanged.
+
+**Next actionable:** **T29** (tools-only, longest new logic, but settle Q2 and consider
+A2-D first), then **T32** and **T34** (both blocked only by T27, now unblocked), then
+**T30** on the critical path. T30 → T31 → T33 → T35 follows.
 
 # SESSION 20 — `docs/UI-SPEC.md` IS COMMITTED, AND PHASE 2 IS BROKEN DOWN.
 
