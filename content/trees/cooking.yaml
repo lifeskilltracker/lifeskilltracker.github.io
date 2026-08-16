@@ -1,5 +1,5 @@
 schemaVersion: 1
-contentVersion: 1
+contentVersion: 2
 id: cooking
 title: Cooking
 summary: >-
@@ -33,8 +33,8 @@ levels:
         title: Cook dried pasta to al dente and drain it
         label: Pasta to al dente
         detail: >-
-          Salt the water, taste a strand before the package time is up, and stop
-          the cooking at bite rather than at the timer.
+          Salt the water, taste a strand a minute before the package time is
+          up, and stop the cooking at bite rather than at the timer.
         uid: Z77TSTX6
       - id: fried-egg
         title: Fry an egg with an unbroken yolk and no browned white
