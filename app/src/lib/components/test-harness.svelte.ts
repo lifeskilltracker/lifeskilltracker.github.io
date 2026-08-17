@@ -23,6 +23,15 @@ export interface Mounted<Props extends Record<string, unknown>> {
 	container: HTMLElement;
 	/** Live, reactive props: assign to one and the component re-renders. */
 	props: Props;
+	/**
+	 * The component's own exports — what a caller gets from `bind:this`.
+	 *
+	 * Added by T34, whose level camera is an instance method rather than a prop:
+	 * the camera moves a scroll container the component owns, and §7 puts the
+	 * *controls* on the page around it, so the page has to be able to ask. A test
+	 * that drove it only through a rendered button would be testing the button.
+	 */
+	instance: Record<string, unknown>;
 	destroy(): void;
 }
 
@@ -47,7 +56,7 @@ export function render<Props extends Record<string, unknown>>(
 	};
 	mountedTargets.push(destroy);
 
-	return { container, props, destroy };
+	return { container, props, instance: instance as Record<string, unknown>, destroy };
 }
 
 /** Call from `afterEach`; leaked components would share `document`. */
