@@ -187,11 +187,15 @@ Together these rule out both the authored answer and the semantic one. Deriving 
 
 **The mechanism:**
 
-1. **Subdivide.** Generate a hex lattice at `cellSize = hexSize / cellDivisor` (default 3, per-region override permitted) over the region's bounding box. Keep every cell whose centre lies inside the region polygon. A region of 5 domain tiles yields roughly 45 cells, which is Making's projected ceiling.
+1. **Subdivide.** Generate a hex lattice at `cellSize = hexSize / cellDivisor` over the region's bounding box. Keep every cell whose centre lies inside the region polygon. **`cellDivisor` is 4, globally — there is no per-region override** (Q2, resolved; see below). Every region holds between 96 and 160 cells, against §5.1's 500-skill projection of 43–137 per region.
 2. **Enumerate.** Order the surviving cells in a spiral from the cell nearest the region centroid. Deterministic given the polygon and `cellDivisor`.
 3. **Assign, append-only.** Each published tree takes the lowest-numbered free cell in its primary domain at the moment it is first compiled. The assignment is written to a **committed placement ledger** and never recomputed.
 
 A new skill always takes the next free cell; **nothing already placed ever moves.** F13 is satisfied because nobody authors anything, and N11 is satisfied by construction rather than by care.
+
+**Why the divisor is 4.** Two independent constraints meet there with no room either side. *Capacity:* at 3, the lattice yields 90 cells for Making, 61 for Body, and 63 for Home — all short of §5.1's 500-skill projection of 137, 82, and 70, forcing exactly the reflow the ledger exists to prevent. 4 clears every region with 1.2× headroom at the worst (Making, 160 cells against 137). *Touch target:* the level-1 camera frames one region, so a cell's screen size falls with the region's extent; Play and Outdoors zoom least and set the floor at 45 px per cell at divisor 4, against WCAG 2.5.5 AAA's 44 px. Divisor 5 drops that floor to 36 px and fails. 4 is the largest divisor that stays touchable and the smallest that holds the ceiling.
+
+**One divisor, not one per region.** A per-region override buys nothing the global 4 does not already cover, and it costs the ledger its single most useful property — that a cell index means the same thing everywhere, so the placement algorithm reads identically for every domain. The override is dropped.
 
 **The ledger reuses an existing pattern.** ARCH §6.4 already establishes a committed baseline with CI failing on unauthorized drift, for milestone identifier stability (F41). Placement is the same shape of problem and takes the same shape of answer: `lst compile` assigns cells to trees that lack them, and CI fails if an existing assignment changed. No new concept is introduced.
 
@@ -424,7 +428,7 @@ Four were built and played against the chosen one before The Survey (§5.7) was 
 ## 12. Open questions
 
 - **Q1.** The specific display face. Requirement is an engraved or transitional serif with a true small-caps or caps design, self-hostable, subsettable to ~40 glyphs at ≤ 12 kB. Not yet chosen.
-- **Q2.** `cellDivisor`'s default. 3 gives roughly 9 cells per domain tile and covers Making's projected 45. Wants checking against the real `map.yaml` geometry before it is frozen, because raising it later reflows every region.
+- **Q2. Resolved (2026-08-16): `cellDivisor` is 4, globally, and the per-region override is dropped.** Measured against the real `map.yaml`: 3 overflows Making, Body, and Home at §5.1's 500-skill projection, and 5 puts the smallest level-1 cell at 36 px, under WCAG 2.5.5 AAA's 44 px. See §5.3.
 - **Q3.** Whether the next-step card's selection rule (§6.4) should prefer the most recent activity or the nearest-to-completion level. Recency is specified; the alternative is worth a look once three trees exist.
 - **Q4.** D25's remainder — how a Curious Browser reaches a compelling *tree* view without starting a skill.
 - **Q5.** Whether Find should persist its highlight across a camera move, or clear on navigation. Specified as clear-on-`Esc` only; untested.

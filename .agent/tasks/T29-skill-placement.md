@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | **complete** — 2026-08-16 |
 | **Phase** | 2 |
 | **Cluster** | cli-toolchain |
 | **Blocked by** | — |
@@ -37,9 +37,9 @@ shape of answer.
 
 **In scope**
 
-- **Subdivide.** A hex lattice at `cellSize = hexSize / cellDivisor` (default 3,
-  per-region override permitted) over the region's bounding box; keep every cell whose
-  centre lies inside the region polygon.
+- **Subdivide.** A hex lattice at `cellSize = hexSize / cellDivisor` over the region's
+  bounding box; keep every cell whose centre lies inside the region polygon.
+  `cellDivisor` is **4, global — no per-region override** (UI-SPEC Q2, resolved).
 - **Enumerate.** Order surviving cells in a spiral from the cell nearest the region
   centroid. Deterministic given the polygon and `cellDivisor`.
 - **Assign, append-only.** Each published tree takes the lowest-numbered free cell in its
@@ -55,8 +55,8 @@ shape of answer.
   destination (safe precisely because assignment is lowest-free rather than by count);
   editing a region's tiles in `map.yaml` **reflows that domain's skills**, and the
   compiler shall warn loudly and name every affected tree.
-- Resolving **UI-SPEC §12 Q2** — `cellDivisor`'s default, checked against the real
-  `map.yaml` geometry before it is frozen.
+- Asserting the resolved **UI-SPEC §12 Q2** value in a test, so the divisor cannot drift:
+  `cellDivisor: 4`, global, no override.
 
 **Out of scope**
 
@@ -73,10 +73,14 @@ shape of answer.
 ```
 tools/src/compile/placement.ts        sub-lattice, spiral enumeration, assignment
 tools/src/compile/placement.test.ts   determinism, append-only, the three consequences
-tools/src/baseline/placement.ts       check 9 — no existing assignment changed
+tools/src/baseline/checks.ts          check 9 — no existing assignment changed
 content/taxonomy/placement.yaml       the committed ledger: treeId → cell
 schema/placement.schema.json          the ledger's shape
-schema/manifest.schema.json           manifest entries gain a cell coordinate
+schema/manifest.schema.json           manifest entries gain a required cell coordinate
+
+Shipped in `baseline/checks.ts` beside checks 1–8 rather than in its own
+`baseline/placement.ts`: the eight existing checks share one findings type and one
+report path, and a ninth in a separate module would have duplicated both.
 ```
 
 ## Interface contract
@@ -104,28 +108,31 @@ export function assignPlacements(
 ```yaml
 # content/taxonomy/placement.yaml
 schemaVersion: 1
-cellDivisor: 3
+cellDivisor: 4          # global; frozen at the first committed assignment
 placements:
   - { tree: blacksmithing, domain: making, cell: { q: 0, r: 0 } }
 ```
 
 ## Acceptance criteria
 
-- [ ] `enumerateCells` is deterministic: the same polygon and divisor yield a
+- [x] `enumerateCells` is deterministic: the same polygon and divisor yield a
       byte-identical cell list across runs and platforms. Asserted by a fixture.
-- [ ] Adding a tree to a domain changes exactly one ledger line and no existing line.
+- [x] Adding a tree to a domain changes exactly one ledger line and no existing line.
       Asserted over all eight domains.
-- [ ] Retiring a tree leaves its cell free and moves nothing; the next tree added to that
+- [x] Retiring a tree leaves its cell free and moves nothing; the next tree added to that
       domain takes the freed cell.
-- [ ] A tree changing primary domain frees the source cell and takes the lowest free cell
+- [x] A tree changing primary domain frees the source cell and takes the lowest free cell
       in the destination.
-- [ ] Editing a region's tiles emits a warning naming every affected tree, and the ledger
+- [x] Editing a region's tiles emits a warning naming every affected tree, and the ledger
       records the reflow rather than silently rewriting.
-- [ ] `lst baseline` check 9 fails on a hand-edited ledger line and passes on an appended
+- [x] `lst baseline` check 9 fails on a hand-edited ledger line and passes on an appended
       one. Verified over a real temporary git repository, as T25's tests do.
-- [ ] Every published tree in the manifest has a cell; no cell is claimed twice.
-- [ ] `cellDivisor: 3` yields at least 45 cells for Making against the real `map.yaml`,
-      and the figure is asserted rather than asserted-by-comment.
+- [x] Every published tree in the manifest has a cell; no cell is claimed twice.
+- [x] `cellDivisor: 4` yields at least 137 cells for Making, 82 for Body, and 70 for Home
+      against the real `map.yaml` — §5.1's 500-skill projection — and every figure is
+      asserted rather than asserted-by-comment.
+- [x] The ledger schema has no per-region divisor field, and a `placement.yaml` carrying
+      one is rejected by `lst validate`.
 
 ## Verification
 
@@ -137,9 +144,10 @@ git diff --exit-code content/taxonomy/placement.yaml   # a re-compile changes no
 
 ## Notes and hazards
 
-- **`cellDivisor` is effectively frozen once content exists.** Raising it later reflows
-  every region — the exact N11 failure this task is built to prevent. Q2 must be settled
-  against the real geometry *before* the first ledger commit, not after.
+- **`cellDivisor` is effectively frozen once content exists.** Changing it later reflows
+  every region — the exact N11 failure this task is built to prevent. Q2 is settled at
+  **4** against the real geometry; the first ledger commit makes that permanent for all
+  eight regions at once, since the divisor is global.
 - **Lowest-free, not next-highest.** The distinction is invisible until the first
   retirement and then it is the whole design: counting assignments makes freeing unsafe.
 - **The hole is correct.** A future reader will see a gap in a region and try to close it.
@@ -148,3 +156,51 @@ git diff --exit-code content/taxonomy/placement.yaml   # a re-compile changes no
   the same trap as the region union: keying anything on rounded floats half-works.
 - **This is the longest single piece of new logic in the interface work** (UI-SPEC §10)
   and it has no blockers. Start it in parallel.
+
+
+## Outcome — 2026-08-16
+
+Closed. 348 tools tests pass; `npm run typecheck` and `npx eslint .` are clean.
+The three failing app tests (`dismiss/undismiss` property, two axe gates) are
+**pre-existing** and fail identically with this work stashed.
+
+**One interface change from the plan above, and it is the load-bearing decision.**
+`enumerateCells` takes the region's **tiles**, not a `RegionPolygon`:
+
+```ts
+export function enumerateCells(tiles: readonly AxialTile[], cellDivisor: number): readonly Cell[]
+```
+
+§5.3 says "keep every cell whose centre lies inside the region polygon", and the
+polygon *is* the union of the tiles — so the equivalent question is "which parent
+tile contains this cell's centre?", which is a total function of the cell alone
+and computes in exact integers. Point-in-polygon on the emitted path would have
+put float containment on a boundary where cells land exactly on region edges,
+reintroducing A2-D one level finer. Three properties fall out that the polygon
+formulation could not have guaranteed:
+
+- **Cells partition the plane.** Every cell has exactly one parent tile and M2
+  forbids a tile being claimed twice, so **no cell can belong to two regions** —
+  asserted over the real `map.yaml`. A boundary tie cannot draw one region's
+  skill hex on top of another's.
+- **Every region holds exactly `16 × tiles`**, because the rounding is
+  equivariant under lattice translation. Capacity is arithmetic, not measurement.
+- The **45 px touch-target floor is not asserted here**. It depends on the level-1
+  camera, which is T30's; the capacity half of Q2 is asserted, and the note is
+  recorded in `placement.test.ts`.
+
+**Correction to the Q2 measurements.** The figures quoted when Q2 was decided
+(160 / 109 / 112 for Making / Body / Home) came from float polygon containment,
+which dropped three boundary cells in Body. The exact partition gives **Making
+160, Body 112, Home 112** — every region is `16 × tiles`. The decision is
+unaffected: 4 was already the answer, and Body's true capacity is larger than the
+number it was justified with, not smaller.
+
+**Check 9 is narrower than "the ledger changed", deliberately.** An appended line
+is a new skill; a removed line is a retirement freeing its cell; a changed
+`domain` is a skill moving region. Only *same tree, same domain, different cell*
+is a violation — plus any change to `cellDivisor`, which moves everything while
+leaving every line looking equal.
+
+**Follow-on for T31**, which reads this: `manifest.trees[].cell` is now **required**
+by `manifest.schema.json`, and the app's generated `TreeEntry` carries it.

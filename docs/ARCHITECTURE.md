@@ -1479,7 +1479,7 @@ This is not a micro-optimisation and the tempting implementation is wrong. Keyin
 
 For each region, after the union:
 
-5. **Subdivide.** Generate a hex lattice at `cellSize = hexSize / cellDivisor` (default 3, per-region override permitted) over the region's bounding box, keeping every cell whose centre lies inside the region polygon. Five domain tiles yield roughly 45 cells, which is Making's projected ceiling.
+5. **Subdivide.** Generate a hex lattice at `cellSize = hexSize / cellDivisor` over the region's bounding box, keeping every cell whose centre lies inside the region polygon. **`cellDivisor` is 4 for every region; there is no per-region override.** That yields 96–160 cells per region against a 500-skill projection of 43–137, and holds the smallest level-1 cell at 45 px, clear of WCAG 2.5.5 AAA's 44 px. UI-SPEC §5.3 carries the measurements.
 6. **Enumerate.** Order the surviving cells in a spiral outward from the cell nearest the region centroid — deterministic given the polygon and `cellDivisor`.
 7. **Assign, append-only.** Each published tree takes the lowest-numbered free cell in its primary domain at the moment it is first compiled. The assignment is written to a committed **placement ledger** and never recomputed.
 
@@ -1491,7 +1491,7 @@ Three consequences, stated so they are not later mistaken for defects:
 - **A skill changing primary domain frees its old cell and takes a new one** in the destination. Freeing is safe precisely because assignment is by lowest-free rather than by count.
 - **Editing a region's tiles reflows that domain's skills**, because the polygon changed and so the lattice changed. This is a rare maintainer action; the compiler shall warn loudly and name the affected trees. It is the one place N11 is knowingly traded, and it is traded for the ability to grow the map at all.
 
-`cellDivisor` is frozen for a region the moment its first assignment is committed — raising it later renumbers the spiral and reflows every skill in that region, which is the exact failure the ledger exists to prevent.
+`cellDivisor` is frozen the moment the ledger's first assignment is committed — changing it later renumbers the spiral and reflows every skill on the map, which is the exact failure the ledger exists to prevent. Because the divisor is global, that freeze is global too: the first commit in any region freezes it for all eight.
 
 ### 10.5 Rendering the three channels
 

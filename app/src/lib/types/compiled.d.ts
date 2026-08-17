@@ -350,4 +350,11 @@ export interface TreeEntry {
   milestoneCount: number;
   authors: string[];
   bundle: string;
+  /**
+   * Sub-lattice axial coordinates. Integers: the sub-lattice is the parent lattice scaled by 1/cellDivisor about the same origin, so no cell is ever fractional.
+   */
+  cell: {
+    q: number;
+    r: number;
+  };
 }

@@ -1,6 +1,34 @@
 # RESUME — implementation
 
-Updated 2026-08-16: **T28 and T27 are complete.** Phase 2 is under way.
+Updated 2026-08-16: **T27, T28 and T29 are complete.** Phase 2 is under way.
+
+# SESSION 22 — T29 COMPLETE. EVERY SKILL HAS A POSITION NOBODY AUTHORED.
+
+`lst compile` now assigns each published tree the lowest free cell in its domain,
+writes `content/taxonomy/placement.yaml`, and emits a cell per tree into the
+manifest. **`lst baseline` check 9** fails CI if a committed assignment moves.
+
+The one decision worth carrying forward: **the sub-lattice is not a polygon
+containment test.** `enumerateCells` takes the region's tiles and asks which
+parent tile owns each cell — exact integers, per A2-D. Consequences:
+
+- **No cell can belong to two regions** (tiles partition, M2 forbids double
+  claims), so boundary ties cannot stack two skill hexes.
+- **Every region holds exactly `16 × tiles`**: Making 160, Body 112, Home 112,
+  People 128, Work & Money 96, the rest 112. Capacity is arithmetic now.
+- The Q2 figures quoted at decision time (Body 109) came from float containment
+  and were three cells low. The decision stands; Body is 112.
+
+**Check 9 permits what the design permits**: appended lines, removed lines
+(retirement frees the cell), and a changed `domain`. Only *same tree, same
+domain, different cell* fails — plus any `cellDivisor` change.
+
+**For T31**: `manifest.trees[].cell` is **required** in `manifest.schema.json` and
+present on the app's generated `TreeEntry`. The ledger is written, not read, by
+the app.
+
+**Three app tests fail and are not ours** — the `dismiss/undismiss` property test
+and two axe gates fail identically on a clean tree. Worth a look before T33.
 
 # SESSION 21 — T28 AND T27 COMPLETE. THE SPEC AGREES WITH ITSELF AND THE VOCABULARY EXISTS.
 
@@ -41,9 +69,12 @@ was chosen against measurements, and two plausible answers were falsified on the
   and appears when someone edits `map.yaml`. **Fix before the next `map.yaml` edit**, and
   **T29 should not layer the sub-lattice on float-keyed geometry.** Recorded on
   `T12-map-geometry.md` and in SPEC-FINDINGS as A2-D.
-- **`cellDivisor` freezes at T29's first committed assignment.** UI-SPEC **Q2** must be
-  settled against the real `map.yaml` first; raising it later renumbers the spiral and
-  reflows every region, which is the exact N11 failure the ledger exists to prevent.
+- **`cellDivisor` freezes at T29's first committed assignment.** UI-SPEC **Q2 is settled
+  (2026-08-16): 4, global, no per-region override.** Measured against the real `map.yaml` —
+  3 overflows Making, Body, and Home at the 500-skill projection; 5 puts the smallest
+  level-1 cell at 36 px, under WCAG 2.5.5 AAA. Do not revisit it after the first ledger
+  commit: renumbering the spiral reflows every region, the exact N11 failure the ledger
+  exists to prevent.
 - **`accent` is now derived** — the plate-open composite of `base` over that theme's
   paper. A3 removed its only consumer (MapRenderer's clip-path fill), so this is a
   placeholder with a principled rule rather than a hand-picked colour. **T31 should
@@ -55,9 +86,9 @@ was chosen against measurements, and two plausible answers were falsified on the
   now, so two regions differ by identity rather than recency). `MapRenderer.test.ts` is
   unchanged.
 
-**Next actionable:** **T29** (tools-only, longest new logic, but settle Q2 and consider
-A2-D first), then **T32** and **T34** (both blocked only by T27, now unblocked), then
-**T30** on the critical path. T30 → T31 → T33 → T35 follows.
+**Next actionable:** **T32** and **T34** (both blocked only by T27, both unblocked and
+parallel), and **T30** on the critical path. T30 → T31 → T33 → T35 follows; T31 now has
+its placement input and is blocked only by T30.
 
 # SESSION 20 — `docs/UI-SPEC.md` IS COMMITTED, AND PHASE 2 IS BROKEN DOWN.
 
@@ -101,8 +132,8 @@ T27 in parallel.
 ### The traps, stated so they are not rediscovered
 
 - **`cellDivisor` is frozen the moment the placement ledger has its first commit.** UI-SPEC
-  **Q2** must be settled against the real `map.yaml` first; raising it later reflows every
-  region, which is the exact N11 failure T29 exists to prevent.
+  **Q2 is settled: 4, global.** Changing it after that commit reflows every region, which is
+  the exact N11 failure T29 exists to prevent.
 - **T30 must paint to the resting frame.** T35's reveal layers onto it; a map that animates
   itself into place leaves T35 nothing coherent to hand over to.
 - **Reduced motion means *skipped*, not shortened** — a 100 ms reveal is still a reveal.

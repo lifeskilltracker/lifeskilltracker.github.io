@@ -1,11 +1,18 @@
 import { defaultRepoRoot } from '../shared/paths.js';
 import { EXIT_OK, EXIT_RUNTIME_ERROR, EXIT_VALIDATION_FAILED } from '../shared/exit-codes.js';
 import { applyAliasFixes } from './autofix.js';
-import { checkTreePair, checkTreeSet, type BaselineFinding } from './checks.js';
+import {
+  checkPlacementLedger,
+  checkTreePair,
+  checkTreeSet,
+  type BaselineFinding,
+} from './checks.js';
 import {
   BaselineUnavailableError,
   DEFAULT_BASELINE_REF,
+  readBaselineLedger,
   readBaselineSnapshot,
+  readHeadLedger,
   readHeadSnapshot,
 } from './diff.js';
 
@@ -29,11 +36,11 @@ export interface BaselineResult {
 }
 
 /**
- * §6.4 in full: eight checks, the baseline being the tip of `origin/main` and
+ * §6.4 in full: nine checks, the baseline being the tip of `origin/main` and
  * the head being the PR merged into it.
  *
  * **Checks 1–7 range over trees present on both sides; check 8 ranges over the
- * set.** The alternative reading — check 1 quantifying over every baseline uid
+ * set; check 9 ranges over the placement ledger.** The alternative reading — check 1 quantifying over every baseline uid
  * repository-wide — is not merely a different scope but a wrong one: under it a
  * `moved` uid would satisfy check 1 simply by existing in its destination tree,
  * and the `moved` disposition would never be needed at all.
@@ -55,6 +62,9 @@ export function runBaseline(options: BaselineOptions = {}): BaselineResult {
     findings.push(...checkTreePair(before, after));
   }
   findings.push(...checkTreeSet(baseline, head));
+  findings.push(
+    ...checkPlacementLedger(readBaselineLedger(repoRoot, ref), readHeadLedger(repoRoot)),
+  );
 
   if (!options.fix) {
     return { ref, findings, fixed: [] };

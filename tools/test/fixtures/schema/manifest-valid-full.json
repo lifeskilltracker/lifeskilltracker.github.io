@@ -108,7 +108,11 @@
       "authors": [
         "Fixture Author"
       ],
-      "bundle": "content/bundles/fixture-full-feature.json"
+      "bundle": "content/bundles/fixture-full-feature.json",
+      "cell": {
+        "q": 0,
+        "r": 0
+      }
     }
   ],
   "moved": {

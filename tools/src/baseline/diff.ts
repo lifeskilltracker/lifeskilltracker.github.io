@@ -5,7 +5,7 @@ import { parseDocument } from 'yaml';
 
 import { treesDir } from '../shared/paths.js';
 import { readYamlFile } from '../shared/yaml-source.js';
-import type { Tree } from '../validate/types.js';
+import type { PlacementLedger, Tree } from '../validate/types.js';
 
 export const DEFAULT_BASELINE_REF = 'origin/main';
 
@@ -89,6 +89,39 @@ export function readBaselineSnapshot(repoRoot: string, ref: string): Snapshot {
     }
   }
   return snapshot;
+}
+
+const LEDGER_PATH = 'content/taxonomy/placement.yaml';
+
+function parseLedger(text: string, where: string): PlacementLedger | null {
+  const doc = parseDocument(text, { prettyErrors: true });
+  if (doc.errors.length > 0) {
+    throw new Error(`YAML parse error in ${where}: ${doc.errors[0].message}`);
+  }
+  const data = doc.toJSON() as PlacementLedger | null;
+  return data && typeof data === 'object' && Array.isArray(data.placements) ? data : null;
+}
+
+/**
+ * The ledger as of the baseline commit. `null` when the baseline predates the
+ * ledger — check 9 then has nothing to hold anyone to, which is the correct
+ * reading of the very first commit that introduces it.
+ */
+export function readBaselineLedger(repoRoot: string, ref: string): PlacementLedger | null {
+  const commit = resolveBaselineCommit(repoRoot, ref);
+  const shown = git(repoRoot, ['show', `${commit}:${LEDGER_PATH}`]);
+  if (shown.status !== 0) {
+    return null;
+  }
+  return parseLedger(shown.stdout, `${ref}:${LEDGER_PATH}`);
+}
+
+export function readHeadLedger(repoRoot: string): PlacementLedger | null {
+  const filePath = path.join(repoRoot, LEDGER_PATH);
+  if (!existsSync(filePath)) {
+    return null;
+  }
+  return readYamlFile<PlacementLedger>(filePath).data ?? null;
 }
 
 /**

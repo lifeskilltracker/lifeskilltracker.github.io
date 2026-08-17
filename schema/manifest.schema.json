@@ -156,9 +156,10 @@
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
         },
-        "bundle": { "type": "string", "minLength": 1 }
+        "bundle": { "type": "string", "minLength": 1 },
+        "cell": { "$ref": "./placement.schema.json#/$defs/cell" }
       },
-      "required": ["id", "contentVersion", "title", "summary", "domain", "milestoneCount", "authors", "bundle"],
+      "required": ["id", "contentVersion", "title", "summary", "domain", "milestoneCount", "authors", "bundle", "cell"],
       "additionalProperties": false
     }
   }

@@ -14,6 +14,7 @@ const SCHEMA_FILES = [
   'domains.schema.json',
   'facets.schema.json',
   'map.schema.json',
+  'placement.schema.json',
   'export.schema.json',
   'compiled-tree.schema.json',
   'manifest.schema.json',

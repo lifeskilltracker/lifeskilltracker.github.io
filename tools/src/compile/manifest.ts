@@ -1,4 +1,4 @@
-import type { DomainsFile, FacetsFile, MapFile, Tree } from '../validate/types.js';
+import type { Cell, DomainsFile, FacetsFile, MapFile, Tree } from '../validate/types.js';
 import { compileMap, type CompiledMapRegion } from './map.js';
 import { bundleRelativePath } from './hash.js';
 import type { CompiledTree } from './bundle.js';
@@ -26,6 +26,8 @@ export interface ManifestTreeEntry {
   milestoneCount: number;
   authors: string[];
   bundle: string;
+  /** The tree's committed sub-lattice cell (§5.3). Absent only before T29's ledger exists. */
+  cell?: Cell;
 }
 
 export interface Manifest {
@@ -46,7 +48,7 @@ function countMilestones(tree: Tree): number {
   return tree.levels.reduce((total, level) => total + level.milestones.length, 0);
 }
 
-function manifestTreeEntry(tree: Tree, bundlePath: string): ManifestTreeEntry {
+function manifestTreeEntry(tree: Tree, bundlePath: string, cell?: Cell): ManifestTreeEntry {
   const entry: ManifestTreeEntry = {
     id: tree.id,
     contentVersion: tree.contentVersion,
@@ -69,6 +71,9 @@ function manifestTreeEntry(tree: Tree, bundlePath: string): ManifestTreeEntry {
   if (tree.archetype) {
     entry.archetype = tree.archetype;
   }
+  if (cell) {
+    entry.cell = cell;
+  }
   return entry;
 }
 
@@ -88,12 +93,18 @@ export function buildManifest(options: {
   domains: DomainsFile;
   facets: FacetsFile;
   map: MapFile;
+  /** Committed cell per tree id (§5.3). The compiler assigns; this only emits. */
+  cells?: ReadonlyMap<string, Cell>;
   now?: NowFn;
 }): BuiltManifest {
   const now = (options.now ?? (() => new Date()))();
   const treeById = new Map(options.trees.map((tree) => [tree.id, tree]));
   const trees = sortByAsciiUtf8(options.bundles, (bundle) => bundle.treeId).map((bundle) =>
-    manifestTreeEntry(treeById.get(bundle.treeId)!, bundle.relativePath),
+    manifestTreeEntry(
+      treeById.get(bundle.treeId)!,
+      bundle.relativePath,
+      options.cells?.get(bundle.treeId),
+    ),
   );
 
   // §10.4: the manifest is the only place map geometry ships. The map renders

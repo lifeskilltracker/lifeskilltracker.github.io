@@ -2520,10 +2520,18 @@ domain change frees the old cell and takes a new one (safe *because* assignment 
 rather than by count), and editing a region's tiles reflows that domain — the one place N11 is
 knowingly traded, for the ability to grow the map at all.
 
-`cellDivisor` is recorded as **frozen at a region's first committed assignment**. Raising it
-later renumbers the spiral and reflows every skill in that region, which is the precise
-failure the ledger exists to prevent. UI-SPEC **Q2** must therefore be settled against the
-real `map.yaml` before T29's first commit, not after.
+`cellDivisor` is recorded as **frozen at the ledger's first committed assignment**. Changing it
+later renumbers the spiral and reflows every skill, which is the precise failure the ledger
+exists to prevent.
+
+**UI-SPEC Q2 was settled on 2026-08-16, before that first commit: `cellDivisor` is 4, one
+global value, and the per-region override §10.4 originally permitted is dropped.** Measured
+against the real `map.yaml`, two independent constraints converge on 4 with no room either
+side. At 3 the lattice yields 90 / 61 / 63 cells for Making / Body / Home against §5.1's
+500-skill projection of 137 / 82 / 70 — three overflows. At 5 the smallest level-1 cell falls
+to 36 px, under WCAG 2.5.5 AAA's 44 px, because the level-1 camera frames one region and Play
+and Outdoors zoom least. 4 clears both: 160 / 109 / 112 cells, and a 45 px floor. Dropping the
+override keeps a cell index meaning the same thing in every region.
 
 ### Downstream
 

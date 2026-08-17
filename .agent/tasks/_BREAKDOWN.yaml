@@ -674,9 +674,9 @@ tasks:
       of new logic. `tools/` only, no app dependency, no blockers — start it in parallel.
       Append-only assignment satisfies F13 and N11 by construction: contributors author no
       coordinates and nothing already placed ever moves. The ledger reuses §6.4's committed
-      baseline pattern and adds check 9. UI-SPEC Q2 (`cellDivisor`'s default) must be settled
-      against the real map.yaml BEFORE the first ledger commit — raising it later reflows
-      every region, which is the exact N11 failure the task exists to prevent.
+      baseline pattern and adds check 9. UI-SPEC Q2 is settled ahead of the first ledger
+      commit: `cellDivisor` is 4, one global value, no per-region override. Do not change it
+      after that commit — it reflows every region, the exact N11 failure the task prevents.
 
   - id: T30
     title: "Map camera: two levels, label tiers, and the Survey system"

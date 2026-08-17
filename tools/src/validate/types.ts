@@ -138,6 +138,30 @@ export interface MapFile {
   regions: MapRegion[];
 }
 
+/** A sub-lattice cell, in its own axial coordinates at `hexSize / cellDivisor`. */
+export interface Cell {
+  readonly q: number;
+  readonly r: number;
+}
+
+/** One committed assignment. `domain` is the tree's primary domain when it was placed. */
+export interface Placement {
+  tree: string;
+  domain: DomainId;
+  cell: Cell;
+}
+
+/**
+ * `content/taxonomy/placement.yaml` (§5.3). Written by `lst compile` and never
+ * hand-edited; `lst baseline` check 9 is what enforces that.
+ */
+export interface PlacementLedger {
+  schemaVersion: number;
+  /** Global and frozen at the first committed assignment (UI-SPEC Q2). */
+  cellDivisor: number;
+  placements: Placement[];
+}
+
 export interface LoadedTree {
   path: string;
   tree: Tree;

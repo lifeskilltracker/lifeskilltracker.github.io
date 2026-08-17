@@ -1,6 +1,6 @@
 import { compileTreeBundle } from '../compile/bundle.js';
 import { serializeJson } from '../compile/json.js';
-import type { LineageEntry, Tree } from '../validate/types.js';
+import type { LineageEntry, PlacementLedger, Tree } from '../validate/types.js';
 import type { Snapshot, TreeSnapshot } from './diff.js';
 
 export interface AliasFix {
@@ -345,6 +345,83 @@ export function checkTreePair(
     ...check6(treeId, before.tree, after.tree),
     ...check7(treeId, before.tree, baselineIndex, after.tree),
   ];
+}
+
+/**
+ * Check 9 — a committed placement never moves (§5.3, UI-SPEC §9 A2).
+ *
+ * The ledger is the whole mechanism by which N11 holds for skill positions, and
+ * it is worth exactly nothing unless CI refuses the edit. What counts as a
+ * violation is narrower than "the file changed", because two of the three ways a
+ * line can change are *designed* behaviour:
+ *
+ * - **an appended line** is a new skill taking the lowest free cell;
+ * - **a removed line** is a retirement, and freeing that cell is the point of
+ *   assigning lowest-free rather than by count;
+ * - **a changed `domain`** is a skill moving between regions, which frees the old
+ *   cell and takes a new one in the destination.
+ *
+ * That leaves one shape: a tree that is still in the same domain and whose cell
+ * is different. Nothing legitimate produces it — `lst compile` never recomputes
+ * an existing assignment — so it is either a hand edit or a `cellDivisor` change,
+ * and both reflow a region under users who had memorised it.
+ */
+export function checkPlacementLedger(
+  baseline: PlacementLedger | null,
+  head: PlacementLedger | null,
+): BaselineFinding[] {
+  if (!baseline) {
+    // The commit that introduces the ledger has nothing to be held to.
+    return [];
+  }
+
+  if (!head) {
+    return [
+      {
+        check: 9,
+        treeId: '(ledger)',
+        message:
+          'content/taxonomy/placement.yaml was published and is now absent; deleting it discards ' +
+          'every committed position and reflows the whole map on the next compile',
+      },
+    ];
+  }
+
+  const findings: BaselineFinding[] = [];
+
+  // The divisor first: it changes nothing line by line and everything in effect,
+  // since the spiral is renumbered underneath assignments that still look equal.
+  if (head.cellDivisor !== baseline.cellDivisor) {
+    findings.push({
+      check: 9,
+      treeId: '(ledger)',
+      message:
+        `cellDivisor changed ${baseline.cellDivisor} → ${head.cellDivisor}; it is frozen at the ` +
+        'first committed assignment because changing it renumbers every region\'s spiral ' +
+        '(UI-SPEC Q2)',
+    });
+  }
+
+  const headByTree = new Map(head.placements.map((entry) => [entry.tree, entry]));
+  for (const before of baseline.placements) {
+    const after = headByTree.get(before.tree);
+    if (!after || after.domain !== before.domain) {
+      continue;
+    }
+    if (after.cell.q === before.cell.q && after.cell.r === before.cell.r) {
+      continue;
+    }
+    findings.push({
+      check: 9,
+      treeId: before.tree,
+      message:
+        `placement moved from (${before.cell.q}, ${before.cell.r}) to (${after.cell.q}, ` +
+        `${after.cell.r}) within "${before.domain}"; a committed assignment is never recomputed ` +
+        '(§5.3). Revert the line — the compiler will not rewrite it.',
+    });
+  }
+
+  return findings;
 }
 
 /**

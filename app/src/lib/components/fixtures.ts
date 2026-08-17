@@ -110,6 +110,9 @@ export function manifestFixture(options: ManifestOptions = {}): Manifest {
       milestoneCount: 40,
       authors: ['fixture'],
       bundle: `bundles/${index}.json`,
+      // The compiler's committed sub-lattice cell (§5.3). One per tree, distinct;
+      // the geometry is not the fixture's business, only that the field is there.
+      cell: { q: index * 4, r: 0 },
     })),
   } as Manifest;
 }
