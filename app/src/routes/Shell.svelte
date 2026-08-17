@@ -30,10 +30,19 @@
 	 * **The offline branch says so.** §7.4's cached manifest is a correct render
 	 * of possibly-stale content, which is worth having and not worth hiding.
 	 */
-	import { resolve } from '$app/paths';
 	import ColdStartFailure from '$lib/components/ColdStartFailure.svelte';
 	import ExportPrompt from '$lib/components/ExportPrompt.svelte';
+	import NextStepCard from '$lib/components/NextStepCard.svelte';
+	import Sidebar from '$lib/components/Sidebar.svelte';
+	import { sidebarCollapse } from '$lib/components/sidebar-collapse.svelte.js';
+	import type { NextStep, NextStepView } from '$lib/components/next-step.js';
 	import { dismissExportPrompt, refreshExportPrompt } from '$lib/actions/export-prompt.js';
+	import {
+		domainProgressRows,
+		startedSkillRows,
+		worldScores
+	} from '$lib/actions/domain-scores.js';
+	import { assembleNextStep, type NextStepSources } from '$lib/actions/next-step.js';
 	import { exportPrompt } from '$lib/state/export-prompt.svelte.js';
 	import {
 		coldStart,
@@ -51,12 +60,26 @@
 
 	interface Props {
 		children: import('svelte').Snippet;
+		/**
+		 * The current path, handed down by `+layout.svelte`. It arrives as a prop
+		 * rather than being read here so the shell stays mountable outside a
+		 * SvelteKit router — which is what makes §13.3's four branches testable.
+		 */
+		pathname?: string;
 		/** Injected only by tests — the same seam as `StoreOptions.open` (§14.5). */
 		contentLoader?: ColdStartContent;
 		userStore?: ColdStartStore;
+		/** The card's two I/O halves, injected on the same seam (§6.4, T32). */
+		nextStepSources?: NextStepSources;
 	}
 
-	let { children, contentLoader, userStore }: Props = $props();
+	let {
+		children,
+		pathname = '/',
+		contentLoader,
+		userStore,
+		nextStepSources
+	}: Props = $props();
 
 	let start = $state<ColdStart | null>(null);
 
@@ -124,104 +147,208 @@
 		void run();
 	}
 
-	/** The nav is chrome, so it is up before anything has loaded (§13.3 step 1). */
-	const links = [
-		{ id: '/', label: 'Map' },
-		{ id: '/library', label: 'Library' },
-		{ id: '/data', label: 'Data' },
-		{ id: '/about', label: 'About' },
-		{ id: '/contribute', label: 'Contribute' }
-	] as const;
+	/**
+	 * §6.1's four blocks, assembled here (A6, T32).
+	 *
+	 * The sidebar is chrome, so its first two blocks are up before either promise
+	 * settles (§13.3 step 1) — `domains` and the progress rows simply fill in when
+	 * the manifest and the mirror arrive. Every derivation runs through
+	 * `lib/actions`, which is the one layer §14.1 lets hold a manifest and a
+	 * `SKILL` row at once; the sidebar itself imports neither.
+	 */
+	let world = $derived(
+		content.manifest === null ? null : worldScores(content.manifest, progress.skills)
+	);
+
+	let domains = $derived(
+		(content.manifest?.taxonomy.domains ?? []).map((domain) => ({
+			id: domain.id,
+			title: domain.title
+		}))
+	);
+
+	let startedSkills = $derived(
+		content.manifest === null ? [] : startedSkillRows(content.manifest, progress.skills)
+	);
+
+	let domainProgress = $derived(
+		content.manifest === null || world === null
+			? []
+			: domainProgressRows(content.manifest.taxonomy, world.scores)
+	);
+
+	/** §6.1 block 2 doubles as the level-1 "where am I" indicator (A6, §13.1). */
+	let activeDomain = $derived(/^\/d\/([^/]+)/.exec(pathname)?.[1] ?? null);
+
+	/**
+	 * §6.4's card is the map's, so it rides the two routes that *are* the map.
+	 * `/s/<treeId>` has F36's `.` shortcut and a tree the user is already looking
+	 * at; a card naming a milestone two rows below the one they are reading would
+	 * be a second answer to a question the page is already answering.
+	 */
+	let onMap = $derived(pathname === '/' || pathname.startsWith('/d/'));
+
+	/**
+	 * §6.4's selection, assembled off the shell's derived layer (T32).
+	 *
+	 * An effect rather than a `$derived` because it fetches: the available set is
+	 * F36's, which needs a scored bundle, and §3.3 keeps bundles off the map's
+	 * critical path. `generation` is what stops a slow load from overwriting the
+	 * answer to a newer question — a user completing a milestone re-runs this, and
+	 * the in-flight pass must not win the race.
+	 */
+	let step = $state<NextStep | null>(null);
+	let stepResolved = $state(false);
+	let generation = 0;
+
+	$effect(() => {
+		const manifest = content.manifest;
+		const skills = progress.skills;
+		if (manifest === null || !progress.hydrated) return;
+
+		const mine = ++generation;
+		const sources = nextStepSources ?? {
+			loadTree: (treeId: string) => loader().loadTree(treeId),
+			progressFor: (treeId: string) => store.progressFor(treeId)
+		};
+		void assembleNextStep(sources, manifest, skills).then((result) => {
+			if (mine !== generation) return;
+			step = result;
+			stepResolved = true;
+		});
+	});
+
+	let nextStepView = $derived<NextStepView>(
+		step !== null ? { kind: 'step', step } : stepResolved ? { kind: 'invitation' } : { kind: 'pending' }
+	);
 </script>
 
-<header class="shell-chrome">
-	<a class="wordmark" href={resolve('/')}>Life Skill Tracker</a>
-	<nav aria-label="Primary">
-		<ul>
-			{#each links as link (link.id)}
-				<li><a href={resolve(link.id)}>{link.label}</a></li>
-			{/each}
-		</ul>
-	</nav>
-</header>
+<div class="shell" data-sidebar-collapsed={sidebarCollapse.collapsed}>
+	<Sidebar
+		{activeDomain}
+		{domains}
+		{startedSkills}
+		{domainProgress}
+		hydrated={progress.hydrated}
+	/>
 
-<!--
-	The notice host (§13.4). `role="status"` rather than `alert`: these are
-	statements about the session, not interruptions, and §15's rule is that a
-	screen reader hears them without losing its place.
+	<div class="shell-body">
+		<!--
+	§6.4's card, before the page in the document so the keyboard reaches it
+	before the map (§8.2) — the whole point of "reachable without traversing
+	the map". It is positioned bottom-left by CSS, not by document order.
 -->
-<div class="notices" data-notices>
-	{#if !progress.writable}
-		<p data-degraded role="status">
-			Your saved progress could not be read on this device, so nothing will be saved this
-			session. Reload to try again — your data has not been deleted.
-			{#if start?.hydrationError}
-				<span class="detail">{start.hydrationError}</span>
+		{#if onMap && !ui.nextStepDismissed}
+			<NextStepCard
+				view={nextStepView}
+				ondismiss={() => {
+					ui.nextStepDismissed = true;
+				}}
+			/>
+		{/if}
+
+		<!--
+			The notice host (§13.4). `role="status"` rather than `alert`: these are
+			statements about the session, not interruptions, and §15's rule is that a
+			screen reader hears them without losing its place.
+		-->
+		<div class="notices" data-notices>
+			{#if !progress.writable}
+				<p data-degraded role="status">
+					Your saved progress could not be read on this device, so nothing will be saved this
+					session. Reload to try again — your data has not been deleted.
+					{#if start?.hydrationError}
+						<span class="detail">{start.hydrationError}</span>
+					{/if}
+				</p>
 			{/if}
-		</p>
-	{/if}
 
-	{#if content.offline}
-		<p data-offline role="status">
-			Offline — showing the skill library saved on this device. It may be out of date.
-		</p>
-	{/if}
+			{#if content.offline}
+				<p data-offline role="status">
+					Offline — showing the skill library saved on this device. It may be out of date.
+				</p>
+			{/if}
 
-	<!--
-		§12.7's export prompt, inline with everything else in the host. It is
-		deliberately *here* rather than anywhere that could float over the page:
-		"non-modal, dismissible, never blocking" is only true of something in the
-		flow of the document, and R-18 leaves F39's export as the only mitigation
-		there is, so a prompt users learn to close reflexively costs real data.
-	-->
-	{#if exportPrompt.visible}
-		<ExportPrompt reason={exportPrompt.reason} ondismiss={() => void dismissExportPrompt()} />
-	{/if}
+			<!--
+				§12.7's export prompt, inline with everything else in the host. It is
+				deliberately *here* rather than anywhere that could float over the page:
+				"non-modal, dismissible, never blocking" is only true of something in the
+				flow of the document, and R-18 leaves F39's export as the only mitigation
+				there is, so a prompt users learn to close reflexively costs real data.
+			-->
+			{#if exportPrompt.visible}
+				<ExportPrompt reason={exportPrompt.reason} ondismiss={() => void dismissExportPrompt()} />
+			{/if}
 
-	{#each ui.notices as notice (notice.id)}
-		<p data-notice data-kind={notice.kind} role="status">
-			{notice.text}
-			{#if notice.detail}<span class="detail">{notice.detail}</span>{/if}
-			<button type="button" data-action="dismiss-notice" onclick={() => ui.dismiss(notice.id)}>
-				Dismiss
-			</button>
-		</p>
-	{/each}
+			{#each ui.notices as notice (notice.id)}
+				<p data-notice data-kind={notice.kind} role="status">
+					{notice.text}
+					{#if notice.detail}<span class="detail">{notice.detail}</span>{/if}
+					<button type="button" data-action="dismiss-notice" onclick={() => ui.dismiss(notice.id)}>
+						Dismiss
+					</button>
+				</p>
+			{/each}
+		</div>
+
+		{#if start?.kind === 'failed'}
+			<ColdStartFailure reason={start.reason} hydrated={start.hydrated} onretry={retry} />
+		{:else}
+			{@render children()}
+		{/if}
+	</div>
 </div>
 
-{#if start?.kind === 'failed'}
-	<ColdStartFailure reason={start.reason} hydrated={start.hydrated} onretry={retry} />
-{:else}
-	{@render children()}
-{/if}
-
 <style>
-	.shell-chrome {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 1rem;
-		align-items: baseline;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid;
+	/*
+	 * A6's layout: the sidebar owns a column and the page owns the rest. The
+	 * sidebar replaces a top bar, which is the whole point — a horizontal band
+	 * spends the map's *vertical* extent, and vertical is the axis the map has
+	 * least of on a laptop (§6.1).
+	 *
+	 * The column width lives here rather than in `Sidebar.svelte` because two
+	 * things depend on it — the grid track and the card's left offset — and a
+	 * width stated twice is a width that drifts the first time the rail changes.
+	 */
+	.shell {
+		--sidebar-width: 15rem;
+		display: grid;
+		grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+		min-height: 100vh;
+		min-height: 100dvh;
 	}
-	.wordmark {
-		font-weight: 700;
+	.shell[data-sidebar-collapsed='true'] {
+		--sidebar-width: 3.25rem;
 	}
-	.shell-chrome ul {
-		display: flex;
-		gap: 1rem;
-		list-style: none;
-		margin: 0;
-		padding: 0;
+
+	.shell-body {
+		position: relative;
+		min-width: 0;
 	}
+
 	.notices p {
-		border: 1px solid;
+		border: 1px solid var(--rule);
 		padding: 0.75rem 1rem;
 		margin: 0;
 	}
 	.detail {
 		display: block;
-		font-family: monospace;
+		font-family: var(--font-data);
 		font-size: 0.85em;
+	}
+
+	/*
+	 * §6.4 — bottom-left, over the page rather than in its flow, so adding the
+	 * card moves the map by not one pixel. Fixed rather than absolute because
+	 * "always visible on the map" has to survive a scrolled page; offset by the
+	 * sidebar so it clears it, and the bottom-*right* corner is left empty for
+	 * T33's Find and Info.
+	 */
+	.shell-body :global(.next-step) {
+		position: fixed;
+		z-index: 2;
+		inset-inline-start: calc(var(--sidebar-width) + 1rem);
+		inset-block-end: 1rem;
+		box-shadow: 0 1px 6px color-mix(in srgb, var(--ink) 16%, transparent);
 	}
 </style>
