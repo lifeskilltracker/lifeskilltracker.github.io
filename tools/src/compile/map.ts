@@ -56,12 +56,39 @@ const SQRT3 = Math.sqrt(3);
 const EMIT_DECIMALS = 3;
 
 /**
- * Vertex-grid snapping precision (§10.4 step 1). Adjacent hexes compute their
- * shared corners through different arithmetic and land a few ULPs apart; keys
- * built at this precision make them identical, which is what lets step 2
- * recognise an interior edge at all.
+ * A hex corner as **exact integers** on the shared vertex lattice (§10.4 step 1,
+ * UI-SPEC §9). Pixels are a function of these and `size`, never the other way
+ * round.
+ *
+ * This is what makes step 2 sound rather than merely lucky. Two tiles sharing an
+ * edge reach its endpoints through different arithmetic; in pixels they land a
+ * few ULPs apart, and the previous implementation reconciled that by rounding
+ * the floats to six decimals before keying. Rounding cancels correctly only
+ * while a coordinate's ULP stays far below the rounding boundary — past that
+ * magnitude two tiles round a shared corner to opposite sides of it, the
+ * interior edge survives into the outline, and the loop fails to close. The
+ * trigger is authored content (`hexSize` and the tile coordinates), so the
+ * failure appears when a maintainer edits `map.yaml`, for some regions and not
+ * others. Integers have no such threshold: shared corners are equal, not close.
  */
-const SNAP_DECIMALS = 6;
+interface LatticeVertex {
+  readonly gx: number;
+  readonly gy: number;
+}
+
+/**
+ * The six corners at 30° + 60°·i as lattice offsets from a tile's own
+ * `(2q + r, 3r)`. Index order is the angle order, so the emitted winding is
+ * unchanged.
+ */
+const CORNER_OFFSETS: ReadonlyArray<readonly [number, number]> = [
+  [1, 1], //   30°
+  [0, 2], //   90°
+  [-1, 1], //  150°
+  [-1, -1], // 210°
+  [0, -2], //  270°
+  [1, -1], //  330°
+];
 
 /** §10.2's conversion, verbatim: x = size × √3 × (q + r/2), y = size × 3/2 × r. */
 export function axialToPixel(tile: AxialTile, size: number): Point {
@@ -72,29 +99,43 @@ export function axialToPixel(tile: AxialTile, size: number): Point {
   };
 }
 
-/** The six corners of a pointy-top hexagon, at 30° + 60°·i (§10.2). */
+/** A tile's six corners on the lattice. `(2q + r ± 1, 3r ± 1|2)`, exactly. */
+function latticeCorners(tile: AxialTile): LatticeVertex[] {
+  const [q, r] = tile;
+  const gx = 2 * q + r;
+  const gy = 3 * r;
+  return CORNER_OFFSETS.map(([dx, dy]) => ({ gx: gx + dx, gy: gy + dy }));
+}
+
+/** The lattice is half a hex wide and half a hex tall per unit. */
+function latticeToPixel(vertex: LatticeVertex, size: number): Point {
+  return {
+    x: (size * SQRT3 * vertex.gx) / 2,
+    y: (size * vertex.gy) / 2,
+  };
+}
+
+/**
+ * The six corners of a pointy-top hexagon, at 30° + 60°·i (§10.2), expressed
+ * through the lattice offsets rather than through `Math.cos`/`Math.sin` so that
+ * there is exactly one description of a corner in this module.
+ */
 export function hexCorners(center: Point, size: number): Point[] {
-  return Array.from({ length: 6 }, (_, i) => {
-    const angle = ((30 + 60 * i) * Math.PI) / 180;
-    return {
-      x: center.x + size * Math.cos(angle),
-      y: center.y + size * Math.sin(angle),
-    };
-  });
+  const halfWidth = (size * SQRT3) / 2;
+  const halfHeight = size / 2;
+  return CORNER_OFFSETS.map(([dx, dy]) => ({
+    x: center.x + halfWidth * dx,
+    y: center.y + halfHeight * dy,
+  }));
 }
 
-function snap(value: number): number {
-  return Number(value.toFixed(SNAP_DECIMALS));
+function vertexKey(vertex: LatticeVertex): string {
+  return `${vertex.gx},${vertex.gy}`;
 }
 
-function vertexKey(point: Point): string {
-  // `+ 0` normalizes -0 to 0, which would otherwise key a shared corner twice.
-  return `${snap(point.x) + 0},${snap(point.y) + 0}`;
-}
-
-function pointOf(key: string): Point {
-  const [x, y] = key.split(',').map(Number);
-  return { x, y };
+function vertexOf(key: string): LatticeVertex {
+  const [gx, gy] = key.split(',').map(Number);
+  return { gx, gy };
 }
 
 /**
@@ -112,7 +153,7 @@ export function unionTiles(tiles: readonly AxialTile[], size: number): string[] 
   const seenTwice = new Set<string>();
 
   for (const tile of tiles) {
-    const corners = hexCorners(axialToPixel(tile, size), size);
+    const corners = latticeCorners(tile);
     for (let i = 0; i < 6; i += 1) {
       const a = vertexKey(corners[i]);
       const b = vertexKey(corners[(i + 1) % 6]);
@@ -161,7 +202,9 @@ export function unionTiles(tiles: readonly AxialTile[], size: number): string[] 
       loop.push(next);
     }
 
-    paths.push(toPath(loop.map(pointOf)));
+    // Step 4. Pixels are computed here and nowhere earlier — the walk above ran
+    // entirely on integers.
+    paths.push(toPath(loop.map((key) => latticeToPixel(vertexOf(key), size))));
   }
 
   return paths;

@@ -1,6 +1,161 @@
-# RESUME — implementation, phase 1
+# RESUME — implementation
 
-Updated 2026-08-15 after T25.
+Updated 2026-08-16: **T27, T28 and T29 are complete.** Phase 2 is under way.
+
+# SESSION 22 — T29 COMPLETE. EVERY SKILL HAS A POSITION NOBODY AUTHORED.
+
+`lst compile` now assigns each published tree the lowest free cell in its domain,
+writes `content/taxonomy/placement.yaml`, and emits a cell per tree into the
+manifest. **`lst baseline` check 9** fails CI if a committed assignment moves.
+
+The one decision worth carrying forward: **the sub-lattice is not a polygon
+containment test.** `enumerateCells` takes the region's tiles and asks which
+parent tile owns each cell — exact integers, per A2-D. Consequences:
+
+- **No cell can belong to two regions** (tiles partition, M2 forbids double
+  claims), so boundary ties cannot stack two skill hexes.
+- **Every region holds exactly `16 × tiles`**: Making 160, Body 112, Home 112,
+  People 128, Work & Money 96, the rest 112. Capacity is arithmetic now.
+- The Q2 figures quoted at decision time (Body 109) came from float containment
+  and were three cells low. The decision stands; Body is 112.
+
+**Check 9 permits what the design permits**: appended lines, removed lines
+(retirement frees the cell), and a changed `domain`. Only *same tree, same
+domain, different cell* fails — plus any `cellDivisor` change.
+
+**For T31**: `manifest.trees[].cell` is **required** in `manifest.schema.json` and
+present on the app's generated `TreeEntry`. The ledger is written, not read, by
+the app.
+
+**Three app tests fail and are not ours** — the `dismiss/undismiss` property test
+and two axe gates fail identically on a clean tree. Worth a look before T33.
+
+# SESSION 21 — T28 AND T27 COMPLETE. THE SPEC AGREES WITH ITSELF AND THE VOCABULARY EXISTS.
+
+Session 19's finished-but-uncommitted work was committed first, on its own, so the
+amendments would land reviewable (`53ca432`).
+
+**T28 — all seven amendments landed in one commit** (`9842a65`). §10.7 no longer says
+"no pan, no zoom, no camera", so an implementer working from the architecture alone now
+builds the right map. A1–A7 are recorded in `docs/SPEC-FINDINGS.md` as their own series,
+deliberately not as `F` findings: they are supersessions, not defects. PRD is **v1.5** —
+D19 resolved, D25 partially addressed with its remainder named, **D28 adopted by A6**
+(§19.4's priced alternative was taken, and every cost it named was paid). T13, T14 and
+T25 carry HISTORICAL banners for the clauses they shipped against.
+
+**T27 — Alegreya SC, and the reasoning matters more than the name** (`1035afb`). The face
+was chosen against measurements, and two plausible answers were falsified on the way:
+
+- **The 12 kB budget never bound.** All eleven candidates subset to 4.2–8.9 kB once
+  unused OpenType tables are dropped. Do not cite the budget as the reason for anything
+  here.
+- **Stroke contrast binds.** Hairline survival at §5.2's 23 px tracks stroke contrast
+  almost exactly — above ~3:1 the thinnest stem lands under one device pixel and
+  antialiasing halves its effective contrast. **No weight of Cormorant fixes this**; its
+  weight axis thickens the thick stems (22u → 23u from 600 to 700).
+- **§4.5's small-caps requirement is a second, independent filter.** Libre Caslon Text,
+  Spectral SC and EB Garamond have **no true small caps** despite the naming, and browser
+  synthesis scales caps to ~0.75 and thins strokes with them. Only Alegreya SC and
+  Vollkorn SC pass both rules.
+- **The knockout halo is an accessibility mechanism, not a flourish.** Ink on the halo is
+  13.9:1 / 12.0:1; the same ink on a full-strength plate is **1.45:1** at worst. Nothing
+  downstream may drop it.
+
+## Carried forward — read before starting T29 or T31
+
+- **A2-D is an open, latent defect in T12.** `tools/src/compile/map.ts` keys interior-edge
+  cancellation on `toFixed(6)` of pixel floats rather than on lattice integers. All 306
+  tools tests pass and that is not evidence against it: the failure is content-triggered
+  and appears when someone edits `map.yaml`. **Fix before the next `map.yaml` edit**, and
+  **T29 should not layer the sub-lattice on float-keyed geometry.** Recorded on
+  `T12-map-geometry.md` and in SPEC-FINDINGS as A2-D.
+- **`cellDivisor` freezes at T29's first committed assignment.** UI-SPEC **Q2 is settled
+  (2026-08-16): 4, global, no per-region override.** Measured against the real `map.yaml` —
+  3 overflows Making, Body, and Home at the 500-skill projection; 5 puts the smallest
+  level-1 cell at 36 px, under WCAG 2.5.5 AAA. Do not revisit it after the first ledger
+  commit: renumbering the spiral reflows every region, the exact N11 failure the ledger
+  exists to prevent.
+- **`accent` is now derived** — the plate-open composite of `base` over that theme's
+  paper. A3 removed its only consumer (MapRenderer's clip-path fill), so this is a
+  placeholder with a principled rule rather than a hand-picked colour. **T31 should
+  revisit it** if skill hexes need a real second tone; it is one data edit per domain.
+- **The font lives beside `tokens.css`, not in `static/`.** Deliberate: `static/` is
+  root-addressed and `BASE_PATH` is non-empty on a project-page deploy. Do not "tidy" it
+  into `static/` — that reintroduces a silent fallback to Palatino in production.
+- **`MapRenderer.a11y.test.ts` had one assertion adjusted** (plates are per-domain tokens
+  now, so two regions differ by identity rather than recency). `MapRenderer.test.ts` is
+  unchanged.
+
+**Next actionable:** **T32** and **T34** (both blocked only by T27, both unblocked and
+parallel), and **T30** on the critical path. T30 → T31 → T33 → T35 follows; T31 now has
+its placement input and is blocked only by T30.
+
+# SESSION 20 — `docs/UI-SPEC.md` IS COMMITTED, AND PHASE 2 IS BROKEN DOWN.
+
+`docs/UI-SPEC.md` v1.0 landed (commit `23cd203`) and **T27–T35 are written**. Phase 2 is
+"the interface" — the thing the architecture deliberately declined to specify (§15.9) and
+PRD **D19** had left open since v1.1.
+
+**What UI-SPEC decides.** Eleven decisions, U-01 to U-11. The load-bearing ones:
+
+- **U-02 Survey / Ordnance** — ink-on-paper cartography. Chosen over three alternatives on
+  one hard constraint: it is the only direction that carries **eight saturated hues as one
+  document**, and it survives both themes as a token swap.
+- **U-03 hue is identity and never encodes score.** Score is a ruled **water line** at
+  `1 − fill`, plate at full strength above and below. Opacity-as-fill was in the design's
+  own first draft and is wrong: most domains are low-scoring most of the time, so it drains
+  the map of exactly the per-region identity F21 asks for.
+- **U-01 a two-level stepped camera**, both levels URLs, Back as the breadcrumb. Declined a
+  free camera on LOD scaling — the reference implementation's global LOD boolean works at 42
+  nodes and this library is projected at 164 and eventually 500.
+- **U-04 skill positions are derived, append-only, frozen at publish.** The one genuinely
+  new mechanism. F13 forbids authored coordinates and N11 forbids reflow, which together
+  rule out both the authored answer and the semantic one.
+
+**Seven amendments to ARCHITECTURE.md (A1–A7)** are named in UI-SPEC §9 and **not yet
+landed**. Until T28 runs, §10.7 still reads "no pan, no zoom, no camera" — an implementer
+working from the architecture alone will build the wrong map. That is why T28 gates T30.
+
+### Start here
+
+Three tasks have no blockers and are genuinely parallel:
+
+| | Why now |
+|---|---|
+| **T28** | Spec-only. Nothing visual is correct to build until A1–A7 are in the architecture. |
+| **T27** | Everything visual consumes its tokens. Also decides UI-SPEC **Q1** (the display face). |
+| **T29** | `tools/` only, no app dependency, and the longest single piece of new logic. |
+
+Then **T27 → T30 → T31 → T33 → T35** is the critical path, with T32 and T34 falling off
+T27 in parallel.
+
+### The traps, stated so they are not rediscovered
+
+- **`cellDivisor` is frozen the moment the placement ledger has its first commit.** UI-SPEC
+  **Q2 is settled: 4, global.** Changing it after that commit reflows every region, which is
+  the exact N11 failure T29 exists to prevent.
+- **T30 must paint to the resting frame.** T35's reveal layers onto it; a map that animates
+  itself into place leaves T35 nothing coherent to hand over to.
+- **Reduced motion means *skipped*, not shortened** — a 100 ms reveal is still a reveal.
+- **`a11y:manual` must keep passing unchanged.** It was written against roles and accessible
+  names only, with no CSS selector, no pixel and no screenshot, specifically so the UI could
+  be reworked without breaking it. A failure is a regression, not test churn.
+- **The `accent` half of each domain palette has no answer yet.** UI-SPEC §4.2 gives one hex
+  per domain per theme; `domains.yaml` carries `{ base, accent }`. T27 must not silently
+  reuse the Chakra accents against the new bases.
+
+### Open questions with no owner
+
+UI-SPEC §12 **Q3** (next-step selection rule — recency ships, the alternative waits for
+three trees), **Q4** (D25's remainder: how a Curious Browser reaches a compelling *tree*
+without starting one) and **Q5** (does Find's highlight survive a camera move — T33 decides
+and records it). Q4 is the only one with no task at all.
+
+### Still true from session 19
+
+The four run-level confirmations below still need the repository to exist. None is code.
+
+---
 
 # SESSION 19 — T25 COMPLETE. PHASE 1 IS DONE, AND CI EXISTS.
 
@@ -18,7 +173,8 @@ no manual step (D-12).
   browser's own list of what it fetches — and the lazy tree route as a static-import
   closure minus that. Fixtures are built from incompressible bytes searched to an exact
   Brotli size, so each row passes at its budget and fails one byte over. Real figures
-  today: **45.7 / 52, 11.7 / 25, 0.6 / 15, 46.4 / 70 kB**.
+  today: **45.7 / 52, 11.7 / 25, 0.6 / 15, 46.4 / 70 kB**. *(Historical as of 2026-08-16 —
+  T28's A4 adds a ≤ 12 kB font row and moves the total to 82 kB. T27 implements it.)*
 - **The workflows themselves have tests.** `workflows.test.ts` parses both files and
   asserts the graph, the absence of `always()`, the `fetch-depth: 0` on the two jobs that
   need it, and that deploy has no `pull_request` trigger. `path-filter.test.ts` runs the

@@ -10,10 +10,11 @@ import type {
   MapFile,
   MilestoneRef,
   MasteryRef,
+  PlacementLedger,
   Tree,
 } from './types.js';
 
-export type ContentFileKind = 'tree' | 'domains' | 'facets' | 'map' | 'unknown';
+export type ContentFileKind = 'tree' | 'domains' | 'facets' | 'map' | 'placement' | 'unknown';
 
 export interface ValidationContext {
   repoRoot: string;
@@ -24,6 +25,7 @@ export interface ValidationContext {
   domains: ParsedYaml<DomainsFile> | null;
   facets: ParsedYaml<FacetsFile> | null;
   map: ParsedYaml<MapFile> | null;
+  placement: ParsedYaml<PlacementLedger> | null;
   allMilestones: MilestoneRef[];
   allMastery: MasteryRef[];
   uidToMilestone: Map<string, MilestoneRef>;
@@ -60,6 +62,9 @@ export function classifyYamlContent(data: unknown, filePath: string): ContentFil
   if (Array.isArray(record.regions) && typeof record.hexSize === 'number') {
     return 'map';
   }
+  if (Array.isArray(record.placements)) {
+    return 'placement';
+  }
   if (Array.isArray(record.domains)) {
     return 'domains';
   }
@@ -76,6 +81,9 @@ export function classifyYamlContent(data: unknown, filePath: string): ContentFil
   }
   if (base === 'map.yaml') {
     return 'map';
+  }
+  if (base === 'placement.yaml') {
+    return 'placement';
   }
   return 'unknown';
 }
@@ -184,6 +192,7 @@ export function loadValidationContext(
   let domainsOverride: string | null = null;
   let facetsOverride: string | null = null;
   let mapOverride: string | null = null;
+  let placementOverride: string | null = null;
 
   for (const filePath of argvPaths) {
     const loaded = readYamlFile(filePath);
@@ -200,6 +209,9 @@ export function loadValidationContext(
         break;
       case 'map':
         mapOverride = filePath;
+        break;
+      case 'placement':
+        placementOverride = filePath;
         break;
       default:
         throw new Error(`Unrecognized content file (expected tree or taxonomy): ${filePath}`);
@@ -237,10 +249,12 @@ export function loadValidationContext(
   const domainsPath = path.join(taxonomyDir(repoRoot), 'domains.yaml');
   const facetsPath = path.join(taxonomyDir(repoRoot), 'facets.yaml');
   const mapPath = path.join(taxonomyDir(repoRoot), 'map.yaml');
+  const placementPath = path.join(taxonomyDir(repoRoot), 'placement.yaml');
 
   const domains = loadOptionalTaxonomy<DomainsFile>(domainsPath, domainsOverride);
   const facets = loadOptionalTaxonomy<FacetsFile>(facetsPath, facetsOverride);
   const map = loadOptionalTaxonomy<MapFile>(mapPath, mapOverride);
+  const placement = loadOptionalTaxonomy<PlacementLedger>(placementPath, placementOverride);
 
   const domainIds = new Set((domains?.data.domains ?? []).map((d) => d.id));
   const facetIds = new Set((facets?.data.facets ?? []).map((f) => f.id));
@@ -262,6 +276,7 @@ export function loadValidationContext(
     domains,
     facets,
     map,
+    placement,
     allMilestones,
     allMastery,
     uidToMilestone,

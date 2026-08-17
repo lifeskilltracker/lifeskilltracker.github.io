@@ -13,9 +13,13 @@
 meta:
   version: 1
   source: docs/ARCHITECTURE.md
+  sources:
+    "0,1": docs/ARCHITECTURE.md §16.4
+    "2": docs/UI-SPEC.md §10
   phases:
     "0": Walking skeleton — falsify the schema before content authoring starts
     "1": The v1 gate — defined by the PRD's success metrics S1–S4
+    "2": The interface — UI-SPEC.md v1.0, which closes PRD D19
   doc_status_values: [pending, written]
   clusters:
     substrate-schema: { model: opus, wave: 0, note: written directly by the orchestrator }
@@ -535,7 +539,8 @@ tasks:
       `lst lint --format github`, chosen because `::warning` has no failing variant;
       §17.1's runtime and app-JS rows are checked as their sum (52 kB), since the two are
       not separable after bundling — which means the per-row budgets bind at 67 kB, three
-      before the 70 kB total; the path filter is wider than `app/` and `schema/`, because
+      before the 70 kB total (historical — A4 adds a font row and moves the total to
+      82 kB; T27 owns it); the path filter is wider than `app/` and `schema/`, because
       a false negative merges an unbuilt app behind a green tick; and §4.4's caching row
       turned out to be a gap rather than a verification — `lib/content/manifest.ts` now
       revalidates with `cache: 'no-cache'`, which is the only side the constraint can be
@@ -587,11 +592,222 @@ tasks:
       which lands in T09/T14 territory and makes an existing T09 acceptance criterion
       untestable as the spec is drawn.
 
-# T26 COMPLETE (2026-08-06). T00–T07, T09 and T11a COMPLETE (2026-08-13).
-# Actionable front: T08 — the only remaining Phase 0 task, and all three of its
-#   blockers (T06, T07, T11a) are done. Remaining Phase 0 path: T08 → T10 (gate).
-# Critical path: T08 → T10 → T11b → T14 → T20
-# Also startable now, off the critical path: T22 (needs T03), T23 (needs T03+T04).
-#   T12 and T21 remain blocked by T10; T15's implementation by T11b.
-# Cross-task invariant (no graph edge): T09 defines the §13.2 mirror refresh helper; T16 and
-#   T17 must call it on commit after wholesale mirror-affecting writes.
+  # ── PHASE 2 — the interface. Derived from docs/UI-SPEC.md §10, authored 2026-08-16.
+  # UI-SPEC is normative for presentation only; where it touches computed behaviour it
+  # names an amendment (A1–A7), and T28 is the task that lands them in ARCHITECTURE.md.
+
+  - id: T27
+    title: Design tokens and theme substrate
+    phase: 2
+    cluster: substrate-schema
+    blocked_by: []
+    blocks: [T30, T32, T34]
+    spec: ["UI-SPEC §4.1", "UI-SPEC §4.2", "UI-SPEC §4.5", "§5.9", "§17.1"]
+    prd: [D19, F21, N5]
+    status: written
+    doc: T27-design-tokens-and-theme.md
+    note: >
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-16; task-doc status remains lifecycle
+      metadata. UI-SPEC Q1 resolved: ALEGREYA SC, 6.7 kB subsetted, OFL, self-hosted.
+      Decided on measurement, not taste - the 12 kB budget never bound (all eleven
+      candidates subset to 4.2-8.9 kB), and the real filters are hairline survival at
+      23 px (every face above ~3:1 stroke contrast renders its thinnest stem under one
+      device pixel; no weight of Cormorant fixes it) and a TRUE small-caps design
+      (Libre Caslon Text, Spectral SC and EB Garamond have none; synthesis scales caps
+      to 0.75 and thins strokes with them). `accent` lost its only consumer to A3 and is
+      now the plate-open composite of `base` over that theme's paper - reversible, one
+      data edit per domain, revisit in T31. The face is co-located with tokens.css
+      rather than in static/, because static/ is root-addressed and BASE_PATH is
+      non-empty on a project-page deploy. MapRenderer.test.ts passes unchanged;
+      MapRenderer.a11y.test.ts had one assertion adjusted (plates are now per-domain
+      tokens, so two regions' styles differ by IDENTITY rather than recency).
+      Verified: 782 app + 306 tools tests, budget 53.9/82 kB.
+      Original plan note follows. >
+      The Survey/Ordnance vocabulary: --paper/--ink/--rule, plate opacities, and the eight
+      domain plates in light and dark sourced from domains.yaml (amendment A7) rather than
+      from a parallel CSS table. Also the subsetted display face and A4's budget rise,
+      70 → 82 kB. Two open items: UI-SPEC Q1 (which face) is decided here, and §4.2's
+      table gives one hex per domain per theme while `palette` carries {base, accent} —
+      `accent` needs a principled per-theme answer, not a silent reuse of the Chakra one.
+
+  - id: T28
+    title: UI-SPEC reconciliation into ARCHITECTURE.md
+    phase: 2
+    cluster: judgment
+    blocked_by: []
+    blocks: [T30]
+    spec: ["§10.1", "§10.4", "§10.5", "§10.7", "§13.1", "§13.4", "§15.3", "§17.1", "§5.9"]
+    prd: [D19, D25, D-08]
+    status: written
+    doc: T28-ui-spec-reconciliation.md
+    note: >
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-16; task-doc status remains lifecycle
+      metadata. All seven amendments landed in one commit, with A1-A7 recorded in
+      docs/SPEC-FINDINGS.md as a separate series from F1-F29 (they are supersessions, not
+      defects). PRD is now v1.5: D19 resolved, D25 partially addressed with its remainder
+      named, and D28 adopted by A6 in ARCH 19.4. T13, T14 and T25 carry HISTORICAL banners
+      for the clauses A1/A3/A4/A6 superseded. ONE REAL DEFECT WAS FOUND AND FILED, NOT
+      FIXED: A2-D - tools/src/compile/map.ts keys interior-edge cancellation on
+      toFixed(6) of pixel floats rather than on lattice integers. Latent (303 tools tests
+      pass), content-triggered, and recorded on T12. Fix before map.yaml is next edited;
+      T29 should not layer the sub-lattice on float-keyed geometry.
+      Original plan note follows. T26's pattern applied to the interface: seven amendments (A1–A7) landed in the
+      architecture, with SPEC-FINDINGS entries and every stale task doc updated in the same
+      commit. A1 is the sharp one — §10.7 currently says "no pan, no zoom, no camera", which
+      a T30 implementer working from the architecture alone would obey. A2 must strengthen
+      D-08 rather than weaken it, and A5 is a restatement whose tempting wrong answer is
+      deletion. Carries the compiler corner note: region corners are exact lattice integers,
+      converted to pixels only at emit — check T12's shipped implementation, do not assume.
+
+  - id: T29
+    title: "Skill placement: sub-lattice, spiral, and the placement ledger"
+    phase: 2
+    cluster: cli-toolchain
+    blocked_by: []
+    blocks: [T31]
+    spec: ["UI-SPEC §5.3", "§6.4", "§7.2", "§7.3", "§10.2", "§10.4"]
+    prd: [F13, N11, F41]
+    status: written
+    doc: T29-skill-placement.md
+    note: >
+      The one genuinely new mechanism in the interface design, and the longest single piece
+      of new logic. `tools/` only, no app dependency, no blockers — start it in parallel.
+      Append-only assignment satisfies F13 and N11 by construction: contributors author no
+      coordinates and nothing already placed ever moves. The ledger reuses §6.4's committed
+      baseline pattern and adds check 9. UI-SPEC Q2 is settled ahead of the first ledger
+      commit: `cellDivisor` is 4, one global value, no per-region override. Do not change it
+      after that commit — it reflows every region, the exact N11 failure the task prevents.
+
+  - id: T30
+    title: "Map camera: two levels, label tiers, and the Survey system"
+    phase: 2
+    cluster: views
+    blocked_by: [T27, T28]
+    blocks: [T31, T33, T35]
+    spec: ["UI-SPEC §5.1", "UI-SPEC §5.2", "UI-SPEC §5.6", "§10.5", "§10.7", "§13.1"]
+    prd: [F21, F22, F34, N5, N11]
+    status: written
+    doc: T30-map-camera.md
+    note: >
+      Two camera levels, both prerendered routes, with /d/<domainId> a camera state over the
+      same surface rather than a page. Browser Back is the breadcrumb; there is no breadcrumb
+      widget. Carries A3 — the water line replacing the opacity ramp — which is the single
+      most important rule in UI-SPEC and was wrong in its own first draft. Label sizes are
+      derived from world extent and hexSize at build time and asserted, never hand-tuned;
+      that is what makes §5.1's LOD argument structural at 500 nodes. Must paint to the
+      resting frame on first load, because T35's reveal layers on top of it.
+
+  - id: T31
+    title: Skill hex layer, detail panel, and the phone list
+    phase: 2
+    cluster: views
+    blocked_by: [T29, T30]
+    blocks: [T33, T35]
+    spec: ["UI-SPEC §5.4", "UI-SPEC §5.5", "UI-SPEC §8.1", "§10.7", "§15.2", "§15.3", "§15.4"]
+    prd: [F6, N5, N11]
+    status: written
+    doc: T31-skill-hex-layer.md
+    note: >
+      Level 1 draws the skills at T29's ledger cells, four channels each, none colour-only.
+      The two-click path (hex → panel → Open tree) is deliberate and is the first thing an
+      implementer will try to collapse. Carries U-10: the phone threshold moves from viewport
+      size to zoom level, so the world map survives on a phone and the list substitution
+      happens at level 1 — which is what makes A5's restated convergence claim true.
+
+  - id: T32
+    title: "Shell chrome: sidebar and the next-step card"
+    phase: 2
+    cluster: views
+    blocked_by: [T27]
+    blocks: [T33, T35]
+    spec: ["UI-SPEC §6.1", "UI-SPEC §6.4", "§13.4", "§15.2", "§15.4"]
+    prd: [F36, N5, D25]
+    status: written
+    doc: T32-shell-chrome.md
+    note: >
+      Sidebar replaces the top nav and gives the map its vertical extent back. Block 3
+      (started skills, linking straight to /s/<treeId>) is the most-used control in the
+      application for a returning Player. Block 4 is redundant with the map ON PURPOSE — F34
+      forbids the number on the map, so N5 depends on it existing as text. The next-step card
+      is the one place this design goes beyond its reference. UI-SPEC Q3 (recency vs
+      nearest-to-completion) ships as recency; do not implement both behind a flag.
+
+  - id: T33
+    title: Find and Info
+    phase: 2
+    cluster: views
+    blocked_by: [T30, T31, T32]
+    blocks: [T35]
+    spec: ["UI-SPEC §6.2", "UI-SPEC §6.3", "UI-SPEC §8.2", "§15.2", "§15.3", "§15.4"]
+    prd: [F34, N5]
+    status: written
+    doc: T33-find-and-info.md
+    note: >
+      Find highlights in place and never moves the camera, which is what makes it double as
+      the only filter UI in the application. Info is not polish — F34 forbids the raw
+      percentage, so the legend is the only place the water line's meaning exists, and "no
+      legend" was the most concrete criticism the prior-art review turned up. UI-SPEC Q5
+      (does the highlight survive a camera move) is decided here and recorded in the doc.
+
+  - id: T34
+    title: Tree restyle and level camera
+    phase: 2
+    cluster: views
+    blocked_by: [T27]
+    blocks: [T35]
+    spec: ["UI-SPEC §4.6", "UI-SPEC §7", "§8", "§9.3", "§9.5", "§9.6", "§15.2"]
+    prd: [F36, N5, N11]
+    status: written
+    doc: T34-tree-restyle-and-level-camera.md
+    note: >
+      A restyle, not a rewrite: §8's layout, §9's encoding and §15.2's keyboard grid are
+      unchanged, and the layout-fixture byte-identity check is the guardrail that keeps it
+      that way. The five milestone states are restated in Survey terms with their encoding
+      untouched. Free pan and zoom were declined by name — the arrow-key grid and roving
+      tabindex both assume stable positions — so the tree gets a level camera with three
+      named anchors instead, one of which is the `.` shortcut's visual counterpart.
+
+  - id: T35
+    title: '"The Survey" reveal, and accessibility verification'
+    phase: 2
+    cluster: views
+    blocked_by: [T30, T31, T32, T33, T34]
+    blocks: []
+    spec: ["UI-SPEC §5.7", "UI-SPEC §8.2", "§15.3", "§15.4", "§15.5", "§15.8"]
+    prd: [D25, N5, S2]
+    status: written
+    doc: T35-reveal-and-a11y-verification.md
+    note: >
+      Plays once ever, ends on the resting frame, and under prefers-reduced-motion does not
+      play AT ALL — skipped, not shortened. The constraint that eliminated most reveal
+      candidates: on a true first load every domain score is zero, so the reveal must be
+      beautiful with no data in it, and fog (manifest-derived) is the only real state present.
+      The a11y verification is bundled here rather than spread across T30–T34 because
+      reduced-motion and forced-colors are properties of the COMPOSED surface — five
+      individually compliant tasks can still compose into a non-compliant page. Out of scope
+      and unowned: D25's welcome dialog and UI-SPEC Q4.
+
+# PHASES 0 AND 1 ARE COMPLETE. T00–T26 all implemented and verified; T25 closed 2026-08-15.
+#   Four run-level confirmations remain and none is code — see _RESUME.md session 19.
+#
+# PHASE 2 (T27–T35) authored 2026-08-16 from docs/UI-SPEC.md §10. Nothing is implemented.
+# Actionable front — three tasks, no blockers, and they are genuinely parallel:
+#   T28 (judgment: land A1–A7 in ARCHITECTURE.md; T30 cannot start correctly without it)
+#   T27 (substrate: tokens, palettes, the face, the 82 kB budget)
+#   T29 (tools/ only: placement. Longest single piece of new logic. Start it now.)
+# Critical path: T27 → T30 → T31 → T33 → T35, with T28 gating T30 alongside T27.
+# Off the path once T27 lands: T32 and T34, both blocked only by T27.
+#
+# Cross-task invariants in phase 2 (no graph edge carries these):
+#   - T30 must paint to the RESTING FRAME on load; T35's reveal layers onto it. A map that
+#     animates itself into place leaves T35 nothing to hand over to.
+#   - The §4.6 milestone-state visual mapping is shared by T34's nodes and T31's hexes.
+#     One producer, or the two surfaces will disagree about what `bonus` looks like.
+#   - Placement is derived ONLY in tools/ (T29) and read from the manifest (T31). Re-deriving
+#     the spiral client-side puts an N11 guarantee in two places that will drift.
+#   - Every task from T30 on must leave `a11y:manual` passing UNCHANGED. It asserts roles and
+#     accessible names only, precisely so a restyle cannot break it; a failure is a
+#     regression, never test churn.
+#
+# Cross-task invariant from phase 1 (still live): T09 defines the §13.2 mirror refresh helper;
+#   T16 and T17 must call it on commit after wholesale mirror-affecting writes.

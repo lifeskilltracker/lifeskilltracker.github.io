@@ -5,7 +5,16 @@
       "id": "not-a-domain",
       "title": "Invalid",
       "blurb": "Unknown domain id.",
-      "palette": { "base": "#112233", "accent": "#445566" }
+      "palette": {
+        "light": {
+          "base": "#112233",
+          "accent": "#445566"
+        },
+        "dark": {
+          "base": "#112233",
+          "accent": "#445566"
+        }
+      }
     }
   ]
 }

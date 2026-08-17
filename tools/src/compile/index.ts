@@ -21,6 +21,14 @@ import {
   type Manifest,
   type NowFn,
 } from './manifest.js';
+import {
+  assignPlacements,
+  CELL_DIVISOR,
+  emptyLedger,
+  latticesFor,
+  serializeLedger,
+  type PlacementLedger,
+} from './placement.js';
 import { sortByAsciiUtf8 } from './sort.js';
 import { assertValidCompiledOutput } from './validate-output.js';
 
@@ -36,9 +44,12 @@ export interface CompileResult {
   manifest: Manifest;
   manifestPath: string;
   validationIssues: ReturnType<typeof assertValidCompiledOutput>;
-  /** §10.4's hole warnings. Reported, never blocking — a hole is an authoring
-   *  smell, and M3 has already rejected the disconnection case at validate time. */
+  /** §10.4's hole warnings, and §5.3's reflow warning. Reported, never blocking —
+   *  a hole is an authoring smell, and M3 has already rejected the disconnection
+   *  case at validate time. */
   warnings: string[];
+  /** The ledger as it now stands, written when `write` is not false. */
+  placement: PlacementLedger;
 }
 
 function resolveRepoRoot(repoRoot?: string): string {
@@ -76,6 +87,19 @@ function loadTaxonomy<T>(filePath: string): T {
   return readYamlFile<T>(filePath).data;
 }
 
+function ledgerPath(repoRoot: string): string {
+  return path.join(taxonomyDir(repoRoot), 'placement.yaml');
+}
+
+/** An absent ledger is the first compile, not an error. */
+function loadLedger(repoRoot: string): PlacementLedger {
+  const filePath = ledgerPath(repoRoot);
+  if (!existsSync(filePath)) {
+    return emptyLedger();
+  }
+  return readYamlFile<PlacementLedger>(filePath).data ?? emptyLedger();
+}
+
 function compileBundles(trees: LoadedCompileTree[]): CompiledBundleOutput[] {
   return sortByAsciiUtf8(trees, (entry) => entry.tree.id).map(({ tree }) => {
     const bundle = compileTreeBundle(tree);
@@ -103,7 +127,10 @@ function writeOutputs(
   repoRoot: string,
   bundles: CompiledBundleOutput[],
   manifest: Manifest,
+  ledger: PlacementLedger,
 ): { manifestPath: string; outputDir: string } {
+  writeFileSync(ledgerPath(repoRoot), serializeLedger(ledger), 'utf8');
+
   const outputDir = staticContentDir(repoRoot);
   const outputTreesDir = staticContentTreesDir(repoRoot);
   mkdirSync(outputTreesDir, { recursive: true });
@@ -136,14 +163,33 @@ export function runCompile(options: CompileOptions = {}): CompileResult {
   const map = loadTaxonomy<MapFile>(path.join(taxonomyDir(repoRoot), 'map.yaml'));
 
   const bundles = compileBundles(trees);
+
+  // §10.4 steps 5–7. The ledger is read before the manifest is built because a
+  // committed assignment is an input to compilation, not an output of it.
+  const placement = assignPlacements(
+    loadLedger(repoRoot),
+    trees.map((entry) => ({ id: entry.tree.id, domain: entry.tree.domain })),
+    latticesFor(map, CELL_DIVISOR),
+  );
+
   const { manifest, warnings } = buildManifest({
     bundles,
     trees: trees.map((entry) => entry.tree),
     domains,
     facets,
     map,
+    cells: new Map(placement.ledger.placements.map((entry) => [entry.tree, entry.cell])),
     now: options.now,
   });
+
+  if (placement.reflowed.length > 0) {
+    warnings.push(
+      `content/taxonomy/placement.yaml: the region tiles changed, so ${placement.reflowed.length} ` +
+        `skill(s) had to reflow — ${placement.reflowed.join(', ')}. Their positions on the map ` +
+        'have moved and anyone who had memorised them will not find them where they were ' +
+        '(§5.3 names this as the one place N11 is knowingly traded).',
+    );
+  }
 
   const validationIssues = assertValidCompiledOutput(
     bundles.map((bundle) => ({ treeId: bundle.treeId, bundle: bundle.bundle })),
@@ -159,11 +205,12 @@ export function runCompile(options: CompileOptions = {}): CompileResult {
       manifestPath: path.join(staticContentDir(repoRoot), 'manifest.json'),
       validationIssues,
       warnings,
+      placement: placement.ledger,
     };
   }
 
   if (options.write !== false) {
-    writeOutputs(repoRoot, bundles, manifest);
+    writeOutputs(repoRoot, bundles, manifest, placement.ledger);
   }
 
   return {
@@ -174,6 +221,7 @@ export function runCompile(options: CompileOptions = {}): CompileResult {
     manifestPath: path.join(staticContentDir(repoRoot), 'manifest.json'),
     validationIssues,
     warnings,
+    placement: placement.ledger,
   };
 }
 

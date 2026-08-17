@@ -358,7 +358,7 @@ app/src/lib/state/fixtures/schema.ts     the real schema under Ajv — tests onl
 ### Seven decisions this document did not make
 
 - **The app still does not ship a validator.** §7.3 refuses Ajv in the client over §17.1's
-  70 kB budget, and an import is exactly the case where a check is not optional — so
+  82 kB budget, and an import is exactly the case where a check is not optional — so
   `validate-export.ts` is the narrow hand-written form, and `import.test.ts` runs the real
   `export.schema.json` under Ajv over a twenty-mutation corpus so the two cannot drift.
   A build check asserts no non-test module imports Ajv, and the built bundle contains none.

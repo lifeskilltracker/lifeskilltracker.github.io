@@ -59,13 +59,23 @@
       "required": ["q", "r"],
       "additionalProperties": false
     },
-    "palette": {
+    "palettePair": {
       "type": "object",
       "properties": {
         "base": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
         "accent": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" }
       },
       "required": ["base", "accent"],
+      "additionalProperties": false
+    },
+    "palette": {
+      "description": "ARCH §5.9, amendment A7. One pair per theme, both authored. Nothing derives dark from light at runtime: the separations that keep eight hues distinct (Mind teal against Work navy, Home blue-green against Outdoors olive) do not survive an algorithmic transform.",
+      "type": "object",
+      "properties": {
+        "light": { "$ref": "#/$defs/palettePair" },
+        "dark": { "$ref": "#/$defs/palettePair" }
+      },
+      "required": ["light", "dark"],
       "additionalProperties": false
     }
   }

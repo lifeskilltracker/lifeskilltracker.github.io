@@ -1,4 +1,4 @@
-import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -572,6 +572,57 @@ describe('lst validate', () => {
       const treePath = path.join(treesDir, fixtureName);
       const exit = validateCommand([treePath], repoRoot);
       expect(exit === EXIT_VALIDATION_FAILED).toBe(shouldFail);
+    });
+  });
+});
+
+describe('the placement ledger (§5.3)', () => {
+  function writeLedger(repoRoot: string, body: string): string {
+    const filePath = path.join(repoRoot, 'content/taxonomy/placement.yaml');
+    writeFileSync(filePath, body, 'utf8');
+    return filePath;
+  }
+
+  const valid = [
+    'schemaVersion: 1',
+    'cellDivisor: 4',
+    'placements:',
+    '  - { tree: one-tree, domain: making, cell: { q: 0, r: 0 } }',
+    '',
+  ].join('\n');
+
+  it('accepts a well-formed ledger', () => {
+    withTempRepo((repoRoot) => {
+      const filePath = writeLedger(repoRoot, valid);
+      const result = runValidate({ repoRoot, files: [filePath] });
+      expect(result.exitIssues).toEqual([]);
+    });
+  });
+
+  it('rejects a per-region cellDivisor override — Q2 froze one global divisor', () => {
+    withTempRepo((repoRoot) => {
+      const filePath = writeLedger(
+        repoRoot,
+        valid + 'regions:\n  - { domain: making, cellDivisor: 3 }\n',
+      );
+      const result = runValidate({ repoRoot, files: [filePath] });
+      expect(exitRules(result)).toContain('schema');
+    });
+  });
+
+  it('rejects a divisor other than the frozen 4', () => {
+    withTempRepo((repoRoot) => {
+      const filePath = writeLedger(repoRoot, valid.replace('cellDivisor: 4', 'cellDivisor: 3'));
+      const result = runValidate({ repoRoot, files: [filePath] });
+      expect(exitRules(result)).toContain('schema');
+    });
+  });
+
+  it('rejects a fractional cell, which the integer sub-lattice can never produce', () => {
+    withTempRepo((repoRoot) => {
+      const filePath = writeLedger(repoRoot, valid.replace('q: 0', 'q: 0.5'));
+      const result = runValidate({ repoRoot, files: [filePath] });
+      expect(exitRules(result)).toContain('schema');
     });
   });
 });

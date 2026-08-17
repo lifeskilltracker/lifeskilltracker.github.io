@@ -11,7 +11,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { brotliCompressSync } from 'node:zlib';
@@ -31,6 +31,12 @@ afterEach(() => {
 interface Fixture {
   /** Exact Brotli sizes for the modules the map route preloads. */
   firstPaintJs: number[];
+  /**
+   * A4's display face, in raw bytes. Written beside the stylesheet and referenced
+   * from an `@font-face` rule, because that reference — not the file's presence —
+   * is what makes it first-paint cost.
+   */
+  fontBytes?: number;
   /** Exact Brotli sizes for its stylesheets. */
   firstPaintCss?: number[];
   /**
@@ -69,9 +75,18 @@ function fakeBuild(fixture: Fixture): { buildDir: string; routeManifest: string 
     writeFileSync(join(immutable, name), incompressible(bytes));
     return name;
   });
+  if (fixture.fontBytes !== undefined) {
+    writeFileSync(join(immutable, 'assets', 'display.woff2'), randomBytes(fixture.fontBytes));
+  }
+  const fontRule =
+    fixture.fontBytes === undefined
+      ? ''
+      : "@font-face{font-family:'D';src:url('./display.woff2') format('woff2');}";
   const styles = (fixture.firstPaintCss ?? [200]).map((bytes, index) => {
     const name = `assets/${index}.css`;
-    writeFileSync(join(immutable, name), incompressible(bytes));
+    // The rule goes in the first stylesheet only; the discovery walks them all.
+    const rule = index === 0 ? Buffer.from(fontRule) : Buffer.alloc(0);
+    writeFileSync(join(immutable, name), Buffer.concat([rule, incompressible(bytes)]));
     return name;
   });
 
@@ -104,18 +119,40 @@ function fakeBuild(fixture: Fixture): { buildDir: string; routeManifest: string 
   return { buildDir, routeManifest };
 }
 
+const REAL_BUILD = join(REPO_ROOT, 'app/build');
+
 describe('§17.1 — the bundle budget gate', () => {
-  it('measures the real build when one is present', () => {
-    // Not a size assertion: the numbers move with every dependency bump, and
-    // pinning them here would make this suite the thing that fails. What it
-    // proves is that the checker finds this repository's actual output rather
-    // than throwing or measuring nothing.
-    const report = measureBudget({
-      buildDir: join(REPO_ROOT, 'app/build'),
-      routeManifest: join(REPO_ROOT, 'app/.svelte-kit/generated/client/app.js'),
-    });
-    expect(report.rows).toHaveLength(4);
-    for (const row of report.rows) expect(row.measured).toBeGreaterThan(0);
+  // "When one is present" is a real condition, and it is false in CI. The
+  // `app: test` job runs `npm test` off a bare `npm ci` with no build, so this
+  // case throws there while passing on any machine with a stale `app/build` on
+  // disk. Skipping is safe because this is not the gate: `npm run check:budget`
+  // is, and it runs in `app: build` immediately after the build that produces
+  // the directory. What is lost by skipping is a smoke check, not enforcement.
+  it.skipIf(!existsSync(join(REAL_BUILD, 'index.html')))(
+    'measures the real build when one is present',
+    () => {
+      // Not a size assertion: the numbers move with every dependency bump, and
+      // pinning them here would make this suite the thing that fails. What it
+      // proves is that the checker finds this repository's actual output rather
+      // than throwing or measuring nothing.
+      const report = measureBudget({
+        buildDir: REAL_BUILD,
+        routeManifest: join(REPO_ROOT, 'app/.svelte-kit/generated/client/app.js'),
+      });
+      expect(report.rows).toHaveLength(5);
+      for (const row of report.rows) expect(row.measured).toBeGreaterThan(0);
+    },
+  );
+
+  it('refuses to measure an absent build rather than passing vacuously', () => {
+    // The behaviour the skip above relies on being deliberate. Without this,
+    // a missing build would report zero bytes and every budget would pass.
+    expect(() =>
+      measureBudget({
+        buildDir: join(REPO_ROOT, 'app/build-does-not-exist'),
+        routeManifest: join(REPO_ROOT, 'app/.svelte-kit/generated/client/app.js'),
+      }),
+    ).toThrow(/run `npm run build`/);
   });
 
   it('passes a build inside every budget', () => {
@@ -123,11 +160,37 @@ describe('§17.1 — the bundle budget gate', () => {
     expect(measureBudget(fixture).violations).toEqual([]);
   });
 
-  it('fails when first paint exceeds 70 kB', () => {
-    const fixture = fakeBuild({ firstPaintJs: [40_000, 25_000], firstPaintCss: [14_000] });
+  it('fails when first paint exceeds the 82 kB total (A4)', () => {
+    const fixture = fakeBuild({ firstPaintJs: [40_000, 28_000], firstPaintCss: [15_000] });
     const violations = measureBudget(fixture).violations.map((row) => row.label);
-    expect(violations).toContain('Total first paint (JS + CSS)');
+    expect(violations).toContain('Total first paint (JS + CSS + font)');
     expect(budgetCommand(fixture)).toBe(1);
+  });
+
+  /**
+   * A4's row, and the two things about it that are easy to get wrong: the font is
+   * found through the stylesheet rather than by globbing the build, and it is
+   * measured raw because woff2 is already Brotli.
+   */
+  it('bills the display face to its own row, discovered from the stylesheet', () => {
+    const fixture = fakeBuild({ firstPaintJs: [20_000], firstPaintCss: [3_000], fontBytes: 6_672 });
+    const report = measureBudget(fixture);
+    const font = report.rows.find((row) => row.label === 'Display face');
+    expect(font?.measured).toBe(6_672);
+    expect(font?.files).toEqual(['_app/immutable/assets/display.woff2']);
+    expect(report.violations).toEqual([]);
+  });
+
+  it('fails a face one byte over its 12 kB row', () => {
+    const fixture = fakeBuild({ firstPaintJs: [20_000], firstPaintCss: [3_000], fontBytes: 12_001 });
+    expect(measureBudget(fixture).violations.map((row) => row.label)).toContain('Display face');
+  });
+
+  it('does not bill a font the stylesheet never references', () => {
+    const fixture = fakeBuild({ firstPaintJs: [20_000], firstPaintCss: [3_000] });
+    writeFileSync(join(fixture.buildDir, '_app', 'immutable', 'assets', 'stray.woff2'), randomBytes(9_000));
+    const font = measureBudget(fixture).rows.find((row) => row.label === 'Display face');
+    expect(font?.measured).toBe(0);
   });
 
   it('passes with every row exactly on its budget, and fails one byte over', () => {

@@ -65,7 +65,7 @@ export function manifestFixture(options: ManifestOptions = {}): Manifest {
               id: 'making' as const,
               title: TITLES[domain],
               blurb: `${TITLES[domain]} blurb`,
-              palette: { base: '#ddd', accent: '#333' },
+              palette: { light: { base: '#ddd', accent: '#333' }, dark: { base: '#ddd', accent: '#333' } },
               subregions: [
                 { id: 'expression' as const, title: 'Expression' },
                 { id: 'objects' as const, title: 'Objects' },
@@ -76,7 +76,7 @@ export function manifestFixture(options: ManifestOptions = {}): Manifest {
               id: domain as Exclude<(typeof DOMAINS)[number], 'making'>,
               title: TITLES[domain],
               blurb: `${TITLES[domain]} blurb`,
-              palette: { base: '#ddd', accent: '#333' },
+              palette: { light: { base: '#ddd', accent: '#333' }, dark: { base: '#ddd', accent: '#333' } },
             },
       ),
       facets: [],
@@ -110,6 +110,9 @@ export function manifestFixture(options: ManifestOptions = {}): Manifest {
       milestoneCount: 40,
       authors: ['fixture'],
       bundle: `bundles/${index}.json`,
+      // The compiler's committed sub-lattice cell (§5.3). One per tree, distinct;
+      // the geometry is not the fixture's business, only that the field is there.
+      cell: { q: index * 4, r: 0 },
     })),
   } as Manifest;
 }

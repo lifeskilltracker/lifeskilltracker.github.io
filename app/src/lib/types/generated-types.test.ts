@@ -72,7 +72,7 @@ type _makingWithoutSubregionsRejected = Assert<
     id: 'making';
     title: string;
     blurb: string;
-    palette: { base: string; accent: string };
+    palette: { light: { base: string; accent: string }; dark: { base: string; accent: string } };
   } extends Domain
     ? false
     : true
@@ -82,7 +82,7 @@ type _mindDomainAccepted = Assert<
     id: 'mind';
     title: string;
     blurb: string;
-    palette: { base: string; accent: string };
+    palette: { light: { base: string; accent: string }; dark: { base: string; accent: string } };
   } extends Domain
     ? true
     : false

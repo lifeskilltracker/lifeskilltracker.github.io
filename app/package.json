@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "a11y:manual": "node a11y/manual-passes.mjs",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check": "npm run typecheck && npm run test"
   },
@@ -19,6 +20,7 @@
     "fake-indexeddb": "6.2.2",
     "fast-check": "4.7.0",
     "jsdom": "29.1.1",
+    "playwright": "^1.62.1",
     "svelte": "5.56.8",
     "svelte-check": "4.7.5",
     "typescript": "5.9.3",

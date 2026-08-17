@@ -6,6 +6,24 @@
 		<!-- Without this the browser probes /favicon.png and logs a 404, which
 		     T10's "no console error" exit criterion counts. -->
 		<link rel="icon" href="%sveltekit.assets%/favicon.svg" type="image/svg+xml" />
+		<!--
+			UI-SPEC §4.1 — no flash of the wrong theme. This must run before first
+			paint and therefore cannot import `lib/styles/theme.svelte.ts`; the module
+			graph is precisely what has not loaded yet. `theme.test.ts` asserts this
+			string matches the module's exported `NO_FLASH_SCRIPT` so the duplication
+			cannot drift. Absent an explicit choice it sets nothing, leaving
+			`prefers-color-scheme` to decide in CSS.
+		-->
+		<script>
+			(function () {
+				try {
+					var c = localStorage.getItem('lst.theme');
+					if (c === 'light' || c === 'dark') {
+						document.documentElement.setAttribute('data-theme', c);
+					}
+				} catch (e) {}
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

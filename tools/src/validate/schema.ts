@@ -14,6 +14,7 @@ const validators = {
   domains: compileSchema(ajv, 'domains.schema.json'),
   facets: compileSchema(ajv, 'facets.schema.json'),
   map: compileSchema(ajv, 'map.schema.json'),
+  placement: compileSchema(ajv, 'placement.schema.json'),
 } as const;
 
 export type SchemaKind = keyof typeof validators;

@@ -59,8 +59,24 @@ export const BUDGETS = {
   firstRouteAppJs: 40 * KB,
   treeRouteJs: 25 * KB,
   css: 15 * KB,
-  firstPaintTotal: 70 * KB,
+  /**
+   * A4 (UI-SPEC §9). One self-hosted subsetted display face. The row is
+   * affordable only because §4.5's glyph set is closed — eight domain names,
+   * three subregions, five bands, five tiers and the UI headings — so a face
+   * that lands over this is subsetting against the wrong set rather than
+   * needing a larger budget.
+   */
+  displayFont: 12 * KB,
+  firstPaintTotal: 82 * KB,
 } as const;
+
+/**
+ * Fonts are measured RAW, not Brotli-compressed, and this is the one row where
+ * that is correct: woff2 is already Brotli internally, so re-compressing it
+ * measures a second pass that no browser performs and that gains nothing. The
+ * file size *is* the transfer size.
+ */
+const FONT_EXTENSIONS = ['.woff2'];
 
 /** The route whose lazy cost §17.1 budgets separately. */
 const TREE_ROUTE = '/s/[tree]';
@@ -96,6 +112,32 @@ function brotliSize(file: string): number {
 
 function sum(files: string[]): number {
   return files.reduce((total, file) => total + brotliSize(file), 0);
+}
+
+function rawSum(files: string[]): number {
+  return files.reduce((total, file) => total + statSync(file).size, 0);
+}
+
+/**
+ * A4 — the faces the first-paint CSS actually asks for.
+ *
+ * Discovered from the stylesheets rather than by globbing the build, because a
+ * font that no rule references is not first-paint cost, and a glob would bill
+ * the budget for it. The `@font-face` `src` is the browser's own list, the same
+ * principle the JS rows already use against `index.html`.
+ */
+function fontAssets(cssFiles: string[]): string[] {
+  const found = new Set<string>();
+  for (const cssFile of cssFiles) {
+    const css = readFileSync(cssFile, 'utf8');
+    for (const match of css.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/g)) {
+      const href = match[1];
+      if (!FONT_EXTENSIONS.some((extension) => href.endsWith(extension))) continue;
+      if (/^(?:https?:)?\/\/|^data:/.test(href)) continue;
+      found.add(resolve(dirname(cssFile), href));
+    }
+  }
+  return [...found].filter((file) => existsSync(file));
 }
 
 /**
@@ -199,8 +241,10 @@ export function measureBudget(options: BudgetOptions): BudgetReport {
   const firstPaint = new Set([...js, ...css]);
   const treeRoute = treeRouteAssets(buildDir, resolve(options.routeManifest), firstPaint);
 
+  const fonts = fontAssets(css);
   const jsBytes = sum(js);
   const cssBytes = sum(css);
+  const fontBytes = rawSum(fonts);
   const show = (files: string[]): string[] => files.map((file) => relative(buildDir, file)).sort();
 
   const rows: BudgetRow[] = [
@@ -219,8 +263,15 @@ export function measureBudget(options: BudgetOptions): BudgetReport {
     },
     { label: 'CSS, first route', measured: cssBytes, budget: BUDGETS.css, files: show(css) },
     {
-      label: 'Total first paint (JS + CSS)',
-      measured: jsBytes + cssBytes,
+      label: 'Display face',
+      measured: fontBytes,
+      budget: BUDGETS.displayFont,
+      files: show(fonts),
+      note: '§17.1 / A4 — measured raw; woff2 is already Brotli, so compressing it again measures a pass no browser makes.',
+    },
+    {
+      label: 'Total first paint (JS + CSS + font)',
+      measured: jsBytes + cssBytes + fontBytes,
       budget: BUDGETS.firstPaintTotal,
       files: [],
     },

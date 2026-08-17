@@ -208,9 +208,15 @@ The bundle budget `build` enforces, copied verbatim from §17.1:
 | App JS, first route | ≤ 40 kB | Everything for the map view |
 | App JS, tree route (lazy) | ≤ 25 kB | Layout Engine, TreeView, Scoring Engine |
 | CSS | ≤ 15 kB | No utility framework to inflate it (§4.1) |
-| **Total first paint (JS + CSS)** | **≤ 70 kB** | |
+| **Total first paint (JS + CSS)** | **≤ 70 kB** | **HISTORICAL** — see the note below |
 
 > Brotli-compressed transfer, enforced in CI by a size check that fails on regression.
+
+> **HISTORICAL as of T28's amendment A4 (2026-08-16).** The table above is the budget T25
+> shipped against and is kept as that record. §17.1 now carries a fifth row — a
+> **`Display face` at ≤ 12 kB** — and the total is **≤ 82 kB**, still enforced by failing.
+> **T27** owns the change to `tools/src/ci/budget.ts`; the four rows above are otherwise
+> unchanged, and the enforcement mechanism this task built is unchanged entirely.
 
 The four GitHub Pages constraints `deploy.yml`'s output must satisfy, copied verbatim
 from §4.4:
@@ -262,6 +268,8 @@ docs/CONTRIBUTING.md, docs/RELEASE-CHECKLIST.md, CLAUDE.md   MODIFIED
    app JS share chunks after bundling and no honest boundary between them survives; 12+40
    is the arithmetic §17.1's own total row does. Consequence, stated in the module: the
    per-row budgets bind at 67 kB, three kilobytes before the 70 kB total ever does.
+   *(Historical: A4 adds a font row and moves the total to 82 kB — see the note in
+   "Spec extract" above. The sum-checking mechanism is unaffected.)*
 4. **The path filter is wider than `app/` and `schema/`** — it also fires on `tools/`
    (because `app: build` runs `lst compile`), the lockfile, `tsconfig.base.json`,
    `eslint.config.js`, `.nvmrc`, and `.github/workflows/`. A false positive costs one
@@ -326,7 +334,8 @@ docs/CONTRIBUTING.md, docs/RELEASE-CHECKLIST.md, CLAUDE.md   MODIFIED
 - [x] `build` fails when a fixture PR breaks the monotonicity property test named in
       §14.4 / T11b. *Rides on `npm test` in `app: test`, where the property suite lives.*
 - [x] `build` fails when a fixture PR inflates the first-paint bundle (App JS first
-      route + CSS, Brotli-compressed) past 70 kB, and passes at or under it.
+      route + CSS, Brotli-compressed) past 70 kB, and passes at or under it. *(Historical
+      figure — A4 moves this to 82 kB with a font row; T27 owns the change.)*
       *`npm run check:budget`. `budget.test.ts` builds synthetic build directories out of
       incompressible bytes — searching for the raw size whose Brotli output is exactly the
       number asked for — so fixtures sit **on** the boundary: every row passes at its

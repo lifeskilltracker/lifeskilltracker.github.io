@@ -26,6 +26,10 @@ export type {
   // §5.9's locked domain ids (F20). T14 prerenders one `/d/<domainId>` per
   // member, so the union has a runtime counterpart in `lib/content/domains.ts`.
   ContentDomainId,
+  // §5.9 / A7's taxonomy entry. `lib/styles` injects its per-theme palette as
+  // `--domain-<id>`, which is the one seam between a content file and the
+  // stylesheet — palettes are content and unknown at build time (D-03).
+  CompiledDomain,
 } from './compiled.js';
 export type { Taxonomy, MovedIndex } from './aliases.js';
 export type {

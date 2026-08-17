@@ -3,15 +3,21 @@ domains:
   - id: mind
     title: Mind
     blurb: Mental health, meditation, focus, memory, learning, and contemplative practice.
-    palette: { base: "#4a5568", accent: "#90cdf4" }
+    palette:
+      light: { base: "#24505F", accent: "#7C969B" }
+      dark:  { base: "#57A0B8", accent: "#355E6C" }
   - id: body
     title: Body
     blurb: Fitness, sport, martial arts, movement, and nutrition.
-    palette: { base: "#744210", accent: "#f6ad55" }
+    palette:
+      light: { base: "#8E3A18", accent: "#B38A76" }
+      dark:  { base: "#DE7440", accent: "#7C472E" }
   - id: making
     title: Making
     blurb: Music, art, writing, craft, code, and technical creation.
-    palette: { base: "#8a5a3b", accent: "#d9a066" }
+    palette:
+      light: { base: "#8F5A14", accent: "#B49B74" }
+      dark:  { base: "#D69B36", accent: "#775C29" }
     subregions:
       - { id: expression, title: Expression }
       - { id: objects, title: Objects }
@@ -19,20 +25,30 @@ domains:
   - id: home
     title: Home
     blurb: Cooking, drink, cultivation, repair, maintenance, and pets.
-    palette: { base: "#276749", accent: "#68d391" }
+    palette:
+      light: { base: "#1B5B3D", accent: "#789B89" }
+      dark:  { base: "#3FA271", accent: "#295F47" }
   - id: people
     title: People
     blurb: Conversation, conflict, teaching, parenting, languages, and community.
-    palette: { base: "#702459", accent: "#f687b3" }
+    palette:
+      light: { base: "#6B1F42", accent: "#A17C8C" }
+      dark:  { base: "#C25585", accent: "#6D3752" }
   - id: work-money
     title: Work & Money
     blurb: Career, budgeting, investing, negotiation, and productivity.
-    palette: { base: "#2c5282", accent: "#63b3ed" }
+    palette:
+      light: { base: "#1C3A72", accent: "#788AA5" }
+      dark:  { base: "#5386D6", accent: "#33517C" }
   - id: play
     title: Play
     blurb: Chess, go, poker, competitive gaming, puzzles, and tabletop.
-    palette: { base: "#553c9a", accent: "#b794f4" }
+    palette:
+      light: { base: "#432E78", accent: "#8C84A8" }
+      dark:  { base: "#8873CF", accent: "#4F4778" }
   - id: outdoors-nature
     title: Outdoors & Nature
     blurb: Hiking, bushcraft, navigation, foraging, water sports, and nature knowledge.
-    palette: { base: "#22543d", accent: "#9ae6b4" }
+    palette:
+      light: { base: "#4A6420", accent: "#90A07A" }
+      dark:  { base: "#9BBB45", accent: "#596C30" }

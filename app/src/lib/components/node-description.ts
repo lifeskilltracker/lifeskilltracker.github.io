@@ -89,6 +89,25 @@ export function nodeAccessibleName(tree: CompiledTree, uid: string): string {
   return milestone?.title ?? uid;
 }
 
+/**
+ * The **title** of the track a milestone sits in, or `''` for a track-less tree
+ * (§8.2 step 2's synthetic column). `trackIndex` is the compiled form; the
+ * authored `title` is what a reader is shown, and §9 draws the same string as
+ * the column header, so the two cannot drift.
+ */
+export function trackTitleOf(tree: CompiledTree, uid: string): string {
+  const tracks = tree.tracks ?? [];
+  if (tracks.length === 0) return '';
+  const milestone = milestoneOf(tree, uid);
+  if (milestone === undefined || milestone.track === '') return '';
+  return tracks[milestone.trackIndex]?.title ?? '';
+}
+
+/** §5's optional module grouping, or `''` when the tree declares none (F29). */
+export function moduleOf(tree: CompiledTree, uid: string): string {
+  return milestoneOf(tree, uid)?.module ?? '';
+}
+
 function isDone(state: NodeState | undefined): boolean {
   return state === 'complete' || state === 'bonus';
 }
@@ -178,16 +197,29 @@ export function countsTowardClause(tree: CompiledTree, uid: string): string {
 }
 
 /**
- * The whole §15.2 description: level, state, prerequisites and whether they are
- * met, and the requirement group served — in that order, which is the order the
- * worked example fixes.
+ * The whole §15.2 description: level, **track and module**, state, prerequisites
+ * and whether they are met, and the requirement group served — in that order,
+ * which is the order the worked example fixes, with F29's two placements slotted
+ * beside the level because all three answer "where am I".
+ *
+ * F29's correctness half lands here rather than on the accessible *name*.
+ * §15.2's grid order is `(level, track, lane)` and `↑`/`↓` move within a track,
+ * so a reader who is never told the track is navigating a structure they have no
+ * word for. The name stays the authored title alone — that is a stated contract
+ * above, and prefixing every name with its track would make a list of fifty
+ * milestones read as fifty repetitions of three strings before any of them says
+ * what it is.
  */
 export function nodeDescription(tree: CompiledTree, progress: SkillProgress, uid: string): string {
   const level = levelOf(tree, uid);
   const state = progress.nodeStates.get(uid);
+  const track = trackTitleOf(tree, uid);
+  const moduleName = moduleOf(tree, uid);
 
   return [
     level === undefined ? '' : `Level ${level}.`,
+    track === '' ? '' : `${track} track.`,
+    moduleName === '' ? '' : `${moduleName} module.`,
     state === undefined ? '' : `${STATE_TEXT[state]}.`,
     prerequisiteClause(tree, progress, uid),
     countsTowardClause(tree, uid),

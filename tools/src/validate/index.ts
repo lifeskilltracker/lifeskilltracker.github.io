@@ -44,6 +44,9 @@ function runValidateOnContext(ctx: ValidationContext): ValidationReport {
   if (ctx.map) {
     validateSchemaDocument('map', ctx.map, report);
   }
+  if (ctx.placement) {
+    validateSchemaDocument('placement', ctx.placement, report);
+  }
 
   checkRule1Levels(ctx, report);
   checkRule2Identifiers(ctx, report);

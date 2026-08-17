@@ -229,6 +229,26 @@ const nodeConfigFiles = {
 };
 
 /**
+ * T20 — §15.8's driven keyboard pass (`app/a11y/`). Node scripts, so they get
+ * the Node globals; and they carry browser globals too, because the bodies
+ * passed to `page.evaluate` are serialised and run inside the page. Those
+ * closures are the one place in this repository where Node and DOM globals are
+ * legitimately in the same file.
+ */
+const a11yHarness = {
+  files: ['app/a11y/**/*.mjs'],
+  languageOptions: {
+    globals: {
+      ...nodeGlobals,
+      URL: 'readonly',
+      document: 'readonly',
+      getComputedStyle: 'readonly',
+      window: 'readonly',
+    },
+  },
+};
+
+/**
  * T08 — components arrive as `.svelte` files, and the TypeScript parser cannot
  * read one. Without the Svelte parser the `lib/components ⇢ lib/state` rule
  * above applies to a set of files that does not include a single component,
@@ -263,6 +283,7 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   ...svelteFiles,
   nodeConfigFiles,
+  a11yHarness,
   baseRestrictions,
   layoutRestrictions,
   contentRestrictions,

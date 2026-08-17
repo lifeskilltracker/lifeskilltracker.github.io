@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -407,6 +407,90 @@ describe('lst baseline — the ref itself', () => {
     withMergedTree('base-default-ref', subject(), (fixture) => {
       git(fixture.repoRoot, 'update-ref', 'refs/remotes/origin/main', 'refs/heads/main');
       expect(runBaseline({ repoRoot: fixture.repoRoot }).ref).toBe('origin/main');
+    });
+  });
+});
+
+/**
+ * Check 9 — an existing placement never changes.
+ *
+ * The ledger is what makes N11 true for skill positions, and it is only worth
+ * anything if CI refuses the edit. Verified over a real git repository for the
+ * same reason as every other check here: a mocked `git show` would confirm only
+ * what the mock was told.
+ */
+describe('lst baseline — check 9, the placement ledger', () => {
+  const ledger = (body: string): string =>
+    ['schemaVersion: 1', 'cellDivisor: 4', 'placements:', body, ''].join('\n');
+
+  const baselineLedger = ledger(
+    [
+      '  - { tree: subject, domain: making, cell: { q: 0, r: 0 } }',
+      '  - { tree: other, domain: body, cell: { q: -4, r: 8 } }',
+    ].join('\n'),
+  );
+
+  function withLedgers(
+    prefix: string,
+    head: string,
+    run: (result: ReturnType<typeof runBaseline>) => void,
+  ): void {
+    withGitRepo(prefix, (fixture) => {
+      const taxonomy = path.join(fixture.repoRoot, 'content/taxonomy');
+      mkdirSync(taxonomy, { recursive: true });
+      fixture.write(subject());
+      writeFileSync(path.join(taxonomy, 'placement.yaml'), baselineLedger, 'utf8');
+      fixture.commit('baseline');
+      writeFileSync(path.join(taxonomy, 'placement.yaml'), head, 'utf8');
+      run(runBaseline({ repoRoot: fixture.repoRoot, against: 'main' }));
+    });
+  }
+
+  it('passes when nothing moved', () => {
+    withLedgers('check9-clean', baselineLedger, (result) => {
+      expect(checksFired(result)).not.toContain(9);
+    });
+  });
+
+  it('passes when a line is appended', () => {
+    const head = baselineLedger.replace(
+      'placements:\n',
+      'placements:\n  - { tree: third, domain: mind, cell: { q: 24, r: 4 } }\n',
+    );
+    withLedgers('check9-append', head, (result) => {
+      expect(checksFired(result)).not.toContain(9);
+    });
+  });
+
+  it('fails when a committed cell is hand-edited', () => {
+    const head = baselineLedger.replace('q: 0, r: 0', 'q: 2, r: 1');
+    withLedgers('check9-edit', head, (result) => {
+      expect(checksFired(result)).toContain(9);
+      expect(result.findings.some((f) => f.check === 9 && f.treeId === 'subject')).toBe(true);
+    });
+  });
+
+  it('permits a domain change, which frees the old cell by design', () => {
+    const head = baselineLedger.replace(
+      '{ tree: subject, domain: making, cell: { q: 0, r: 0 } }',
+      '{ tree: subject, domain: body, cell: { q: -4, r: 9 } }',
+    );
+    withLedgers('check9-domain', head, (result) => {
+      expect(checksFired(result)).not.toContain(9);
+    });
+  });
+
+  it('permits a retirement, which frees the cell for the next arrival', () => {
+    const head = ledger('  - { tree: other, domain: body, cell: { q: -4, r: 8 } }');
+    withLedgers('check9-retire', head, (result) => {
+      expect(checksFired(result)).not.toContain(9);
+    });
+  });
+
+  it('fails when the frozen divisor is changed, which renumbers every spiral', () => {
+    const head = baselineLedger.replace('cellDivisor: 4', 'cellDivisor: 3');
+    withLedgers('check9-divisor', head, (result) => {
+      expect(result.findings.some((f) => f.check === 9 && /divisor/i.test(f.message))).toBe(true);
     });
   });
 });

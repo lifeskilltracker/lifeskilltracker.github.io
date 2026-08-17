@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://life-skill-tracker/schema/placement.schema.json",
+  "title": "PlacementLedger",
+  "description": "The committed skill-placement ledger (UI-SPEC §5.3, ARCHITECTURE §10.4). Written by `lst compile`, never hand-edited: `lst baseline` check 9 fails CI if an existing assignment changes.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "cellDivisor": {
+      "description": "One global divisor for every region (UI-SPEC Q2). Frozen at the first committed assignment — changing it renumbers the spiral and reflows every region, the exact N11 failure this ledger exists to prevent. There is deliberately no per-region override.",
+      "type": "integer",
+      "const": 4
+    },
+    "placements": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/placement" }
+    }
+  },
+  "required": ["schemaVersion", "cellDivisor", "placements"],
+  "additionalProperties": false,
+  "$defs": {
+    "placement": {
+      "type": "object",
+      "properties": {
+        "tree": { "$ref": "./common.schema.json#/$defs/slug" },
+        "domain": { "$ref": "./common.schema.json#/$defs/domainId" },
+        "cell": { "$ref": "#/$defs/cell" }
+      },
+      "required": ["tree", "domain", "cell"],
+      "additionalProperties": false
+    },
+    "cell": {
+      "description": "Sub-lattice axial coordinates. Integers: the sub-lattice is the parent lattice scaled by 1/cellDivisor about the same origin, so no cell is ever fractional.",
+      "type": "object",
+      "properties": {
+        "q": { "type": "integer" },
+        "r": { "type": "integer" }
+      },
+      "required": ["q", "r"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -109,7 +109,11 @@ export interface DomainsFile {
     id: DomainId;
     title: string;
     blurb?: string;
-    palette?: { base: string; accent: string };
+    /** §5.9, A7 — one authored pair per theme; nothing derives dark from light. */
+    palette?: {
+      light: { base: string; accent: string };
+      dark: { base: string; accent: string };
+    };
     subregions?: Array<{ id: SubregionId; title: string }>;
   }>;
 }
@@ -132,6 +136,30 @@ export interface MapFile {
   schemaVersion: number;
   hexSize: number;
   regions: MapRegion[];
+}
+
+/** A sub-lattice cell, in its own axial coordinates at `hexSize / cellDivisor`. */
+export interface Cell {
+  readonly q: number;
+  readonly r: number;
+}
+
+/** One committed assignment. `domain` is the tree's primary domain when it was placed. */
+export interface Placement {
+  tree: string;
+  domain: DomainId;
+  cell: Cell;
+}
+
+/**
+ * `content/taxonomy/placement.yaml` (§5.3). Written by `lst compile` and never
+ * hand-edited; `lst baseline` check 9 is what enforces that.
+ */
+export interface PlacementLedger {
+  schemaVersion: number;
+  /** Global and frozen at the first committed assignment (UI-SPEC Q2). */
+  cellDivisor: number;
+  placements: Placement[];
 }
 
 export interface LoadedTree {

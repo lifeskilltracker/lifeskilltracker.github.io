@@ -71,6 +71,46 @@ describe('§10.2 — the six corners at 30° + 60°·i', () => {
   });
 });
 
+describe('§10.4 step 1 (A2-D) — cancellation keys on lattice integers', () => {
+  /**
+   * The corners of a pointy-top hex are exact integers on a shared lattice —
+   * `(2q + r ± 1, 3r ± 1|2)` — and become pixels only at emit. Keying on
+   * rounded floats instead cancels correctly only while the coordinates stay
+   * small enough that a few ULPs never straddle the rounding boundary. Past
+   * that magnitude an interior edge survives, the loop fails to close, and
+   * because the trigger is the authored `hexSize` and tile coordinates the
+   * failure is content-triggered rather than reachable from the code.
+   */
+  const solidBlock: AxialTile[] = [0, 1, 2].flatMap((dq) =>
+    [0, 1, 2].map((dr): AxialTile => [dq, dr]),
+  );
+
+  /** A solid 3×3 rhombus: 54 edges, 16 shared pairs, 22 exterior. */
+  const EXTERIOR_EDGES = 22;
+
+  it('closes a solid block into one loop at every magnitude, not just small ones', () => {
+    // 40 is the authored hexSize and passes either way. The large sizes are the
+    // ones that discriminate: they were found by search, and under float keying
+    // they leave 24-30 surviving edges instead of 22.
+    for (const size of [40, 10_000, 1_000_000]) {
+      const loops = unionTiles(solidBlock, size);
+
+      expect(loops, `hexSize ${size} should union into one closed loop`).toHaveLength(1);
+      expect(pointsOf(loops[0]), `hexSize ${size} exterior edge count`).toHaveLength(
+        EXTERIOR_EDGES,
+      );
+    }
+  });
+
+  it('places a far-from-origin block identically to one at the origin', () => {
+    // Same shape, translated. Position on the lattice cannot change how many
+    // edges cancel; under float keying at this magnitude it does.
+    const far: AxialTile[] = solidBlock.map(([q, r]): AxialTile => [q + 292, r]);
+
+    expect(pointsOf(unionTiles(far, 10_000)[0])).toHaveLength(EXTERIOR_EDGES);
+  });
+});
+
 describe('§10.4 — region union', () => {
   /** Three mutually adjacent tiles: 18 edges, 3 shared pairs, 12 exterior. */
   const triangle: AxialTile[] = [

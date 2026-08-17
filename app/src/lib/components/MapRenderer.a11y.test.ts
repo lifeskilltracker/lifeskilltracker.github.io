@@ -174,11 +174,14 @@ describe('§15.4 — never colour alone, on the map', () => {
 
 		// Two regions with utterly different recency and identical styling: if
 		// recency had a colour channel, these would differ somewhere other than the
-		// text. `style` carries the palette, and the palette is per domain, not per
-		// recency, so both regions' fills come from the same fixture colours.
-		const styleOf = (region: Element): string[] =>
-			[...region.querySelectorAll('[style]')].map((el) => el.getAttribute('style') ?? '');
-		expect(styleOf(mind)).toEqual(styleOf(making));
+		// text. `style` carries the palette as a `--domain-<id>` token (A7), so the
+		// domain id is normalised out first — that difference is *identity*, which
+		// §15.4 requires, and it is the only difference permitted here.
+		const styleOf = (region: Element, domain: string): string[] =>
+			[...region.querySelectorAll('[style]')].map((el) =>
+				(el.getAttribute('style') ?? '').replaceAll(domain, '<domain>')
+			);
+		expect(styleOf(mind, 'mind')).toEqual(styleOf(making, 'making'));
 
 		expect(making.querySelector('.region-recency')?.textContent?.trim()).toBe(
 			'Last activity — 12 March 2026'

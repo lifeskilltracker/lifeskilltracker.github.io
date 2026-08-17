@@ -21,7 +21,7 @@ It is written as a buildable blueprint: named libraries, module boundaries, real
 
 **In scope.** The static web application, the tree content schema, the validation toolchain, the CI pipeline, the repository layout, and the deploy path. Concretely, this spec closes PRD deferred decisions **D1–D6**, **D8**, **D10–D11**, and **D13–D18**. **D5** is closed for phase 1 and deferred for photos (§12.8). **D7** is resolved by *declining* the decay mechanism it assumes — see §11.7 and D-20; PRD **F35** was amended in v1.3 to match.
 
-**Out of scope.** **D12** (the initial facet-tag vocabulary) is content work, not a technical choice: the architecture requires only that every tag a tree uses exists in the vocabulary file. Product and taxonomy decisions **D19, D21, D22** and **D24–D27** remain open in the PRD and are not settled here. **D23** (user-level domain reassignment) is explicitly out of v1. **D20**, **D24**, and **D26** have architectural consequences recorded in §19.4; **D20** and **D26** are resolved in PRD v1.4. **D9** is already resolved into F8.
+**Out of scope.** **D12** (the initial facet-tag vocabulary) is content work, not a technical choice: the architecture requires only that every tag a tree uses exists in the vocabulary file. Product and taxonomy decisions **D21, D22** and **D24–D27** remain open in the PRD and are not settled here; **D19** (the visual direction and the domain palettes) is resolved in `docs/UI-SPEC.md` §4, whose seven amendments are landed throughout this document. **D23** (user-level domain reassignment) is explicitly out of v1. **D20**, **D24**, and **D26** have architectural consequences recorded in §19.4; **D20** and **D26** are resolved in PRD v1.4. **D9** is already resolved into F8.
 
 **PRD amendments R-24 and R-25** (F35 recency representation, F33 arithmetic) were absorbed in PRD v1.3 and are recorded as resolved in §19.5.
 
@@ -95,7 +95,7 @@ Project-specific and overloaded terms only. Terms are grouped by what they belon
 | **Region** | A domain's territory on the world map — an irregular silhouette composed of several hex tiles, with its own palette (F21). |
 | **Hex tile** | One hexagon of the world-map grid. The atomic unit of region geometry, not a unit of content. Multiple tiles compose one region. |
 | **Fog** | The unrevealed rendering state for a domain with no published skills (F22). Reads as forthcoming content, never as an empty room. |
-| **Fill** | The height of a region's fill clip rectangle, driven by domain score through a concave curve (F34). Never displayed as a raw percentage. |
+| **Fill** | The height of a region's water line, driven by domain score through a concave curve (F34). Never displayed as a raw percentage. |
 | **Recency channel** | How recently the user was active in a domain (F35). In v1 it is **a date in text**, not a graded visual property: D-20 ships a maximum of `lastActivityAt` with no decay, and the graded channel is R-20. |
 | **Breadth** | The count of skills a user has started in a domain (F35). |
 | **Cell** | A (level, track) slot in the tree grid, into which the layout engine places milestones by `order` (§8). |
@@ -738,7 +738,9 @@ domains:
   - id: making                  # stable forever; never derived from the name
     title: Making
     blurb: Music, art, writing, craft, code, and technical creation.
-    palette: { base: "#8a5a3b", accent: "#d9a066" }   # D19
+    palette:                                          # D19
+      light: { base: "#8a5a3b", accent: "#d9a066" }
+      dark:  { base: "#c08a5e", accent: "#f0c896" }
     subregions:                 # only Making declares these (F27)
       - { id: expression, title: Expression }
       - { id: objects,    title: Objects }
@@ -761,6 +763,8 @@ facets:
     title: Has a certification path
   …
 ```
+
+**`palette` carries one pair per theme.** A domain's hue is its identity and must never encode score (§10.5), which only works if hue has exactly one source — and `domains.yaml` is already that source, since the map renderer reads it today. Putting the dark variant here rather than in a parallel CSS table is what stops the two drifting: a domain added to this file arrives with both themes or fails its schema. The change is additive at the schema level and mechanical at the reader; nothing derives a dark colour from a light one at runtime, because the separations that keep eight hues distinct (Mind against Work, Home against Outdoors) do not survive an algorithmic transform.
 
 The **id/display-name split is the mechanism behind F20**: renaming a domain in the UI changes `title` and touches no tree. Adding a domain is a new entry plus map geometry (§10). Removing one requires a lineage-style migration for the trees that referenced it, which is why the schema makes ids cheap to add and expensive to delete. **A domain can be removed this way; a tree cannot be removed at all** (§5.4, §6.4 check 8). The asymmetry is not an oversight: a domain's dependents are tree files, which survive the removal and can carry the migration, whereas a tree's ledger is inside the tree, so a deletion destroys the only thing that could have accounted for it.
 
@@ -1083,7 +1087,7 @@ The rule: **the compiled bundle contains no implicit values.** Every default is 
 
 **The compiled shape is a schema, not a convention.** `schema/compiled-tree.schema.json` and `schema/manifest.schema.json` are normative for the compiler's output. `lst compile` validates what it emits against them and fails the build on a mismatch; `app/` generates its `CompiledTree` and `Manifest` types from them, exactly as it generates authored types from `tree.schema.json`. Without this the compiler in `tools/` and the types in `app/` are two hand-maintained descriptions of the same JSON on opposite sides of the §4.2 import boundary, with nothing to catch the drift — `tools/ → app/` is forbidden, so the compiler could never have imported those types directly.
 
-These two schemas are **build-time and codegen artifacts only**. The app does not ship a validator and does not validate bundles at runtime: the runtime check is §7.5's narrow shape assertion, and carrying ajv into the client would spend a meaningful share of §17.1's 70 kB budget to re-prove something CI already proved. "Internal" in §14.6 means unversioned — free to change with the app in a single commit — not unspecified.
+These two schemas are **build-time and codegen artifacts only**. The app does not ship a validator and does not validate bundles at runtime: the runtime check is §7.5's narrow shape assertion, and carrying ajv into the client would spend a meaningful share of §17.1's 82 kB budget to re-prove something CI already proved. "Internal" in §14.6 means unversioned — free to change with the app in a single commit — not unspecified.
 
 ### 7.4 Fetch and cache behaviour
 
@@ -1310,6 +1314,11 @@ This makes S1 mechanically verifiable rather than a matter of assertion: `archet
 ### 9.2 SVG structure
 
 ```html
+<!-- F29: track titles, outside the viewBox. Omitted entirely when the tree
+     declares no tracks, which §8.2 step 2 marks with an empty `trackId`. -->
+<div class="column-heads" aria-hidden="true">
+  <div class="column-head" data-track="technique" style="left:0%; width:40%">Technique</div>
+</div>
 <svg viewBox="0 0 {W} {H}" role="group" aria-labelledby="tree-title">
   <g class="edges" aria-hidden="true">      <!-- decorative; §15 carries the semantics -->
     <path class="edge" d="…" data-from="k7m2qp9x" data-to="m3xk90ab"/>
@@ -1320,13 +1329,23 @@ This makes S1 mechanically verifiable rather than a matter of assertion: `archet
   <g class="nodes">
     <g class="node is-complete" data-uid="k7m2qp9x"
        tabindex="0" role="button" aria-describedby="ms-k7m2qp9x-desc">
-      <rect …/><text …/><use class="state-glyph" href="#glyph-complete"/>
+      <rect …/><use class="state-glyph" href="#glyph-complete"/>
+      <foreignObject …>                     <!-- F29: module label, then title -->
+        <span class="node-module">Foundations</span>
+        <span class="node-title">…</span>
+      </foreignObject>
     </g>
   </g>
 </svg>
 ```
 
 Edges carry `aria-hidden`: a screen reader cannot usefully consume a drawn line, and §15 conveys prerequisites as text on the node instead. Marking them hidden is the honest choice, not a shortcut.
+
+**Track titles are drawn as HTML above the `viewBox`, not as a header band inside it.** D-07 states the renderer "draws the number of columns it is given and renders module labels when modules exist", and `columns[].title` reached the renderer and was dropped, so a three-column tree published its structure as x-positions with nothing naming them (F29). Keeping the titles outside the SVG leaves §8's `width` and `height` untouched — a header band inside would change both and reopen every layout stability test — and the alignment is exact rather than approximate: the tree is rendered at `width: 100%; height: auto` with the default `xMidYMid meet`, so there is no letterboxing and a percentage of `positions.width` is the same fraction of the drawn SVG. The strip is `aria-hidden`, because §15.2's description already names each node's track individually; spoken here the titles would be labels floating free of anything they name.
+
+**Module labels are text on the node.** They cannot be column headers — modules cut across every level rather than partitioning the tree vertically, which is exactly why a modular tree needs them — and they cannot be colour or glyph, because §9.3 below has already spent fill, border **and** glyph on the five node states and N5 forbids a sixth meaning on colour. Text is the one channel left. Absent `module`, nothing is drawn.
+
+In narrow (§9.5) the two collapse into one line per node carrying track and module together, since narrow has a single synthetic column and therefore no header to hang the track on.
 
 ### 9.3 Node state and its visual encoding
 
@@ -1359,6 +1378,8 @@ State is applied as a **CSS class on an already-positioned node**. Toggling a mi
 
 Driven by `layoutTree(tree, 'narrow')` (§8.5): one column, level bands as headings, no drawn edges. Prerequisites appear on each node as text — *"Requires: Draw a square taper"* — which is strictly more useful than an undrawable line and is the same presentation §15 gives screen readers at every viewport.
 
+**Track and module appear per node here**, on one line, rather than in the column strip §9.2 draws for wide. Narrow has one synthetic column and no header to carry the track, and §8.5 sorts the stack by `(level, trackIndex, order, slug)` — so without the per-node line the track boundaries inside a level are invisible in the one view §15.1 makes primary for assistive technology.
+
 The breakpoint is a CSS container query on the tree's own container, not a global media query, so the same component behaves correctly if it is ever embedded in a narrow panel on a wide screen.
 
 ### 9.6 Level chrome and mastery
@@ -1384,6 +1405,10 @@ Resolves **D2**.
 This is the decision that makes the map tractable. The naive approach — render 100–400 individual hexagons and colour them by domain — gives every region a visible internal honeycomb, N hit targets instead of one, N elements to animate, and no silhouette. Unioning at build time cuts the runtime element count from several hundred to eight, gives each domain exactly the Lynch-districts property F21 asks for (its own outline, recognizable at a glance), and turns fill, fog, and recency into properties of one shape rather than of a swarm.
 
 The hex grid survives only as an **authoring convenience**: it is how a human specifies an irregular blob without drawing bézier curves, and it guarantees regions tessellate without gaps or overlaps. It has no runtime existence.
+
+**One layer is drawn above the union, and it does not weaken any of the above.** At camera level 1 the focused region — one region, never eight — also draws its **skill hexes**: a sub-lattice at `hexSize / cellDivisor`, one small hexagon per published tree, positioned by the placement ledger of §10.4. Level 0 still draws eight paths and nothing else.
+
+The distinction is worth stating precisely, because it is the one an implementer is most likely to collapse. The authored grid of `map.yaml` still has no runtime existence; the sub-lattice is a *finer* lattice, derived by the compiler, and it is the coordinate system for skills rather than for domains. It exists **because** D-08 holds, not in spite of it: the union is what keeps level 0 at eight elements, and that headroom is the entire reason a per-skill layer is affordable at level 1 at all. Were regions drawn as individual hexes, the map would already be spending its element budget at world level and there would be nothing left to spend here.
 
 ### 10.2 Coordinate system
 
@@ -1444,13 +1469,38 @@ Emitted into `manifest.taxonomy.map`, so the map renders from the manifest alone
 
 A region with a hole (a domain drawn as a ring) would produce two loops. The compiler emits both as sub-paths and warns, because it is far more likely to be an authoring mistake than an intention. **This warning covers holes only.** The other way to get two loops — a region in two disconnected pieces — is a hard failure at validation (§6.2, rule M3) and never reaches the compiler, which is what keeps a warning here from quietly standing in for a gate. Loop count alone cannot distinguish the two cases, so the compiler must not try to.
 
+**Step 1's "shared vertex grid" means exact integers on the hex lattice, and it is load-bearing.** A pointy-top hex at `(q, r)` has its six corners at the lattice points `(2q + r ± 1, 3r ± 1|2)`; those are integers, they are computed by addition alone, and two tiles sharing a corner therefore produce *the same integer pair* rather than two floats a few ULPs apart. The pixel conversion of §10.2 happens only at emit, after cancellation.
+
+This is not a micro-optimisation and the tempting implementation is wrong. Keying cancellation on rounded floats — `toFixed(n)` over pixel coordinates — half-works: it cancels correctly until some true corner value falls near a rounding boundary and the two tiles round to opposite sides of it, at which point that interior edge survives as a stray boundary edge and the loop fails to close. The failure is content-dependent, so it appears when someone edits `map.yaml` and not when the code is written. In a prototype over these eight regions, **two of the eight failed to close.**
+
+#### Skill placement: the sub-lattice and the ledger
+
+`map.yaml` assigns tiles to *domains*, not skills to tiles, so nothing in the system yet knows where an individual skill goes. Two existing requirements bound every possible answer, and between them they eliminate both obvious ones. **F13** — contributors never author layout coordinates — rules out a `tile:` field on a tree. **N11** — a change to one thing shall not visibly reflow the rest — rules out deriving position from subregion or facet tags, which clusters related skills beautifully and re-packs every neighbour the moment one is added.
+
+For each region, after the union:
+
+5. **Subdivide.** Generate a hex lattice at `cellSize = hexSize / cellDivisor` over the region's bounding box, keeping every cell whose centre lies inside the region polygon. **`cellDivisor` is 4 for every region; there is no per-region override.** That yields 96–160 cells per region against a 500-skill projection of 43–137, and holds the smallest level-1 cell at 45 px, clear of WCAG 2.5.5 AAA's 44 px. UI-SPEC §5.3 carries the measurements.
+6. **Enumerate.** Order the surviving cells in a spiral outward from the cell nearest the region centroid — deterministic given the polygon and `cellDivisor`.
+7. **Assign, append-only.** Each published tree takes the lowest-numbered free cell in its primary domain at the moment it is first compiled. The assignment is written to a committed **placement ledger** and never recomputed.
+
+A new skill always takes the next free cell and **nothing already placed ever moves**: F13 is satisfied because nobody authors anything, and N11 is satisfied by construction rather than by care. The ledger introduces no new concept — §6.4 already establishes a committed baseline with CI failing on unauthorized drift, for milestone identifier stability (F41), and this is the same shape of problem taking the same shape of answer.
+
+Three consequences, stated so they are not later mistaken for defects:
+
+- **A retired skill leaves a hole.** Filling it would move whoever holds the next cell. The hole is correct.
+- **A skill changing primary domain frees its old cell and takes a new one** in the destination. Freeing is safe precisely because assignment is by lowest-free rather than by count.
+- **Editing a region's tiles reflows that domain's skills**, because the polygon changed and so the lattice changed. This is a rare maintainer action; the compiler shall warn loudly and name the affected trees. It is the one place N11 is knowingly traded, and it is traded for the ability to grow the map at all.
+
+`cellDivisor` is frozen the moment the ledger's first assignment is committed — changing it later renumbers the spiral and reflows every skill on the map, which is the exact failure the ledger exists to prevent. Because the divisor is global, that freeze is global too: the first commit in any region freezes it for all eight.
+
 ### 10.5 Rendering the three channels
 
 ```html
 <svg viewBox="…" role="group" aria-label="World map of life domains">
   <g class="region" data-domain="making" tabindex="0" role="link">
-    <path class="region-base"    d="…"/>   <!-- palette base -->
-    <path class="region-fill"    d="…" clip-path="url(#fill-making)"/>
+    <path class="region-plate"   d="…"/>   <!-- palette base, open strength -->
+    <path class="region-below"   d="…" clip-path="url(#below-making)"/>  <!-- full strength -->
+    <line class="region-waterline" clip-path="url(#region-making)"/>
     <path class="region-outline" d="…"/>
     <g    class="subregions">…</g>
     <text class="region-label">Making</text>
@@ -1460,14 +1510,18 @@ A region with a hole (a domain drawn as a ring) would produce two loops. The com
 
 | Channel | Encoding | Source |
 |---|---|---|
-| **Fill** | A clip rectangle rising from the region's base, animated on change | Domain score through the concave curve (§11.6) |
+| **Fill** | A **water line** across the region at height `1 − fill`, plate at full strength both sides, animated on change | Domain score through the concave curve (§11.6) |
 | **Recency** | A date beside the label and in the accessible name — *"Last activity — 12 March"*, or *"No activity yet"* when `lastActivityAt` is null. **No saturation, no shimmer, no fade**: D-20 ships a date, and the graded channel is R-20, phase 2 | §11.7 |
 | **Breadth** | A small count of skills started, rendered as text beside the label | §11.7 |
 | **Fog** | Desaturated, low-contrast, with the region name replaced by a "no skills yet — contribute one" affordance | Zero published trees in the manifest (F22) |
 
 Fog is computed from the **manifest**, not from user state: a domain is fogged when the library has no trees for it, not when the user has not started any. F22 is about signalling forthcoming content and inviting contribution, which is a property of the library.
 
-Fill uses a clip-path rather than opacity so that a partly-filled region keeps its full-strength outline and label. Never a raw percentage anywhere on the map (F34).
+**Fill is a water line, and never an opacity ramp.** The region's plate renders at full strength at every score; the score is a horizontal rule across it at height `1 − fill`, with the plate at full opacity below the line and at the open plate value above it, and the line itself ruled in ink and clipped to the region path. A partly-filled region therefore keeps its full-strength outline, label and hue.
+
+The obvious alternative — render the colour at `fill` opacity — is wrong, and it was wrong in this document's own earlier draft. A domain at 18% is *a domain with a low water line*, not *a faded domain*. Since most domains are low-scoring most of the time, opacity-as-fill drains the map of colour exactly when it is most needed and destroys the per-region identity F21 asks for; it also contradicts the requirement in the paragraph above, which this section already stated and the ramp already violated. Hue is identity and never encodes score.
+
+`fill` itself is unchanged: §11.6's concave `s/(s+k)` curve. Never a raw percentage anywhere on the map (F34).
 
 Per N5, fill level is also exposed as text on focus and in the region's accessible name — a visual fill height that exists nowhere else is exactly the colour-only encoding N5 forbids.
 
@@ -1477,15 +1531,35 @@ Making's three subregions render as **interior grouping lines** — subdued stro
 
 D21's promotion trigger (when subregions become prominent divisions rather than light grouping) is a PRD-level decision and stays open. Architecturally it is a styling change — stroke weight and label prominence — and needs no data or structural change, which is the point of authoring them from day one (F26).
 
-### 10.7 Navigation
+### 10.7 Navigation and the camera
 
-Selecting a region opens that domain's skill listing; selecting a skill opens its tree (F23). Regions are focusable, are announced with name, fill level, breadth, and fogged state, and are keyboard-reachable in a stable reading order (§15.3).
+Selecting a region enters that domain; selecting a skill opens its tree (F23). Regions are focusable, are announced with name, fill level, breadth, and fogged state, and are keyboard-reachable in a stable reading order (§15.3).
 
-**No pan, no zoom, no camera.** The whole map fits the viewport at every size; on narrow viewports it scales down and, below the point where labels stop being legible, the app substitutes a domain **list** with the same three channels rendered as inline indicators. This is the same concession §8.5 makes for trees, for the same reason: a scaled-down interactive map on a phone is worse than an honest list.
+**Two camera levels, and both of them are routes.** There is no free camera and no continuous zoom.
+
+| Level | Route | Camera | Draws |
+|---|---|---|---|
+| **0 — world** | `/` | fits all eight regions | silhouettes, labels, water lines, breadth, recency |
+| **1 — domain** | `/d/<domainId>` | fits one region | the same, plus that region's skill hexes (§10.4) |
+
+Entering a region flies the camera and fades the skill layer in; leaving reverses it. **Every camera state is a URL and browser Back is the breadcrumb** — there is no breadcrumb widget, and this is the cheapest orientation mechanism available. Both routes stay prerendered (§13.1); `/d/<domainId>` is a camera state over the same rendered surface rather than a separate page, which is what makes the transition an animation rather than a navigation.
+
+**Stepped rather than continuous, for a structural reason.** A single global level-of-detail flag works over a 5× zoom range when the map holds 42 nodes; this library is projected at 164 and eventually 500, where one global flag yields either an unreadable soup of labels or none at all. Scoping level 1 to **one domain** bounds the labelled-hex count by the largest single domain — Making, projected at 45 — however large the library grows. The bound comes from the camera model rather than from tuning, which is the property that makes it survive growth.
+
+**Label sizes are fixed in world units**, chosen so that geometric scaling alone makes exactly one tier legible at a time: a domain label resolves to 22–28 px on screen at level 0 and stays legible at level 1; a skill label resolves to below 9 px at level 0 — illegible, therefore visually absent — and to 14–18 px at level 1. Given the world's extent and `hexSize` these bound the two sizes directly, so they are computed once at build time and asserted in a test, never hand-tuned. There are no per-zoom label rules and no fade thresholds. Region outline weight steps across the transition — 1.3 world units at level 0, 0.9 at level 1 — so outlines hold constant *screen* weight instead of thickening with the camera.
+
+**The list substitution is at a zoom level, not at a viewport size.**
+
+| | Phone | Desktop |
+|---|---|---|
+| Level 0 — world | map | map |
+| Level 1 — domain | **list of skills** | map with skill hexes |
+
+Eight labelled regions genuinely do fit a phone, and the Curious Browser is disproportionately on one (D25) — substituting at the viewport meant the visitor most likely to be won over by the map was the one who never saw it. Skill hexes are where labels stop being legible and 44×44 px touch targets stop fitting, so that is where the honest list belongs. This is still the concession §8.5 makes for trees, for the same reason; it now lands one level deeper.
 
 ### 10.8 What this section does not cover
 
-The numbers driving fill, recency, and breadth are computed in §11 — this section only draws them. The domain taxonomy's authored form is §5.9. Palette selection per domain (D19) is a PRD-level design decision; the architecture only requires that a palette be data in `domains.yaml`.
+The numbers driving fill, recency, and breadth are computed in §11 — this section only draws them. The domain taxonomy's authored form is §5.9. The visual system itself — the direction, the eight palettes in both themes, the typography and the motion — is `docs/UI-SPEC.md` (D19); the architecture requires only that a palette be data in `domains.yaml` and that hue never encode score.
 
 ---
 
@@ -1614,7 +1688,7 @@ score(domain)   = Σ contribution(attained_i)   over skills whose PRIMARY domain
 fill(domain)    = s / (s + 48)  // ∈ [0, 1), asymptotic, never saturates
 ```
 
-**`fill` is a map-region rendering function, not a progress bar.** It exists for one reason: §10.5 draws each domain as a clip rectangle rising from the region's base, and a region has a bounded height while the score does not. Something has to map unbounded → bounded pixels. It is emphatically *not* claiming a domain is 70% complete — domains have no denominator and F34 forbids ever showing the number. Its job is the cross-domain comparison the PRD is built on: *is Body quiet compared to Mind?* Absolute values are meaningless by design; only the ordering across a user's own eight regions carries information.
+**`fill` is a map-region rendering function, not a progress bar.** It exists for one reason: §10.5 draws each domain's score as a water line across a region, and a region has a bounded height while the score does not. Something has to map unbounded → bounded pixels. It is emphatically *not* claiming a domain is 70% complete — domains have no denominator and F34 forbids ever showing the number. Its job is the cross-domain comparison the PRD is built on: *is Body quiet compared to Mind?* Absolute values are meaningless by design; only the ordering across a user's own eight regions carries information.
 
 There is **no per-skill continuous fill anywhere in the system.** Skill level is displayed discretely (§11.3), milestone nodes have five discrete states (§9.3), and the domain view is a listing (§13.1). `k` is a single domain-level constant.
 
@@ -2037,13 +2111,15 @@ SvelteKit file-based routing, prerendered where possible, with `adapter-static`'
 
 | Route | View | Prerendered |
 |---|---|---|
-| `/` | World map (F21) | yes |
-| `/d/<domainId>` | Domain skill listing (F23) | yes — one per domain |
+| `/` | World map, camera level 0 (F21) | yes |
+| `/d/<domainId>` | The same map surface, camera level 1 on that region (F23) | yes — one per domain |
 | `/s/<treeId>` | Tree view | no — resolved from the manifest at runtime; a miss is a tree-unavailable state, never a 404 (§16.3) |
 | `/s/<treeId>/m/<slug>` | Tree view with a milestone panel open | no |
 | `/library` | All skills, filterable by domain, subregion, and facet | yes |
 | `/data` | Export, import, storage status (F38, F39) | yes |
 | `/about`, `/contribute` | Project and contribution guide entry points | yes |
+
+**`/d/<domainId>` is a camera state, not a second page.** It renders the same map surface as `/`, with the camera fitted to one region and that region's skill hexes faded in (§10.7), which is what lets the transition animate instead of navigating. It stays prerendered all the same — one prerendered document per domain, eight of them — so a cold arrival at a domain URL paints the same first frame as an arrival at `/`, and the two differ only in where the camera rests. On a phone, level 1 renders the skill list rather than the hexes; the route is unchanged.
 
 Skill routes are deliberately **not** prerendered per tree. Prerendering 164 and eventually 500 tree shells would grow build time linearly in content while adding nothing — the shell is identical and the content arrives from the manifest anyway.
 
@@ -2090,9 +2166,10 @@ It must also not be read as an *empty* record. `store.progressFor` is total and 
 ### 13.4 View composition
 
 ```
-+layout.svelte          shell chrome, nav, notice host, error boundary
-├── +page.svelte        WorldMap        → MapRenderer (§10)
-├── d/[domain]          DomainListing   → SkillCard[]
++layout.svelte          sidebar, Find, Info, next-step card, notice host, error boundary
+├── +page.svelte        MapSurface      → MapRenderer (§10), camera level 0
+├── d/[domain]          MapSurface      → the same renderer, camera level 1
+│   └── SkillList       the phone substitution at level 1 (§10.7)
 ├── s/[tree]            SkillPage
 │   ├── SkillHeader     level, tier, progress to next (F32)
 │   ├── TreeView        (§9) — the only consumer of the Layout Engine
@@ -2103,6 +2180,8 @@ It must also not be read as an *empty* record. `store.progressFor` is total and 
 ```
 
 `TreeView` is the only component that imports the Layout Engine, and no component imports the Scoring Engine directly — scores arrive as derived values through props. That keeps §14's dependency rules checkable by inspection.
+
+**The shell carries four persistent controls**, which is why they live in `+layout` rather than on the map page: a sidebar (replacing the top nav, and giving the map back its vertical extent), **Find**, **Info**, and the **next-step card**. Find highlights matches in place and never moves the camera, which is what lets it double as the only filter UI in the application; its match count is exposed as text, since a highlight that exists only visually is the colour-only encoding N5 forbids. Info carries the legend — not polish, but the only place the water line's meaning is written down, given that F34 forbids the raw percentage. All four survive a camera move, because `/` and `/d/<domainId>` share this layout.
 
 ### 13.5 What this section does not cover
 
@@ -2488,12 +2567,14 @@ Consequently the SVG edges carry `aria-hidden` (§9.2). A drawn line conveys not
 
 ```
 name:        "Forge a J hook"
-description: "Level 2. Available. Requires: light a fire and bring stock to
-              forging heat; draw a square taper on the anvil — both complete.
-              Counts toward: all of Level 2's core group."
+description: "Level 2. Heat track. Available. Requires: light a fire and bring
+              stock to forging heat; draw a square taper on the anvil — both
+              complete. Counts toward: all of Level 2's core group."
 ```
 
-The description states level, state, prerequisites *and whether they are met*, and which requirement group the milestone serves. That last part is the piece a sighted user reads off the layout for free and a screen-reader user otherwise cannot recover at all.
+The description states level, **track and module**, state, prerequisites *and whether they are met*, and which requirement group the milestone serves. The last part is the piece a sighted user reads off the layout for free and a screen-reader user otherwise cannot recover at all.
+
+**The track clause is load-bearing, not decoration** (F29). The grid order below is `(level, track, lane)` and `↑`/`↓` move *within a track*, so without it a reader is navigating by a structure they have never been given a word for. It belongs to the description rather than the name: the name stays the authored title alone, because prefixing fifty milestones with three track names makes a list read as fifty repetitions before any entry says what it is. The module clause follows the same rule and appears only when the milestone declares one — both sit beside the level, because all three answer *where am I*.
 
 **Keyboard model.** Nodes are in a single tab stop with roving `tabindex`; arrows move within the grid, so a tree of eighty milestones does not cost eighty tabs.
 
@@ -2519,7 +2600,9 @@ Each region is a focusable link with an accessible name carrying every channel a
 "Play. No skills published yet — contribute one."
 ```
 
-Fill is announced by its **named band** (§11.6 — `Quiet`, `Emerging`, `Moderate`, `Active`, `Deep`), never as a percentage, which keeps the accessible name consistent with F34's refusal to show a raw percentage visually. It is a *band*, not a tier: §11.3's tiers are the five names over pairs of skill levels, and using one word for both would have the map appear to rank a domain on the same scale that ranks a skill. Regions follow a stable, documented reading order that does not depend on their pixel positions. Below the legibility threshold the map is replaced by a list (§10.7), which is the same content in the same order — so the small-viewport experience and the screen-reader experience converge rather than diverging.
+Fill is announced by its **named band** (§11.6 — `Quiet`, `Emerging`, `Moderate`, `Active`, `Deep`), never as a percentage, which keeps the accessible name consistent with F34's refusal to show a raw percentage visually. It is a *band*, not a tier: §11.3's tiers are the five names over pairs of skill levels, and using one word for both would have the map appear to rank a domain on the same scale that ranks a skill. Regions follow a stable, documented reading order that does not depend on their pixel positions.
+
+**The small-viewport and screen-reader experiences converge at the skill level, and carry the same content in the same order at every level.** The claim is worth stating exactly, because §10.7 moves the list substitution from a viewport threshold to camera level 1 and the loose version of it stops being true. At level 1 both surfaces get the skill list, and there they converge outright. At level 0 they differ in form — the screen reader gets the region list, the phone gets the map — but every channel each region carries is present in both, in the same documented order. The property N5 depends on is *the same content in the same order*, not *the same view*, and that property holds at both levels.
 
 ### 15.4 Never colour alone
 
@@ -2553,7 +2636,7 @@ Axe via `vitest-axe` on component tests as a CI gate; automated checks catch rou
 
 ### 15.9 What this section does not cover
 
-Visual design and palette selection (D19) are product decisions. The rendering these requirements constrain is §9 and §10.
+The visual system that satisfies these requirements — direction, palettes, typography, motion — is `docs/UI-SPEC.md` (D19). The rendering these requirements constrain is §9 and §10.
 
 ---
 
@@ -2688,7 +2771,8 @@ Brotli-compressed transfer, enforced in CI by a size check that fails on regress
 | App JS, first route | ≤ 40 kB | Everything for the map view |
 | App JS, tree route (lazy) | ≤ 25 kB | Layout Engine, TreeView, Scoring Engine |
 | CSS | ≤ 15 kB | No utility framework to inflate it (§4.1) |
-| **Total first paint (JS + CSS)** | **≤ 70 kB** | |
+| Display face | ≤ 12 kB | One self-hosted subsetted woff2; its glyph set is closed at roughly forty glyphs |
+| **Total first paint (JS + CSS + font)** | **≤ 82 kB** | |
 
 For scale: the React floor alone is ~50 kB, which would consume most of this budget before a line of application code (§18 D-01).
 
@@ -2801,7 +2885,8 @@ Note the collision hazard restated from §1.5: `D-NN` (hyphenated) are architect
 - **Context.** PRD **D2**, **F21**. Domains are irregular multi-tile regions with their own silhouettes.
 - **Decision.** Authors assign hex tiles to domains in `map.yaml`; the compiler drops shared edges and emits one SVG path per region. The hex grid has no runtime existence.
 - **Alternatives.** *Render individual hexes* — every region shows an internal honeycomb, gets N hit targets and N elements to animate, and has no silhouette. *Author paths directly* — no author would hand-write bézier curves, and tessellation without gaps would not be guaranteed.
-- **Consequences.** Runtime element count drops from several hundred to eight. Fill, fog, and recency become properties of one shape. Region geometry ships inside the manifest, so the map renders with no extra fetch (§3.3). Regions with holes emit sub-paths and warn.
+- **Consequences.** Runtime element count drops from several hundred to eight. Fill, fog, and recency become properties of one shape. Region geometry ships inside the manifest, so the map renders with no extra fetch (§3.3). Regions with holes emit sub-paths and warn. Interior-edge cancellation must key on exact lattice integers, not rounded floats (§10.4).
+- **Still live, and reinforced by the skill-hex layer.** §10.4's sub-lattice draws one small hexagon per tree, for **one** region, at camera level 1 only. That is not an exception to this decision and must not be read as one: level 0 remains eight paths, and the layer is affordable *because* this decision keeps it so. A map already spending several hundred elements on its regions would have nothing left for a per-skill layer. The two lattices are also different objects — the authored grid of `map.yaml` still has no runtime existence, while the sub-lattice is compiler-derived and is the coordinate system for skills rather than for domains.
 - **Revisit if.** Subregions are ever promoted to independent visual regions (PRD **D21**) at a granularity the union step cannot express.
 
 ### D-09: IndexedDB from day one, despite photos being deferred
@@ -2957,7 +3042,7 @@ Out of scope here, tracked because each has architectural consequences the desig
 - **PRD D23 — user-level domain reassignment.** **Out of v1** (PRD v1.4). Moving a skill between domains would reduce a domain's additive score, violating N12, and product semantics for frozen historical contribution remain unresolved. Architecturally the cleanest post-v1 shape is a **display-only override** stored in user state, leaving scores computed from the authored primary domain — that preserves monotonicity by construction. F33's weighted table makes the score impact of reassignment worse than under a flat table.
 - **PRD D24 — tree families.** Thirty near-identical language trees would motivate a template or inheritance mechanism. This would be a **compiler** feature — expansion at build time into ordinary standalone trees — so that the schema, validator, and runtime never learn about inheritance. Worth stating now because it constrains nothing today and would be expensive to retrofit if inheritance leaked into the runtime.
 - **PRD D27 — user-authored milestone slots.** Would require user state to hold *content*, which nothing in §12 currently permits, and would collide with F2's enforceability. Not proposed for v1.
-- **PRD D28 — the domain view as a map rather than a list.** §13.1 routes `/d/<domainId>` to a skill *listing*, and §10.7 rules out pan and zoom, so drill-down is route-based: map → list → tree. The alternative raised by the owner (2026-08-05) is that selecting a domain opens **that domain's skills laid out as nodes with their own per-skill fill**, making the map two-level rather than one, with a *hide skills with no progress* filter and a search field. It is an appealing shape and this spec does not accommodate it. *Architectural cost, stated so the decision is priced:* a second layout engine — §8 lays out milestones within a tree, and nothing lays out trees within a domain; a new route and view; and authored or derived geometry for tree placement. Note that per-skill fill would be `attainedLevel / 10`, linear and bounded, and needs no `k` — §11.6's `k` is a domain-level constant and does not transfer. Region *size* remains unavailable as an encoding channel under §10.3 regardless. Not v1; recorded because retrofitting it after content geometry is authored would be materially more expensive than designing for it.
+- **PRD D28 — the domain view as a map rather than a list. Adopted, 2026-08-16.** Raised by the owner on 2026-08-05 and recorded here rather than folded in, precisely because retrofitting it after content geometry was authored would have been materially more expensive than designing for it. `docs/UI-SPEC.md` adopts it: `/d/<domainId>` is camera level 1 over the same surface (§10.7), the domain's skills draw as hexes on §10.4's sub-lattice, and Find supplies the search field and the only filter UI (§13.4). Every cost this entry priced was paid rather than avoided — the tree-placement geometry became the placement ledger, and the "second layout engine" became the spiral enumeration, which is smaller than feared because the sub-lattice is derived from the region polygon that already exists. Two details from this entry survive as written and are now normative: per-skill fill is `attainedLevel / 10`, linear and bounded, needing no `k` (§11.6's `k` is a domain-level constant and does not transfer), and region *size* remains unavailable as an encoding channel under §10.3. What is *not* adopted is "hide skills with no progress" as a distinct control; Find's highlight-in-place covers it, and a second filter would be the one that hides the map's own subject matter.
 
 **Resolved in PRD v1.4 (recorded here for traceability):**
 

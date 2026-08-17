@@ -2,13 +2,52 @@
 
 | Field | Value |
 |---|---|
-| **Status** | **complete** — 2026-08-13 |
+| **Status** | **complete** — 2026-08-13. A2-D fixed 2026-08-16 (see below) |
 | **Phase** | 1 |
 | **Cluster** | content-gates |
 | **Blocked by** | T03, T10 |
 | **Blocks** | T13 |
 | **Spec** | ARCHITECTURE §6.2, §10.3, §10.4 |
 | **PRD** | F21, D-08, R-13 |
+
+> **A2-D — FIXED 2026-08-16, ahead of T29. The account below is the finding as filed.**
+>
+> `unionTiles` now holds corners as `LatticeVertex` integer pairs from `CORNER_OFFSETS`,
+> keys cancellation on those, and calls `latticeToPixel` only when building the emitted
+> path. `SNAP_DECIMALS`, `snap` and `vertexKey`'s `-0` normalisation are gone; `hexCorners`
+> keeps its signature but is expressed through the same offsets instead of `Math.cos`/`sin`,
+> so there is one description of a corner in the module. **The eight regions and three
+> subregions compile byte-for-byte identically** — verified by running both algorithms over
+> the real `map.yaml` — so nothing reflows and N11 is untouched.
+>
+> The regression test is a solid 3×3 rhombus (22 exterior edges) unioned at `hexSize`
+> 40 / 10 000 / 1 000 000 and again translated 292 tiles from the origin. The translated
+> case is the one that discriminates: under float keying it left **28** edges, not 22. Note
+> what that magnitude means — at the authored `hexSize: 40` with tile coordinates in
+> [−1, 7] the defect was **unreachable**, which is exactly why it was filed as latent
+> rather than failing.
+>
+> §10.4 step 1's "shared vertex grid" now states what it always meant: region corners are
+> **exact integers on the hex lattice** — `(2q + r ± 1, 3r ± 1|2)` for pointy-top — converted
+> to pixels only at emit. The shipped `tools/src/compile/map.ts` does not do this. It computes
+> corners in pixels through `Math.sqrt(3)`/`Math.cos`/`Math.sin` and keys interior-edge
+> cancellation on `Number(value.toFixed(6))` of those floats. Its own comment states the
+> problem it is working around: *"adjacent hexes compute their shared corners through
+> different arithmetic and land a few ULPs apart."*
+>
+> **All 303 tools tests pass, and that is not evidence against this.** Rounding to 1e-6
+> cancels correctly until a true corner value falls near a rounding boundary and two tiles
+> round to opposite sides of it; that interior edge then survives as a stray boundary edge and
+> the loop fails to close. The trigger is the tile coordinates and `hexSize` in `map.yaml`, so
+> it surfaces when someone **edits the map**, not when the code is written, and for some
+> regions and not others. In the UI-SPEC prototype over these same eight regions, two of the
+> eight failed to close.
+>
+> **Fix before `map.yaml` is next edited.** Hold corners as integer pairs, key cancellation on
+> those, and convert at emit — the pixel conversion in `axialToPixel`/`hexCorners` stays, it
+> just moves later. `SNAP_DECIMALS` and `vertexKey`'s `-0` normalisation both disappear with
+> the floats. **T29** builds its sub-lattice on this polygon output and should not be layered
+> on float-keyed geometry.
 
 ## Goal
 

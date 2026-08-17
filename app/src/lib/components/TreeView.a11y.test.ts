@@ -152,9 +152,11 @@ describe('§15.2 — the node accessible name and description', () => {
 		const tree = a11yTree();
 		const { container } = mountTree(tree, A11Y_STATES);
 
-		// §15.2's worked example, in this fixture's vocabulary.
+		// §15.2's worked example, in this fixture's vocabulary. The track clause is
+		// F29's: §15.2's grid order is (level, track, lane) and ↑/↓ move within a
+		// track, so the track has to be said somewhere a reader will hear it.
 		expect(describedBy(container, node(container, tree, 'b1'))).toBe(
-			"Level 2. Available. Requires: a1 — complete. Counts toward: all of Level 2's required group."
+			"Level 2. heat track. Available. Requires: a1 — complete. Counts toward: all of Level 2's required group."
 		);
 	});
 
@@ -712,5 +714,74 @@ describe('§15.8 — the axe gate', () => {
 		const { container } = mountTree(tree, A11Y_STATES);
 
 		await auditAccessibility(container);
+	});
+});
+
+/**
+ * F29's accessibility half, which is the one with a correctness argument rather
+ * than an aesthetic one. §15.2's grid order is `(level, track, lane)` and
+ * `keyboard-grid.ts` navigates by track index, so `↑`/`↓` move "within a track"
+ * — a structure a screen-reader user was never told existed, because neither the
+ * name nor the description ever said the word.
+ */
+describe('F29 — the description names the track and the module', () => {
+	it('names the track in both viewports, since both navigate by it', () => {
+		const tree = a11yTree();
+
+		for (const viewport of ['wide', 'narrow'] as const) {
+			const { container } = mountTree(tree, A11Y_STATES, viewport);
+			expect(describedBy(container, node(container, tree, 'b1'))).toContain('heat track.');
+			expect(describedBy(container, node(container, tree, 'b2'))).toContain('metal track.');
+			cleanup();
+		}
+	});
+
+	it('names the module when one is declared, in both viewports', () => {
+		const tree = a11yTree();
+		tree.milestones.find((m) => m.id === 'b1')!.module = 'Foundations';
+
+		for (const viewport of ['wide', 'narrow'] as const) {
+			const { container } = mountTree(tree, A11Y_STATES, viewport);
+			expect(describedBy(container, node(container, tree, 'b1'))).toContain(
+				'Foundations module.'
+			);
+			cleanup();
+		}
+	});
+
+	it('places both beside the level, because all three answer "where am I"', () => {
+		const tree = a11yTree();
+		tree.milestones.find((m) => m.id === 'b1')!.module = 'Foundations';
+		const { container } = mountTree(tree, A11Y_STATES);
+
+		expect(describedBy(container, node(container, tree, 'b1'))).toMatch(
+			/^Level 2\. heat track\. Foundations module\. Available\./
+		);
+	});
+
+	it('says neither on a tree that declares neither, adding no empty clause', () => {
+		const tree = makeScoringTree({
+			id: 'f29-plain',
+			levels: [{ level: 1, milestones: ['p1'] }]
+		});
+		const { container } = mountTree(tree, {});
+
+		const description = describedBy(container, node(container, tree, 'p1'));
+		expect(description).not.toContain('track');
+		expect(description).not.toContain('module');
+		expect(description).toMatch(/^Level 1\./);
+	});
+
+	it('keeps the accessible name the authored title alone, not prefixed by the track', () => {
+		const tree = a11yTree();
+		tree.milestones.find((m) => m.id === 'b1')!.title = 'Bring stock to forging heat';
+		const { container } = mountTree(tree, A11Y_STATES);
+
+		// Fifty milestones prefixed by three track names would read as fifty
+		// repetitions before any of them says what it is. The track belongs in the
+		// description, which is read after the name, not stapled onto it.
+		expect(node(container, tree, 'b1').getAttribute('aria-label')).toBe(
+			'Bring stock to forging heat'
+		);
 	});
 });

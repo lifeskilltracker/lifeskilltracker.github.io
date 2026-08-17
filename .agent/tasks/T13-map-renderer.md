@@ -10,6 +10,23 @@
 | **Spec** | ARCHITECTURE §10.5, §10.6, §10.7 |
 | **PRD** | F21, F33, F34, F35, D-20 |
 
+> **HISTORICAL — superseded in part by T28's amendments (2026-08-16).** This document
+> records the phase-1 renderer as it shipped, and is kept as that record. Three of its
+> statements are no longer normative and **must not be implemented from this page**:
+>
+> - **Fill is no longer a clip rectangle rising from the region's base.** A3 makes it a
+>   **water line** at height `1 − fill` with the plate at full strength on both sides
+>   (ARCH §10.5). Every `clip-path`, `region-fill` and "clip rectangle" reference below is
+>   the superseded mechanism.
+> - **"No pan, no zoom, no camera" is repealed.** A1 replaces it with the two-level stepped
+>   camera (ARCH §10.7).
+> - **The list substitution is no longer at a legibility threshold**, but at camera level 1
+>   (A1, ARCH §10.7) — so a phone now gets the world map.
+>
+> The live successors are **T30** (camera, water line), **T31** (skill hexes, phone list)
+> and **T33** (Find, Info). §10.6's subregions and the three-channel accessible-name rules
+> below are unchanged and still hold.
+
 ## Goal
 
 `app/src/lib/components/MapRenderer.svelte` exists and draws the eight (Making: eleven

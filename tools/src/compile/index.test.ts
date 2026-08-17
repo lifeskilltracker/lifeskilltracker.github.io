@@ -26,7 +26,8 @@ import {
   makeRepoFromFixtures,
 } from '../../test/fixtures/compile/helpers.js';
 import { readYamlFile } from '../shared/yaml-source.js';
-import type { Tree } from '../validate/types.js';
+import type { MapFile, Tree } from '../validate/types.js';
+import { CELL_DIVISOR, latticesFor } from './placement.js';
 import { minimalValidTree, writeTreeFixture } from '../testing/fixture-helpers.js';
 
 const toolsRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -441,5 +442,110 @@ describe('compileCommand error handling', () => {
     });
     expect(result.status).toBe(EXIT_RUNTIME_ERROR);
     expect(result.stderr).toMatch(/Missing content trees directory/);
+  });
+});
+
+/**
+ * §10.4 steps 5–7 end to end. The unit behaviour lives in `placement.test.ts`;
+ * what is asserted here is that `lst compile` actually reaches it, writes the
+ * ledger, and puts a cell on every manifest entry — the thing T31 will read.
+ */
+describe('lst compile — the placement ledger', () => {
+  const ledgerPath = (repoRoot: string) =>
+    path.join(repoRoot, 'content/taxonomy/placement.yaml');
+
+  it('gives every compiled tree a cell in the manifest', () => {
+    const repoRoot = makeRepoFromFixtures();
+    try {
+      const { manifest } = runCompile({ repoRoot, write: false, now: fixedNow });
+      expect(manifest.trees.length).toBeGreaterThan(0);
+      for (const entry of manifest.trees) {
+        expect(Number.isInteger(entry.cell?.q)).toBe(true);
+        expect(Number.isInteger(entry.cell?.r)).toBe(true);
+      }
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('claims no cell twice', () => {
+    const repoRoot = makeRepoFromFixtures();
+    try {
+      const { manifest } = runCompile({ repoRoot, write: false, now: fixedNow });
+      const keys = manifest.trees.map((entry) => `${entry.cell!.q},${entry.cell!.r}`);
+      expect(new Set(keys).size).toBe(keys.length);
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('writes the ledger, and a second compile changes not one byte of it', () => {
+    const repoRoot = makeRepoFromFixtures();
+    try {
+      runCompile({ repoRoot, write: true, now: fixedNow });
+      const first = readFileSync(ledgerPath(repoRoot), 'utf8');
+      expect(first).toContain('cellDivisor: 4');
+
+      runCompile({ repoRoot, write: true, now: fixedNow });
+      expect(readFileSync(ledgerPath(repoRoot), 'utf8')).toBe(first);
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('honours a committed assignment instead of recomputing it', () => {
+    const repoRoot = makeRepoFromFixtures();
+    try {
+      const { manifest } = runCompile({ repoRoot, write: true, now: fixedNow });
+      const subject = manifest.trees[0]!;
+
+      // A cell the lattice really contains, so this exercises "never recomputed"
+      // rather than the reflow path — which is what an out-of-lattice cell would
+      // hit, and is the next test.
+      const map = readYamlFile<MapFile>(
+        path.join(repoRoot, 'content/taxonomy/map.yaml'),
+      ).data;
+      const far = latticesFor(map, CELL_DIVISOR).get(subject.domain)!.at(-1)!;
+      expect(far).not.toEqual(subject.cell);
+
+      const ledger = readFileSync(ledgerPath(repoRoot), 'utf8');
+      const moved = ledger.replace(
+        new RegExp(`(tree: ${subject.id}[^\\n]*cell: \\{ q: )-?\\d+(, r: )-?\\d+`),
+        `$1${far.q}$2${far.r}`,
+      );
+      expect(moved).not.toBe(ledger);
+      writeFileSync(ledgerPath(repoRoot), moved, 'utf8');
+
+      const after = runCompile({ repoRoot, write: false, now: fixedNow });
+      const entry = after.manifest.trees.find((tree) => tree.id === subject.id)!;
+      expect(entry.cell).toEqual(far);
+      expect(after.warnings.some((warning) => /reflow/i.test(warning))).toBe(false);
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('warns and names the trees when editing a region reflows them', () => {
+    const repoRoot = makeRepoFromFixtures();
+    try {
+      const { manifest } = runCompile({ repoRoot, write: true, now: fixedNow });
+      const subject = manifest.trees[0]!;
+
+      const ledger = readFileSync(ledgerPath(repoRoot), 'utf8');
+      writeFileSync(
+        ledgerPath(repoRoot),
+        ledger.replace(
+          new RegExp(`(tree: ${subject.id}[^\\n]*cell: \\{ q: )-?\\d+(, r: )-?\\d+`),
+          '$1999$2999',
+        ),
+        'utf8',
+      );
+
+      const after = runCompile({ repoRoot, write: false, now: fixedNow });
+      expect(after.warnings.some((warning) => warning.includes(subject.id))).toBe(true);
+      expect(after.warnings.some((warning) => /reflow/i.test(warning))).toBe(true);
+    } finally {
+      rmSync(repoRoot, { recursive: true, force: true });
+    }
   });
 });
