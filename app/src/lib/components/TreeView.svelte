@@ -29,7 +29,13 @@
 		nodeDescription,
 		trackTitleOf,
 	} from './node-description.js';
-	import { hitRect, presentationFor } from './node-state.js';
+	import { hitRect, levelFill, presentationFor } from './node-state.js';
+	import {
+		anchorFor,
+		glideDuration,
+		glidePosition,
+		type CameraTarget
+	} from './tree-camera.js';
 	import { attainmentLabel, bandTier } from './tiers.js';
 
 	interface Props {
@@ -227,7 +233,13 @@
 		// the tree out from under the focus this is about to place.
 		event.preventDefault();
 		const target = focusTarget(drawnNodes, progress.nodeStates, uid, event.key, viewport);
-		if (target !== undefined) moveFocus(target);
+		if (target === undefined) return;
+		moveFocus(target);
+		// F36's shortcut gains its visual counterpart (§7): `.` already moved
+		// focus to the next available milestone; the camera now follows it there.
+		// Only `.` — the arrows step to a neighbour the user can already see, and
+		// a camera that jumped on every arrow press would be motion sickness.
+		if (event.key === '.') cameraToNode(target);
 	}
 
 	function emit(intent: MilestoneIntent): void {
@@ -332,9 +344,125 @@
 			.map((ref) => tree.milestones[ref.index])
 			.filter((m): m is CompiledMilestone => m !== undefined);
 	}
+
+	/* ---------------------------------------------------------------------- *
+	 * The level camera (T34, UI-SPEC §7).
+	 *
+	 * **It moves the viewport and never the focus order.** §15.2's grid and
+	 * roving `tabindex` are unchanged above and below this block; every anchor
+	 * here is a scroll offset. There is no zoom and no pan: §7 declines both by
+	 * name, and if a tree ever feels too tall the answer is another named anchor
+	 * in `tree-camera.ts`, not a scale factor.
+	 *
+	 * The arithmetic is all in `tree-camera.ts`, which is pure. What is left
+	 * here is the only part that genuinely needs a browser: a scroll container,
+	 * a frame clock, and the user's motion preference.
+	 * ---------------------------------------------------------------------- */
+
+	/** The header strip each level band carries, in layout units (§4.3's line lives on it). */
+	const LEVEL_HEADER_H = 20;
+
+	let cameraElement = $state<HTMLDivElement | undefined>(undefined);
+	let svgElement = $state<SVGSVGElement | undefined>(undefined);
+
+	/**
+	 * Where the camera is pointed, in layout units — `null` until it is first
+	 * asked to move. Reflected onto the container as `data-camera-anchor` because
+	 * that is the only honest way to observe it: `scrollTop` is a pixel and a
+	 * pixel needs a laid-out box, which is exactly what a component test does not
+	 * have.
+	 */
+	let cameraAnchor = $state<number | null>(null);
+
+	let glideFrame: number | null = null;
+
+	function cancelGlide(): void {
+		if (glideFrame !== null) globalThis.cancelAnimationFrame?.(glideFrame);
+		glideFrame = null;
+	}
+
+	$effect(() => cancelGlide);
+
+	/** §15.5. Asked at the moment of the move, so a mid-session change is honoured. */
+	function prefersReducedMotion(): boolean {
+		return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+	}
+
+	/**
+	 * Layout units → rendered pixels. The `viewBox` maps the engine's extent onto
+	 * the element box one-to-one (`xMidYMid meet`, `height: auto`), so one ratio
+	 * is the whole conversion. An unmeasured box falls back to 1:1 rather than to
+	 * 0, which would collapse every anchor onto the top of the tree.
+	 */
+	function unitScale(): number {
+		const drawn = svgElement?.clientHeight ?? 0;
+		return drawn > 0 && positions.height > 0 ? drawn / positions.height : 1;
+	}
+
+	function glideTo(offset: number): void {
+		const element = cameraElement;
+		if (element === undefined) return;
+		cancelGlide();
+
+		const to = offset * unitScale();
+		const from = element.scrollTop;
+		const duration = glideDuration(prefersReducedMotion());
+		const raf = globalThis.requestAnimationFrame;
+
+		// Instant is the correct behaviour twice over: under `reduce`, and where
+		// there are no frames to animate with at all.
+		if (duration <= 0 || typeof raf !== 'function') {
+			element.scrollTop = to;
+			return;
+		}
+
+		let started: number | null = null;
+		const step = (now: number): void => {
+			started ??= now;
+			const elapsed = now - started;
+			element.scrollTop = glidePosition(from, to, elapsed, duration);
+			glideFrame = elapsed < duration ? raf(step) : null;
+		};
+		glideFrame = raf(step);
+	}
+
+	/**
+	 * The camera's one entry point, exported so the page around the tree can put
+	 * §7's three controls on screen without owning the scroll container.
+	 */
+	export function moveCamera(target: CameraTarget): void {
+		if (viewport !== 'wide') return; // §9.5's stack is unchanged, and scrolls itself.
+		const anchor = anchorFor(target, positions, progress);
+		cameraAnchor = anchor;
+		glideTo(anchor);
+	}
+
+	/**
+	 * The `.` shortcut's visual counterpart (F36). It follows the node focus
+	 * actually landed on rather than re-resolving `next-available`, because `.`
+	 * wraps through every available milestone in turn and the camera has to show
+	 * the one the user just reached, not always the first.
+	 */
+	function cameraToNode(uid: string): void {
+		const positioned = drawnNodes.find((candidate) => candidate.uid === uid);
+		if (positioned !== undefined) moveCamera({ kind: 'level', level: positioned.level });
+	}
 </script>
 
-<div class="tree-view" data-viewport={viewport}>
+<!--
+	The domain's plate, resolved for the live theme, named once (§4.2, A7).
+
+	It is an inline custom property rather than a class per domain because the
+	eight palettes are *content* (D-03) — `theme.svelte.ts` injects them as
+	`--domain-<id>` from `domains.yaml`, and a stylesheet cannot enumerate a
+	palette it has never seen. The fallback is `--ink` and not a hex: §4.3 gives
+	hue one source, and a literal here would be a second one.
+-->
+<div
+	class="tree-view"
+	data-viewport={viewport}
+	style="--plate: var(--domain-{tree.domain}, var(--ink))"
+>
 	<!--
 		The glyph library. Rendered once per tree and referenced by `<use>`, so a
 		state change swaps an `href` rather than re-creating anything (§9.3).
@@ -426,13 +554,28 @@
 				{/each}
 			</div>
 		{/if}
-		<svg
-			class="tree"
-			viewBox="0 0 {positions.width} {positions.height}"
-			role="group"
-			aria-labelledby="tree-title"
-		>
-			<title id="tree-title">{tree.title}</title>
+		<!--
+			§7's level camera viewport, and the only structural change T34 makes to
+			the wide tree.
+
+			It is a scroll box and nothing more: no transform, no scale, no pan
+			handler. The camera parks a level band at its top; the user scrolls it
+			exactly as they scrolled the page before. `max-block-size` caps nothing
+			on a short tree, so a five-level skill is unaffected.
+
+			Not focusable, and it must not become so: every node inside it is, which
+			is what makes it a keyboard-reachable scroll region already, and adding a
+			tab stop here would put one press between the user and every tree.
+		-->
+		<div class="tree-camera" bind:this={cameraElement} data-camera-anchor={cameraAnchor}>
+			<svg
+				class="tree"
+				bind:this={svgElement}
+				viewBox="0 0 {positions.width} {positions.height}"
+				role="group"
+				aria-labelledby="tree-title"
+			>
+				<title id="tree-title">{tree.title}</title>
 	
 			<!-- Decorative: §15 carries the same relationships as text on the node. -->
 			<g class="edges" aria-hidden="true">
@@ -458,6 +601,8 @@
 						carries them as words, because the visible `2 / 2` is spoken as
 						"2 slash 2".
 					-->
+					{@const fill = levelFill(level?.groups)}
+					{@const waterY = row.y + LEVEL_HEADER_H * (1 - fill)}
 					<g
 						class="row"
 						data-level={row.level}
@@ -466,6 +611,41 @@
 						aria-label={levelSectionName(row.level, bandTier(row.level), level?.groups ?? [])}
 					>
 						<rect class="row-band" x="0" y={row.y} width={positions.width} height={row.h} />
+						<!--
+							§4.3, on the level header: the plate renders at full strength at
+							every score and the *score* is the height of a ruled water line, so
+							the plate is inked at `--plate-open` above the line and at full
+							strength below it. Opacity-as-fill is the thing §4.3 exists to
+							forbid — a level at 20% is a level with a low water line, not a
+							faded level — and it is why the line is drawn rather than the plate
+							dimmed.
+
+							It states nothing the `n / m` readouts beside it do not already
+							state in text (§9.6, §15.4), so it adds no channel N5 has to
+							police.
+						-->
+						<rect
+							class="header-plate"
+							x="0"
+							y={row.y}
+							width={positions.width}
+							height={LEVEL_HEADER_H}
+						/>
+						<rect
+							class="header-water"
+							x="0"
+							y={waterY}
+							width={positions.width}
+							height={LEVEL_HEADER_H * fill}
+						/>
+						<line
+							class="water-line"
+							x1="0"
+							x2={positions.width}
+							y1={waterY}
+							y2={waterY}
+							data-fill={fill}
+						/>
 						<!--
 							One readout per requirement group, never averaged: a level with an
 							`all` group and an `n_of` group has two independent things to
@@ -477,10 +657,10 @@
 							overprinted its own readout (T10). `dx` measures from wherever the
 							text actually ended, so no tier name can be too long.
 						-->
-						<text class="row-label" x="4" y={row.y + 14}>
+						<text class="row-label display halo" x="4" y={row.y + 14}>
 							Level {row.level} · {bandTier(row.level)}
 							{#each level?.groups ?? [] as group, index (index)}
-								<tspan class="group-progress" dx="12"
+								<tspan class="group-progress tabular" dx="12"
 									>{Math.min(group.completed, group.n)} / {group.n}</tspan
 								>
 							{/each}
@@ -501,6 +681,7 @@
 						data-state={state}
 						data-hidden={isHidden(positioned.uid) ? 'true' : undefined}
 						data-level={positioned.level}
+						data-plate={look.plate}
 						tabindex={positioned.uid === tabStop ? 0 : -1}
 						role="button"
 						aria-label={nodeAccessibleName(tree, positioned.uid)}
@@ -598,7 +779,8 @@
 					</g>
 				{/each}
 			</g>
-		</svg>
+			</svg>
+		</div>
 	{:else}
 		<!--
 			§9.5 — the same layout data as a linear list, which §15.1 makes the
@@ -627,11 +809,12 @@
 					>
 						<h3
 							id="level-{row.level}-heading"
+							class="display"
 							aria-label={levelSectionName(row.level, bandTier(row.level), level?.groups ?? [])}
 						>
 							Level {row.level} · {bandTier(row.level)}
 						{#each level?.groups ?? [] as group, index (index)}
-							<span class="group-progress"
+							<span class="group-progress tabular"
 								>{Math.min(group.completed, group.n)} / {group.n}</span
 							>
 						{/each}
@@ -648,6 +831,7 @@
 									data-state={state}
 									data-hidden={isHidden(positioned.uid) ? 'true' : undefined}
 									data-level={positioned.level}
+									data-plate={look.plate}
 									tabindex={positioned.uid === tabStop ? 0 : -1}
 									role="button"
 									aria-label={nodeAccessibleName(tree, positioned.uid)}
@@ -814,14 +998,42 @@
 </div>
 
 <style>
+	/*
+		The Survey system, applied (T34, UI-SPEC §4).
+
+		**Not one colour literal lives in this file.** §4.3 makes hue identity and
+		forbids it from ever encoding score, which only holds if hue has exactly one
+		source; `tokens.css` is that source and `--plate` is the domain's own ink,
+		handed in on the root element because palettes are content (D-03, A7).
+
+		Everything below restates §9.3's encoding in that vocabulary. It restates —
+		it does not extend. The five states still carry glyph, border and fill, and
+		N5's rule that no meaning rides on colour alone is met exactly where it was.
+	*/
 	.tree-view {
 		container-type: inline-size;
+		color: var(--ink);
 	}
 
 	.glyph-defs {
 		position: absolute;
 		width: 0;
 		height: 0;
+	}
+
+	/*
+		§7's level camera viewport. A scroll box and nothing else: there is no
+		transform here and there must never be one, because §15.2's arrow grid and
+		roving `tabindex` both assume stable positions and a scale factor is exactly
+		what would move them. `max-block-size` is a cap, not a height — a tree
+		shorter than the viewport is drawn whole and never scrolls at all.
+	*/
+	.tree-camera {
+		overflow-y: auto;
+		overflow-x: hidden;
+		max-block-size: 78svh;
+		/* The camera scrolls; the user's fingers must not zoom (§7). */
+		touch-action: pan-y;
 	}
 
 	.tree {
@@ -833,17 +1045,40 @@
 		fill: transparent;
 	}
 
+	/*
+		§4.3 on the level header. The plate is inked at `--plate-open` across the
+		whole strip and at full strength below the water line; the line itself is
+		ruled in ink at `--rule-water`. What moves with the score is the line, never
+		the plate's opacity — a level at 20% is a level with a low water line, not a
+		faded level, and the difference is the whole of §4.3.
+	*/
+	.header-plate {
+		fill: var(--plate);
+		fill-opacity: var(--plate-open);
+	}
+
+	.header-water {
+		fill: var(--plate);
+		transition: y 200ms ease, height 200ms ease;
+	}
+
+	.water-line {
+		stroke: var(--ink);
+		stroke-width: var(--rule-water);
+		transition: y1 200ms ease, y2 200ms ease;
+	}
+
 	.edge {
 		fill: none;
-		stroke: currentColor;
-		stroke-width: 1.5;
+		stroke: var(--ink);
+		stroke-width: var(--rule-outline-l1);
 		opacity: 0.5;
-		transition: opacity 120ms ease;
+		transition: opacity 140ms ease;
 	}
 
 	.edge.is-lit {
 		opacity: 1;
-		stroke-width: 2.5;
+		stroke-width: var(--rule-outline-l0);
 	}
 
 	.edge.is-dim {
@@ -851,32 +1086,60 @@
 	}
 
 	/* §15.5 — nothing here conveys information through motion, so removing it
-	   all costs nothing. */
+	   all costs nothing. The camera's own glide is disabled in script, where the
+	   preference is read at the moment of the move (`glideDuration`). */
 	@media (prefers-reduced-motion: reduce) {
 		.edge {
 			transition: none;
 		}
+
+		.header-water {
+			transition: none;
+		}
+
+		.water-line {
+			transition: none;
+		}
 	}
 
-	/* T27 — fallbacks are tokens, not literals: §4.3 gives hue one source, and a
-	   hex here is a second one. The node *styling* is unchanged and remains T34's
-	   to restate in Survey terms; only the fallback channel moves. */
+	/*
+		§4.6's five plates. `--plate` is the domain's ink and the only hue in the
+		tree; `full` and `bonus` are two strengths of it, and `open` is bare paper.
+		The border and the glyph carry the state without any of this (§15.4), which
+		is why the fill lives in CSS at all — so `forced-colors: active` can throw it
+		away and lose nothing.
+	*/
 	.node-box {
-		fill: var(--surface, var(--paper));
-		stroke: currentColor;
+		fill: var(--paper);
+		stroke: var(--ink);
 	}
 
 	.node.is-complete .node-box {
-		fill: var(--domain-accent, var(--ink));
+		fill: var(--plate);
 	}
 
 	.node.is-bonus .node-box {
-		fill: var(--domain-accent-light, var(--rule));
+		fill: var(--plate);
+		fill-opacity: var(--plate-bonus);
 	}
 
+	/* "Surface, recessed" (§9.3), and deliberately not a weaker domain plate:
+	   a third strength of the domain ink would read as a third score, and §4.3
+	   forbids the plate from carrying one. `--rule` is neutral. */
 	.node.is-locked .node-box,
 	.node.is-dismissed .node-box {
-		fill: var(--surface-recessed, var(--paper));
+		fill: var(--rule);
+	}
+
+	/*
+		§4.5's knockout, in the one place the tree needs it: a label sitting on a
+		full-strength plate. Ink on that plate runs 1.45:1 at worst, so the type is
+		reversed to paper rather than haloed — a `foreignObject` label is HTML and
+		has no `paint-order` to halo with. The box keeps its ink stroke, so the node
+		does not lose its border to the same swap.
+	*/
+	.node.is-complete {
+		color: var(--paper);
 	}
 
 	/* T19 — a revealed hidden node. Faded, and nothing more: hiding says nothing
@@ -923,6 +1186,7 @@
 	}
 
 	.node-title {
+		font-family: var(--font-body);
 		font-size: 11px;
 		line-height: 1.15;
 		overflow: hidden;
@@ -954,17 +1218,30 @@
 	.column-head {
 		position: absolute;
 		top: 0;
+		font-family: var(--font-display);
 		font-size: 11px;
-		font-weight: 600;
+		letter-spacing: var(--display-tracking);
 		text-align: center;
 		overflow: hidden;
 		white-space: nowrap;
 		text-overflow: ellipsis;
-		border-bottom: 1px solid currentcolor;
+		border-bottom: var(--rule-outline-l0) solid var(--rule);
 		opacity: 0.75;
 	}
 
-	.row-label,
+	/*
+		§4.5's engraved lettering. `display` and `halo` are the shared classes from
+		`tokens.css` — the halo is an accessibility mechanism and not a flourish, so
+		it is imported rather than re-derived. Only its *width* is local: 2.8 world
+		units is sized for a map region's label and would swallow 10px type.
+	*/
+	.row-label {
+		--halo-width: 1.4;
+
+		fill: var(--ink);
+		font-size: 10px;
+	}
+
 	.group-progress {
 		font-size: 10px;
 		opacity: 0.75;
@@ -981,6 +1258,10 @@
 		margin-block-end: 1rem;
 	}
 
+	.narrow-stack h3 {
+		font-size: 1rem;
+	}
+
 	.narrow-stack .stack {
 		list-style: none;
 		margin: 0;
@@ -994,7 +1275,23 @@
 		flex-wrap: wrap;
 		min-height: 44px;
 		padding: 0.25rem 0.5rem;
-		border: 1px solid currentColor;
+		border: 1.3px solid var(--ink);
+		background: var(--paper);
+	}
+
+	/* §4.6's plates again, in the viewport that has no SVG to fill. */
+	.narrow-stack .node.is-complete {
+		background: var(--plate);
+		color: var(--paper);
+	}
+
+	.narrow-stack .node.is-bonus {
+		background: color-mix(in srgb, var(--plate) 42%, transparent);
+	}
+
+	.narrow-stack .node.is-locked,
+	.narrow-stack .node.is-dismissed {
+		background: var(--rule);
 	}
 
 	.narrow-stack .node.is-locked {
@@ -1006,7 +1303,7 @@
 	}
 
 	.narrow-stack .node.is-available {
-		border-width: 3px;
+		border-width: 2.2px;
 	}
 
 	.node-glyph {
@@ -1034,7 +1331,8 @@
 	.mastery-panel {
 		margin-block-start: 1rem;
 		padding: 0.75rem;
-		border: 1px solid currentColor;
+		border: var(--rule-outline-l0) solid var(--rule);
+		background: var(--paper);
 	}
 
 	.milestone-panel .actions {
@@ -1048,7 +1346,34 @@
 	.consequence {
 		margin-block: 0.75rem;
 		padding: 0.5rem;
-		border-inline-start: 4px solid currentColor;
+		border-inline-start: 4px solid var(--ink);
+	}
+
+	/*
+		§15.4's floor. `forced-colors: active` throws every plate away, and what has
+		to survive is the *structure*: a node still needs a border and a glyph the
+		platform will paint in its own colours. `stroke: currentColor` hands both
+		back to the system rather than pinning them to a token it has just ignored.
+	*/
+	@media (forced-colors: active) {
+		.node-box {
+			fill: Canvas;
+			stroke: CanvasText;
+		}
+
+		.node.is-complete {
+			color: CanvasText;
+		}
+
+		.header-plate,
+		.header-water {
+			fill: Canvas;
+		}
+
+		.water-line,
+		.edge {
+			stroke: CanvasText;
+		}
 	}
 
 	/* §15.7's third threshold: the milestone detail becomes a full-screen sheet.
@@ -1067,7 +1392,7 @@
 			z-index: 2;
 			margin: 0;
 			overflow-y: auto;
-			background: var(--surface, #fff);
+			background: var(--paper);
 		}
 	}
 </style>

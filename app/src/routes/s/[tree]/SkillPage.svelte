@@ -23,6 +23,7 @@
 	import MigrationSummary from '$lib/components/MigrationSummary.svelte';
 	import { TREE_NARROW_BELOW } from '$lib/components/breakpoints.js';
 	import type { MilestoneIntent } from '$lib/components/intents.js';
+	import type { CameraTarget } from '$lib/components/tree-camera.js';
 	import { openTreeSession, type TreeSession } from '$lib/actions/tree-session.svelte.js';
 	import { progress } from '$lib/state/progress.svelte.js';
 	import { ui } from '$lib/state/ui.svelte.js';
@@ -102,6 +103,30 @@
 	 * gates is additive rather than a denial.
 	 */
 	let started = $derived(progress.skills[data.treeId] !== undefined);
+
+	/**
+	 * §7's level camera, driven from here.
+	 *
+	 * The tree owns the scroll container and the glide; the page owns the three
+	 * named anchors, because they are chrome around the drawing rather than part
+	 * of it — and because the `.` shortcut, which is the same three anchors'
+	 * keyboard half, already lives inside `TreeView` where the key press lands.
+	 *
+	 * **There is no fourth control and no zoom.** §7 declines free pan and zoom by
+	 * name; if a tree ever feels too tall to navigate, the answer is another named
+	 * anchor in `tree-camera.ts`, not a scale control here.
+	 */
+	interface Camera {
+		moveCamera(target: CameraTarget): void;
+	}
+
+	let treeView = $state<Camera | undefined>(undefined);
+
+	const CAMERA_CONTROLS: { id: string; label: string; target: CameraTarget }[] = [
+		{ id: 'blocking', label: 'Blocking level', target: { kind: 'blocking' } },
+		{ id: 'next-available', label: 'Next available', target: { kind: 'next-available' } },
+		{ id: 'level-10', label: 'Level 10', target: { kind: 'level', level: 10 } }
+	];
 
 	function onintent(intent: MilestoneIntent): void {
 		// Fire and forget: §12.4's write is a transaction, and the mirror refresh
@@ -187,7 +212,31 @@
 				progress={session.progress}
 				hydrated={progress.hydrated}
 			/>
+			{#if viewport === 'wide'}
+				<!--
+					The camera controls. A `<nav>` with its own name, so a screen-reader
+					user meets them as a landmark rather than as three loose buttons —
+					and above the tree, because a control that moves the view has to be
+					reachable before the thing it moves.
+
+					They are additive: §15.2's key table is untouched, `.` still does the
+					same job from the keyboard, and a user who never presses one of these
+					sees exactly the tree they saw before.
+				-->
+				<nav class="camera-controls" aria-label="Jump to level">
+					{#each CAMERA_CONTROLS as control (control.id)}
+						<button
+							type="button"
+							data-camera={control.id}
+							onclick={() => treeView?.moveCamera(control.target)}
+						>
+							{control.label}
+						</button>
+					{/each}
+				</nav>
+			{/if}
 			<TreeView
+				bind:this={treeView}
 				tree={data.tree}
 				{positions}
 				progress={session.progress}
@@ -226,7 +275,13 @@
 		font-size: 0.85em;
 	}
 	.notice {
-		border: 1px solid;
+		border: var(--rule-outline-l0) solid var(--rule);
 		padding: 0.5rem 0.75rem;
+	}
+	.camera-controls {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-block: 0.5rem;
 	}
 </style>
