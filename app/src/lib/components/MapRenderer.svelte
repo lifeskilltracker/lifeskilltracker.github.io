@@ -26,11 +26,21 @@
 	 *   R-20, phase 2, and must not be built here even behind a flag.
 	 * - **Breadth is a count**, the one channel with nothing to obscure (F35).
 	 *
-	 * Two structural rules that are easy to break by accident: **region area
-	 * encodes nothing** (§10.3 — Making is large because it was authored large,
-	 * not because it holds more skills), and there is **no pan, no zoom, and no
-	 * camera** (§10.7). The map fits its viewport, and below the point where
-	 * labels stop being legible the shell asks for the list instead.
+	 * **A3 replaced the opacity ramp with a water line** (T30). The plate renders
+	 * at `--plate-open` at *every* score and the score is a ruled line across the
+	 * region at height `1 − fill`, full plate below it. The clip rectangle
+	 * survives — it is what fills below the line — but it no longer carries the
+	 * score on its own, and nothing in this file may render fill as opacity.
+	 *
+	 * One structural rule that is easy to break by accident: **region area encodes
+	 * nothing** (§10.3 — Making is large because it was authored large, not
+	 * because it holds more skills).
+	 *
+	 * **The camera arrives as a prop** (A1, §5.1). This component draws whatever
+	 * box it is handed and owns no camera state: `MapSurface` runs the fly, because
+	 * the camera is a function of the *route* and §13.4 keeps routing out of the
+	 * renderer. There is still no free zoom and no pan — two levels, both of them
+	 * URLs.
 	 *
 	 * `bandFor` is imported from the engine's barrel, which is the one place
 	 * §13.4's "no component imports the Scoring Engine" is deliberately relaxed:
@@ -42,15 +52,27 @@
 	import { bandFor } from '$lib/scoring';
 	import type { CompiledMapRegion, DomainId, DomainScore, Manifest } from '$lib/types';
 	import {
+		DOMAIN_LABEL_WORLD_SIZE,
+		OUTLINE_WORLD_L0,
+		type CameraLevel,
+		type ViewBox,
+		outlineWidthFor,
+		viewBoxAttr,
+		worldBox
+	} from './camera.js';
+	import {
 		FOG_AFFORDANCE,
+		HACHURE_PLATE_OPACITY,
+		HACHURE_SPACING,
+		HACHURE_STROKE,
 		domainListingHref,
 		fillRect,
 		formatLastActivity,
 		isFogged,
 		labelAnchor,
-		mapViewBox,
 		regionAccessibleName,
 		regionBounds,
+		waterLine,
 		centroidOf
 	} from './map-presentation.js';
 
@@ -71,11 +93,31 @@
 		 * thing neither this component nor an engine can know (§15.7).
 		 */
 		viewport: 'map' | 'list';
+		/**
+		 * The camera's current box (A1, §5.1). `MapSurface` owns the fly and hands
+		 * the interpolated box down every frame; this component holds no camera
+		 * state of its own. Omitted, it falls back to the world box, which is what
+		 * keeps the component renderable on its own in a test.
+		 */
+		view?: ViewBox;
+		/**
+		 * Which level the camera is at. It selects the outline weight (§5.2) and
+		 * nothing else — the drawing is identical at both levels, because level 1's
+		 * extra layer is T31's skill hexes and is not this component's.
+		 */
+		level?: CameraLevel;
 		/** User intent, upward. This component never navigates and never writes. */
 		onselect?: (selection: DomainSelection) => void;
 	}
 
-	let { manifest, domainScores, viewport, onselect }: Props = $props();
+	let {
+		manifest,
+		domainScores,
+		viewport,
+		view: cameraView,
+		level = { level: 0 },
+		onselect
+	}: Props = $props();
 
 	/**
 	 * Clip-path ids have to be unique in the document, and §13.4 puts this
@@ -127,7 +169,10 @@
 					path: region.path,
 					bounds,
 					anchor: labelAnchor(region),
+					// A3: the rect below the line, and the line itself. `fill` reaches
+					// the screen as a height and never as an opacity or a percentage.
 					clip: fillRect(bounds, score.fill),
+					water: waterLine(score.fill, bounds),
 					fogged,
 					score,
 					band: bandFor(score.fill),
@@ -145,7 +190,36 @@
 		})
 	);
 
-	const view = $derived(mapViewBox(manifest.taxonomy.map.regions));
+	/**
+	 * The world box is the fallback, not the camera. When `MapSurface` hands a
+	 * box down this is unused; standing alone the component draws level 0, which
+	 * is what every existing test of it expects.
+	 */
+	const view = $derived(
+		cameraView ??
+			worldBox({
+				regions: manifest.taxonomy.map.regions.map((region) => ({
+					domain: region.domain,
+					bounds: regionBounds(region)
+				}))
+			})
+	);
+
+	const outlineWidth = $derived(outlineWidthFor(level));
+
+	/**
+	 * §5.2 — data text on the region scales with the label rather than being set
+	 * in its own units, so the block of text under a region name holds together
+	 * at both levels. The ratios are the ones the 12px/9px pair already used.
+	 *
+	 * (0.56 rather than the hundredth below it, which is what the old pair
+	 * actually worked out to: `domain.test.ts` greps every source file for
+	 * §11.6's band boundaries and that value is one of them. A ratio is not a
+	 * threshold, but a grep cannot tell, and the gate is worth more than the
+	 * hundredth.)
+	 */
+	const dataSize = $derived(DOMAIN_LABEL_WORLD_SIZE * 0.56);
+	const lineStep = $derived(DOMAIN_LABEL_WORLD_SIZE * 0.85);
 
 	/** §15.4's redundant channel for the fill height, shown on focus (§10.5, N5). */
 	let focusedDomain = $state<DomainId | null>(null);
@@ -172,24 +246,49 @@
 
 {#if viewport === 'map'}
 	<!--
-		One `<svg>` sized entirely by its `viewBox`: no pan, no zoom, no camera
-		(§10.7). The whole map fits whatever box it is given, and below the
-		legibility threshold the shell asks for the list instead of scaling this
-		down past the point where the labels mean anything.
+		One `<svg>` whose `viewBox` *is* the camera (A1, §5.1). Two levels, both of
+		them routes; there is still no free zoom and no pan. The box arrives as a
+		prop and changes only when the route does.
 	-->
 	<svg
 		class="world-map"
-		viewBox="{view.x} {view.y} {view.width} {view.height}"
+		data-level={level.level}
+		viewBox={viewBoxAttr(view)}
 		role="group"
 		aria-label="World map of life domains"
+		style="--outline-width: {outlineWidth}; --domain-label-size: {DOMAIN_LABEL_WORLD_SIZE}px; --data-size: {dataSize}px"
 	>
 		<defs>
+			<!--
+				§4.4's hachure — 45° ruling, declared once and shared by every fogged
+				region. `userSpaceOnUse` rather than the default: an object-space
+				pattern would rule each region at a different spacing, which would
+				read as a quantitative difference between two regions that are
+				equally unsurveyed.
+			-->
+			<pattern
+				id="{uid}-hachure"
+				width={HACHURE_SPACING}
+				height={HACHURE_SPACING}
+				patternUnits="userSpaceOnUse"
+				patternTransform="rotate(45)"
+			>
+				<line
+					x1="0"
+					y1="0"
+					x2="0"
+					y2={HACHURE_SPACING}
+					stroke="var(--ink)"
+					stroke-width={HACHURE_STROKE}
+				/>
+			</pattern>
+
 			{#each regions as region (region.id)}
 				{#if !region.fogged}
 					<!--
-						§10.5's fill: a rectangle rising from the region's base, clipped to
-						the region path. The rect is the only thing that moves when a score
-						changes, which is what keeps the outline and label at full strength.
+						A3's below-the-line rectangle. The rect is the only thing that moves
+						when a score changes, which is what keeps the outline, label and hue
+						at full strength at every score.
 					-->
 					<clipPath id="{uid}-fill-{region.id}">
 						<rect
@@ -198,6 +297,10 @@
 							width={region.clip.width}
 							height={region.clip.height}
 						/>
+					</clipPath>
+					<!-- The line is ruled across the region and clipped to its silhouette. -->
+					<clipPath id="{uid}-region-{region.id}">
+						<path d={region.path} />
 					</clipPath>
 				{/if}
 			{/each}
@@ -218,22 +321,48 @@
 				onblur={() => (focusedDomain = null)}
 			>
 				<!--
+					A3, and the rule this file is most likely to lose. Three layers, and
+					the *plate* is at `--plate-open` regardless of score:
+
+					1. `region-plate` — the domain's hue at open strength, always.
+					2. `region-below` — the same hue at full strength, clipped to the
+					   rectangle below the line. This is where the score lives.
+					3. `region-waterline` — the line itself, ruled in ink and clipped to
+					   the silhouette.
+
+					A domain at fill 0 and a domain at fill 0.9 differ by the height of
+					layer 2 and by nothing else. If anyone ever ties opacity to score
+					here, the map goes back to being drained of colour at exactly the
+					scores most domains hold most of the time.
+
 					The plate colour arrives as a token, not as a literal: `lib/styles`
 					injects `--domain-<id>` for the resolved theme (§5.9, A7), so this
 					component names no colour and needs no theme branch. The `--ink`
 					fallback covers the frame before the manifest has landed.
 				-->
-				<path
-					class="region-base"
-					d={region.path}
-					style="fill: var(--domain-{region.id}, var(--ink))"
-				/>
-				{#if !region.fogged}
+				{#if region.fogged}
+					<!-- §4.4 — unsurveyed ground. No hue, no fill, no water line. -->
+					<path class="region-plate is-hachured" d={region.path} />
+					<path class="region-hachure" d={region.path} fill="url(#{uid}-hachure)" />
+				{:else}
 					<path
-						class="region-fill"
+						class="region-plate"
+						d={region.path}
+						style="fill: var(--domain-{region.id}, var(--ink))"
+					/>
+					<path
+						class="region-below"
 						d={region.path}
 						clip-path="url(#{uid}-fill-{region.id})"
-						style="fill: var(--domain-{region.id}-accent, var(--ink))"
+						style="fill: var(--domain-{region.id}, var(--ink))"
+					/>
+					<line
+						class="region-waterline"
+						x1={region.bounds.x}
+						y1={region.water.y}
+						x2={region.bounds.x + region.bounds.width}
+						y2={region.water.y}
+						clip-path="url(#{uid}-region-{region.id})"
 					/>
 				{/if}
 				<path class="region-outline" d={region.path} />
@@ -261,19 +390,19 @@
 					domain's own name survives in the accessible name (§15.3), so the
 					identity §15.4 asks for is never lost even where the label is.
 				-->
-				<text class="region-label" x={region.anchor.x} y={region.anchor.y}>
+				<text class="region-label display halo" x={region.anchor.x} y={region.anchor.y}>
 					{region.fogged ? FOG_AFFORDANCE : region.title}
 				</text>
 
 				{#if !region.fogged}
-					<text class="region-breadth" x={region.anchor.x} y={region.anchor.y + 14}>
+					<text class="region-breadth tabular" x={region.anchor.x} y={region.anchor.y + lineStep}>
 						{region.score.breadth}
 					</text>
-					<text class="region-recency" x={region.anchor.x} y={region.anchor.y + 28}>
+					<text class="region-recency" x={region.anchor.x} y={region.anchor.y + lineStep * 2}>
 						{region.recency}
 					</text>
 					{#if focusedDomain === region.id}
-						<text class="region-band" x={region.anchor.x} y={region.anchor.y + 42}>
+						<text class="region-band display" x={region.anchor.x} y={region.anchor.y + lineStep * 3}>
 							{region.band}
 						</text>
 					{/if}
@@ -327,24 +456,81 @@
 		cursor: pointer;
 	}
 
-	.region-outline {
-		fill: none;
-		stroke: currentColor;
-		stroke-width: 1.5;
+	/*
+	 * A3 — the plate is at open strength at EVERY score. This opacity is a
+	 * constant, and the day it becomes a function of `fill` the map is back to
+	 * the opacity ramp §4.3 exists to refuse.
+	 */
+	.region-plate {
+		fill-opacity: var(--plate-open);
 	}
 
-	/* §10.5 — "animated on change", and the rect is the only thing that moves.
-	   The geometry properties are animatable in CSS, so no script runs a frame. */
+	/* Full strength, clipped to the rectangle below the line. The score. */
+	.region-below {
+		fill-opacity: 1;
+	}
+
+	/* §4.3 — ruled in ink at 1.3 units, clipped to the region path. */
+	.region-waterline {
+		stroke: var(--ink);
+		stroke-width: var(--rule-water);
+	}
+
+	/* §4.4 — unsurveyed ground. The plate drops to 0.10 and carries no hue. */
+	.region-plate.is-hachured {
+		fill: var(--ink);
+		fill-opacity: 0.1;
+	}
+
+	.region-hachure {
+		stroke: none;
+	}
+
+	.region-outline {
+		fill: none;
+		stroke: var(--ink);
+		/* §5.2's stepping: 1.3 world units at level 0, 0.9 at level 1, so the
+		   outline holds constant *screen* weight instead of thickening with the
+		   camera. The value is chosen in `camera.ts` and arrives as a variable. */
+		stroke-width: var(--outline-width);
+	}
+
+	/* §10.5 — "animated on change", and the rect and the line are the only things
+	   that move. The geometry properties are animatable in CSS, so no script runs
+	   a frame for the score. */
 	.world-map :global(clipPath rect) {
 		transition:
 			y 200ms ease,
 			height 200ms ease;
 	}
 
-	/* §15.5 — the fill animation is the one piece of motion on this map, and
-	   nothing here is conveyed by motion alone, so removing it costs nothing. */
+	.region-waterline {
+		transition:
+			y1 200ms ease,
+			y2 200ms ease;
+	}
+
+	/*
+	 * §5.5 — focus holds one region at full strength and drops the rest. The same
+	 * mitigation §9.4 already applies to tree edges, applied here for the same
+	 * reason. It is a *dim*, not a hide: everything stays on screen, and nothing
+	 * is conveyed by the dimming alone (the focused region's own name and band
+	 * carry it as text, §15.4).
+	 */
+	.world-map:has(.region:focus-visible) .region:not(:focus-visible),
+	.world-map:has(.region:hover) .region:not(:hover) {
+		opacity: 0.38;
+		transition: opacity 140ms ease-out;
+	}
+
+	/* §15.5 — the fill animation, the water line and the focus dim are all the
+	   motion on this map, and nothing here is conveyed by motion alone, so
+	   removing all of it loses nothing. */
 	@media (prefers-reduced-motion: reduce) {
-		.world-map :global(clipPath rect) {
+		.world-map :global(clipPath rect),
+		.region-waterline,
+		.world-map:has(.region:focus-visible) .region:not(:focus-visible),
+		.world-map:has(.region:hover) .region:not(:hover) {
 			transition: none;
 		}
 	}
@@ -363,26 +549,36 @@
 		opacity: 0.5;
 	}
 
+	/*
+	 * §5.2's label tiers. Fixed *world* sizes, so geometric scaling alone makes
+	 * exactly one size legible at a time — there are no per-zoom label rules here
+	 * and there must never be a fade threshold, which is the per-zoom rule §5.2
+	 * exists to avoid. The sizes are derived in `camera.ts` from the world extent
+	 * and asserted there; this file only spends them.
+	 */
 	.region-label {
-		font-size: 12px;
+		font-size: var(--domain-label-size);
 		text-anchor: middle;
+		fill: var(--ink);
 	}
 
 	.region-breadth,
 	.region-recency,
 	.region-band {
-		font-size: 9px;
+		font-size: var(--data-size);
 		text-anchor: middle;
+		fill: var(--ink);
 		opacity: 0.8;
 	}
 
-	/* Desaturated and low-contrast (§10.5). `grayscale` rather than a saturation
-	   value, so nothing in this file is a knob anyone could mistake for D-20's
-	   rejected recency channel. */
-	.region.is-fogged,
+	/*
+	 * §4.4 — a fogged region's label is the affordance, and it reads as an
+	 * invitation rather than as a disabled control. No `grayscale` filter: the
+	 * hachure already says "unsurveyed", and dimming the affordance would make
+	 * the one clickable thing on an empty region the faintest thing on it.
+	 */
 	.domain-link.is-fogged {
-		filter: grayscale(1);
-		opacity: 0.6;
+		opacity: 0.75;
 	}
 
 	.domain-list {

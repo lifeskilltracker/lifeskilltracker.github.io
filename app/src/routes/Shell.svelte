@@ -30,8 +30,14 @@
 	 * **The offline branch says so.** §7.4's cached manifest is a correct render
 	 * of possibly-stale content, which is worth having and not worth hiding.
 	 */
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import ColdStartFailure from '$lib/components/ColdStartFailure.svelte';
 	import ExportPrompt from '$lib/components/ExportPrompt.svelte';
+	import MapSurface from '$lib/components/MapSurface.svelte';
+	import type { DomainSelection } from '$lib/components/MapRenderer.svelte';
+	import type { CameraLevel } from '$lib/components/camera.js';
+	import { MAP_LIST_BELOW } from '$lib/components/map-presentation.js';
 	import NextStepCard from '$lib/components/NextStepCard.svelte';
 	import Sidebar from '$lib/components/Sidebar.svelte';
 	import { sidebarCollapse } from '$lib/components/sidebar-collapse.svelte.js';
@@ -189,6 +195,57 @@
 	let onMap = $derived(pathname === '/' || pathname.startsWith('/d/'));
 
 	/**
+	 * A1/A6 — **the map surface is mounted here, not by either route.**
+	 *
+	 * §5.1 requires that entering a domain flies the camera rather than
+	 * navigating, and two SvelteKit route components cannot share a DOM node: the
+	 * router destroys one and creates the other. The shell survives that
+	 * navigation, so mounting the surface here is what makes `/` → `/d/<id>` an
+	 * animation instead of a page load. The routes contribute the camera *level*
+	 * and their own supplementary content; the surface itself never remounts.
+	 *
+	 * The level is read from the path rather than from `page.params` for the same
+	 * reason `pathname` is a prop: it keeps the shell mountable outside a router,
+	 * which is what makes §13.3's four branches testable at all.
+	 */
+	let level = $derived<CameraLevel>(
+		activeDomain === null ? { level: 0 } : { level: 1, domain: activeDomain }
+	);
+
+	/**
+	 * §10.7's substitution. Still a viewport decision at this task: U-10 moves the
+	 * threshold from viewport size to *zoom level*, and it arrives with T31, which
+	 * is the task that draws the skill hexes the phone would be substituting for.
+	 * Moving it here first would give the phone a level-1 map with nothing on it
+	 * that a list does not already say better.
+	 */
+	let mapContainer: HTMLElement | undefined = $state();
+	let viewport = $state<'map' | 'list'>('map');
+
+	$effect(() => {
+		const element = mapContainer;
+		if (element === undefined || typeof ResizeObserver === 'undefined') return;
+
+		const observer = new ResizeObserver((entries) => {
+			const width = entries[0]?.contentRect.width ?? element.clientWidth;
+			viewport = width < MAP_LIST_BELOW ? 'list' : 'map';
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	});
+
+	/**
+	 * §5.5 — selecting a region enters that domain. It is a `goto` rather than a
+	 * direct camera write because §5.1 makes every camera state a URL: browser
+	 * Back is the breadcrumb, and a camera moved without the URL moving would
+	 * leave Back going somewhere else entirely. There is no breadcrumb widget for
+	 * the same reason.
+	 */
+	function onselect(selection: DomainSelection): void {
+		void goto(resolve('/d/[domain]', { domain: selection.domain }));
+	}
+
+	/**
 	 * §6.4's selection, assembled off the shell's derived layer (T32).
 	 *
 	 * An effect rather than a `$derived` because it fetches: the available set is
@@ -293,6 +350,25 @@
 
 		{#if start?.kind === 'failed'}
 			<ColdStartFailure reason={start.reason} hydrated={start.hydrated} onretry={retry} />
+		{:else if onMap}
+			<!--
+				A6 — one `<main>` for both camera levels, holding one surface. The
+				route's own content renders *under* the map: at `/` that is the
+				pre-manifest notice, at `/d/<id>` the domain's skill listing. Neither
+				route draws a map of its own, and neither owns a `<main>`.
+			-->
+			<main class="map-main" bind:this={mapContainer}>
+				{#if content.manifest !== null && world !== null}
+					<MapSurface
+						manifest={content.manifest}
+						domainScores={world.scores}
+						{level}
+						{viewport}
+						{onselect}
+					/>
+				{/if}
+				{@render children()}
+			</main>
 		{:else}
 			{@render children()}
 		{/if}

@@ -11,6 +11,15 @@
 	 * primary domain alone, and a listing that included secondaries would show
 	 * skills whose progress is counted elsewhere — the sort of quiet
 	 * disagreement between two views that F35 exists to avoid.
+	 *
+	 * **This route is a camera state, not a second page** (A6, §5.1, T30). The
+	 * shell holds the map surface and flies it to this domain; what is left here
+	 * is the listing beneath it, and no `<main>` of its own — the shell owns the
+	 * one landmark that spans both camera levels.
+	 *
+	 * The listing stays on every viewport for now. U-10 moves the phone's list
+	 * substitution from viewport size to zoom level, and it belongs to T31, the
+	 * task that draws the skill hexes the list is substituting *for*.
 	 */
 	import { page } from '$app/state';
 	import { standings } from '$lib/actions/domain-scores.js';
@@ -35,8 +44,8 @@
 	<title>{domain?.title ?? 'Domain'} — Life Skill Tracker</title>
 </svelte:head>
 
-<main>
-	<h1>{domain?.title ?? domainId}</h1>
+<section class="listing" aria-labelledby="domain-heading">
+	<h1 id="domain-heading">{domain?.title ?? domainId}</h1>
 	{#if domain !== null}
 		<p class="blurb">{domain.blurb}</p>
 	{/if}
@@ -62,10 +71,10 @@
 			{/each}
 		</ul>
 	{/if}
-</main>
+</section>
 
 <style>
-	main {
+	.listing {
 		padding: 1rem;
 	}
 	.skills {
