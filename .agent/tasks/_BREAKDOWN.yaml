@@ -725,6 +725,12 @@ tasks:
     status: written
     doc: T32-shell-chrome.md
     note: >
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-17; task-doc status remains lifecycle
+      metadata. Q3 shipped as recency, no flag. The sidebar lives in Shell.svelte, not
+      literally in +layout.svelte. TAB BUDGET IS NOW THE BINDING CONSTRAINT: reaching the
+      first milestone on /s/piano costs 16 tabs against manual-passes.mjs's < 20, up from 7,
+      and grows by one per started skill — T33 must not add tab stops before `main` on the
+      tree route, and when the check trips it should be re-anchored to count inside `main`.
       Sidebar replaces the top nav and gives the map its vertical extent back. Block 3
       (started skills, linking straight to /s/<treeId>) is the most-used control in the
       application for a returning Player. Block 4 is redundant with the map ON PURPOSE — F34
@@ -760,6 +766,13 @@ tasks:
     status: written
     doc: T34-tree-restyle-and-level-camera.md
     note: >
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-17; task-doc status remains lifecycle
+      metadata. node-state.ts's `visualFor` is the single producer of the §4.6 mapping —
+      T31 consumes it, and must not re-map states. §4.6's "open" plate shipped as bare
+      paper, NOT --plate-open: 0.52 would put `available` darker than `bonus` at 0.42 and
+      invert the table's own ordering. tree-camera.ts declares its inputs structurally
+      rather than importing $lib/layout, because view-boundaries.test.ts makes TreeView the
+      only view-layer file allowed to name the Layout Engine.
       A restyle, not a rewrite: §8's layout, §9's encoding and §15.2's keyboard grid are
       unchanged, and the layout-fixture byte-identity check is the guardrail that keeps it
       that way. The five milestone states are restated in Survey terms with their encoding
@@ -790,13 +803,13 @@ tasks:
 # PHASES 0 AND 1 ARE COMPLETE. T00–T26 all implemented and verified; T25 closed 2026-08-15.
 #   Four run-level confirmations remain and none is code — see _RESUME.md session 19.
 #
-# PHASE 2 (T27–T35) authored 2026-08-16 from docs/UI-SPEC.md §10. Nothing is implemented.
-# Actionable front — three tasks, no blockers, and they are genuinely parallel:
-#   T28 (judgment: land A1–A7 in ARCHITECTURE.md; T30 cannot start correctly without it)
-#   T27 (substrate: tokens, palettes, the face, the 82 kB budget)
-#   T29 (tools/ only: placement. Longest single piece of new logic. Start it now.)
-# Critical path: T27 → T30 → T31 → T33 → T35, with T28 gating T30 alongside T27.
-# Off the path once T27 lands: T32 and T34, both blocked only by T27.
+# PHASE 2 (T27–T35) authored 2026-08-16 from docs/UI-SPEC.md §10.
+# DONE: T27, T28, T29 (2026-08-16); T32, T34 (2026-08-17, built in parallel and merged).
+# Actionable front — ONE task, and it is the whole critical path:
+#   T30 (map camera. T27 and T28 both landed, so nothing gates it. Start it now.)
+# Critical path: T30 → T31 → T33 → T35. Nothing else can start until T30 lands:
+#   T31 needs T30, T33 needs T30+T31, T35 needs all four.
+# The parallel front is exhausted — phase 2 is a single file from here.
 #
 # Cross-task invariants in phase 2 (no graph edge carries these):
 #   - T30 must paint to the RESTING FRAME on load; T35's reveal layers onto it. A map that

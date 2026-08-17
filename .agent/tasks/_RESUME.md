@@ -1,6 +1,65 @@
 # RESUME — implementation
 
-Updated 2026-08-16: **T27, T28 and T29 are complete.** Phase 2 is under way.
+Updated 2026-08-17: **T27, T28, T29, T32 and T34 are complete.** Phase 2 is under way.
+
+# SESSION 23 — T32 AND T34, BUILT IN PARALLEL. THE PARALLEL FRONT IS NOW EXHAUSTED.
+
+Both were blocked only by T27 and touch disjoint files, so they were built simultaneously
+in separate worktrees and merged with **no conflicts**. Composed verification after the
+merge: 901 + 348 tests pass, `svelte-check` 547 files 0 errors, `a11y:manual` **43 of 43
+unchanged**, budget 57.7/82.0 kB, `check:s1` holds, `eslint` clean.
+
+**The next actionable task is T30, and it is the only one.** T31 needs T30; T33 needs T30
+and T31; T35 needs all four. There is nothing left to parallelise in phase 2.
+
+## Retire the session-22 note about three failing tests
+
+Session 22 recorded that the `dismiss/undismiss` property test and two axe gates "fail
+identically on a clean tree". **They do not.** Both agents went looking and neither
+reproduced it. What is actually there:
+
+- `domains.test.ts` fails **before a compile** — it needs `static/content/manifest.json`.
+  Run `npm run build` first. (CI already orders it this way as of `d7577f0`.)
+- `s/[tree]/page-render.test.ts`'s axe gate is a **timing flake** under full-suite load
+  (~5.6 s); it passes in isolation and on re-run.
+- The `dismiss/undismiss` property test is randomized and passed every run.
+
+Do not spend time on these three as if they were a standing regression.
+
+## Carried forward — read before T33
+
+- **The tab budget is now the binding a11y constraint.** Reaching the first milestone on
+  `/s/piano` costs **16 tabs** against `manual-passes.mjs`'s `< 20`, up from 7, and it
+  **grows by one per started skill**. The sidebar is 14 of the 16. T33's Find and Info are
+  map affordances and must sit behind the same route guard the next-step card uses — do not
+  add tab stops before `main` on the tree route. When the check finally trips, the right fix
+  is to re-anchor it to count tabs *inside* `main`, not to raise the number.
+- **`domain.test.ts` greps every source file for the band thresholds** `0.15 / 0.35 / 0.55 /
+  0.72`. It catches innocent CSS like `font-size: 0.72rem`. T32 hit this and worked around
+  it with `0.7` / `0.16` / `0.36`.
+
+## For T31 specifically
+
+`app/src/lib/components/node-state.ts` is the **single producer** of the §4.6 mapping:
+
+```ts
+export function visualFor(state: NodeState): MilestoneVisual;   // NodeState, not `| undefined`
+export const MILESTONE_VISUAL: Record<NodeState, MilestoneVisual>;
+```
+
+Consume `visualFor`. Do not re-map states — the cross-task invariant exists because two
+surfaces will otherwise disagree about what `bonus` looks like. `presentationFor` is the
+SVG-attribute rendering of the same table and is now derived from `visualFor`.
+
+## Two judgment calls worth a second opinion
+
+- **§4.6's "open" plate shipped as bare paper, not `--plate-open`.** Reading it as 0.52
+  makes `available` darker than `bonus` at 0.42, inverting the table's own ordering.
+  `locked`/`dismissed` got a neutral `--rule` wash instead, on the grounds that a third
+  strength of domain ink would read as a third score. This is a departure from the spec's
+  literal text, recorded in T34's Outcome section.
+- **UI-SPEC Q3 shipped as recency with no flag**, as specified. Revisit once three trees
+  exist, per T32's scope.
 
 # SESSION 22 — T29 COMPLETE. EVERY SKILL HAS A POSITION NOBODY AUTHORED.
 
