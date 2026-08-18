@@ -53,7 +53,6 @@
 	import type { CompiledMapRegion, DomainId, DomainScore, Manifest } from '$lib/types';
 	import {
 		DOMAIN_LABEL_WORLD_SIZE,
-		OUTLINE_WORLD_L0,
 		type CameraLevel,
 		type ViewBox,
 		outlineWidthFor,
@@ -256,7 +255,7 @@
 		viewBox={viewBoxAttr(view)}
 		role="group"
 		aria-label="World map of life domains"
-		style="--outline-width: {outlineWidth}; --domain-label-size: {DOMAIN_LABEL_WORLD_SIZE}px; --data-size: {dataSize}px"
+		style="--outline-width: {outlineWidth}; --domain-label-size: {DOMAIN_LABEL_WORLD_SIZE}px; --data-size: {dataSize}px; --hachure-plate: {HACHURE_PLATE_OPACITY}"
 	>
 		<defs>
 			<!--
@@ -476,10 +475,13 @@
 		stroke-width: var(--rule-water);
 	}
 
-	/* §4.4 — unsurveyed ground. The plate drops to 0.10 and carries no hue. */
+	/* §4.4 — unsurveyed ground. The plate drops to 0.10 and carries no hue. The
+	   opacity arrives as a variable rather than as a literal here so that §4.4's
+	   three fog numbers — spacing, stroke, plate — stay together in
+	   `map-presentation.ts`, where the test that pins them can reach them. */
 	.region-plate.is-hachured {
 		fill: var(--ink);
-		fill-opacity: 0.1;
+		fill-opacity: var(--hachure-plate);
 	}
 
 	.region-hachure {

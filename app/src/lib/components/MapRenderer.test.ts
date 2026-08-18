@@ -21,6 +21,9 @@ import type { DomainScore, DomainSkillRow } from '$lib/types';
 import MapRenderer from './MapRenderer.svelte';
 import {
   FOG_AFFORDANCE,
+  HACHURE_PLATE_OPACITY,
+  HACHURE_SPACING,
+  HACHURE_STROKE,
   MAP_LIST_BELOW,
   breadthText,
   fillRect,
@@ -261,9 +264,39 @@ describe('MapRenderer — fog (§10.5, F22)', () => {
     expect(play.classList.contains('is-fogged')).toBe(true);
     expect(play.querySelector('.region-label')?.textContent?.trim()).toBe(FOG_AFFORDANCE);
     expect(play.getAttribute('aria-label')).toBe('Play. No skills published yet — contribute one.');
-    // No quantitative channel on a region the library has nothing for.
+    // No quantitative channel on a region the library has nothing for. The
+    // water line especially: an empty region drawn with a line at the bottom
+    // says "scored zero", and §4.4's whole point is that it is not scored.
     expect(play.querySelector('.region-below')).toBeNull();
+    expect(play.querySelector('.region-waterline')).toBeNull();
     expect(play.querySelector('.region-breadth')).toBeNull();
+
+    // Unsurveyed, not blank: the ruling is what carries F22's invitation
+    // visually, and it is drawn from the one shared pattern.
+    const hachure = play.querySelector('.region-hachure');
+    expect(hachure).not.toBeNull();
+    expect(hachure!.getAttribute('fill')).toMatch(/^url\(#.*-hachure\)$/);
+    expect(play.querySelector('.region-plate')?.classList.contains('is-hachured')).toBe(true);
+  });
+
+  it('rules every fogged region at one spacing, from §4.4’s three constants', () => {
+    const { container } = mount();
+
+    // `userSpaceOnUse`, so two equally unsurveyed regions are ruled identically
+    // rather than in proportion to their own size.
+    const pattern = container.querySelector('pattern[id$="-hachure"]')!;
+    expect(pattern.getAttribute('patternUnits')).toBe('userSpaceOnUse');
+    expect(pattern.getAttribute('patternTransform')).toBe('rotate(45)');
+    expect(pattern.getAttribute('width')).toBe(String(HACHURE_SPACING));
+    expect(pattern.querySelector('line')?.getAttribute('stroke-width')).toBe(
+      String(HACHURE_STROKE),
+    );
+
+    // The plate opacity reaches the stylesheet as a variable, so the number has
+    // one home rather than two that can drift apart.
+    expect(container.querySelector('svg')?.getAttribute('style')).toContain(
+      `--hachure-plate: ${HACHURE_PLATE_OPACITY}`,
+    );
   });
 
   it('does not fog a published domain the user has never touched', () => {

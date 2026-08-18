@@ -689,7 +689,22 @@ tasks:
     status: written
     doc: T30-map-camera.md
     note: >
-      Two camera levels, both prerendered routes, with /d/<domainId> a camera state over the
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-17; task-doc status remains lifecycle
+      metadata. The map surface is mounted by Shell.svelte, NOT by either route: SvelteKit
+      destroys one route component and creates the next, so A6's "camera state, not a page"
+      is only true of a surface the router cannot reach. Neither route declares a <main>.
+      ONE REAL DEFECT WAS FOUND AND FIXED HERE: the shell's ResizeObserver guard read
+      `=== undefined`, but a bind:this clears to `null`, so leaving the map for /library
+      called observe(null), threw, and killed the client runtime — every navigation after
+      that changed the URL and rendered nothing. Only a11y:manual caught it; every unit test
+      mounts the shell at one path and none leaves the map.
+      KNOWN LIMIT HANDED TO T31: SKILL_LABEL_WORLD_SIZE lands at 12-13 px for `play` and
+      `outdoors-nature` against §5.2's 14-18 px band. Those two fit by their long axis and
+      zoom least — §5.3 names them as the pair that "set the floor" but does not notice they
+      fall under its own. camera.test.ts asserts the shortfall explicitly. T31 decides
+      whether to widen the band or fit level 1 to a constant box; do NOT hand-tune the
+      constant until one number passes, which would destroy the LOD argument.
+      Original plan note follows. Two camera levels, both prerendered routes, with /d/<domainId> a camera state over the
       same surface rather than a page. Browser Back is the breadcrumb; there is no breadcrumb
       widget. Carries A3 — the water line replacing the opacity ramp — which is the single
       most important rule in UI-SPEC and was wrong in its own first draft. Label sizes are

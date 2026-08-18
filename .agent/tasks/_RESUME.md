@@ -1,6 +1,44 @@
 # RESUME — implementation
 
-Updated 2026-08-17: **T27, T28, T29, T32 and T34 are complete.** Phase 2 is under way.
+Updated 2026-08-17: **T27, T28, T29, T30, T32 and T34 are complete.** Phase 2 is under way.
+
+# SESSION 24 — T30 COMPLETE. THE MAP HAS A CAMERA, AND THE SHELL HOLDS IT.
+
+Composed verification: **950 + 348 tests pass**, `svelte-check` 551 files 0 errors,
+`eslint` clean, `a11y:manual` **43 of 43**, budget **58.8 / 82.0 kB**, `check:s1` holds,
+and `build/d/` holds all eight prerendered listings.
+
+**The next actionable task is T31**, and it is still the only one: T33 needs T30 and T31,
+T35 needs all four. Nothing in phase 2 parallelises.
+
+## The one defect, and why nothing caught it sooner
+
+`Shell.svelte` guarded its `ResizeObserver` with `element === undefined`. **A `bind:this`
+clears to `null`.** The shell outlives the `<main>` it binds, so leaving the map for
+`/library` re-ran the effect with the element gone, called `observe(null)`, threw, and took
+the client runtime down with it — after which every navigation changed the URL and rendered
+nothing.
+
+Only `a11y:manual` saw it, because **every unit test mounts the shell at one path and none
+of them leaves the map**. A cold load of `/s/piano` was fine and so was
+`/library → /s/piano`; only `/ → /library → /s/piano` failed, which made it read as a
+tree-route problem for a while. If you add shell state that binds to something inside
+`{#if onMap}`, the route it breaks is the one you did not navigate to.
+
+## For T31 — the label band does not hold, and that is your call
+
+`SKILL_LABEL_WORLD_SIZE` resolves to **12–13 px for `play` and `outdoors-nature`** against
+§5.2's 14–18 px. Those two fit by their long axis (208×260 and 381×140) and so zoom least;
+§5.3 already names them as the pair that "set the floor" but does not notice they fall under
+its own. `camera.test.ts` asserts the shortfall by name rather than hiding it.
+
+Widen the band, or fit level 1 to a constant box. **Do not hand-tune the constant until one
+number passes** — the LOD argument in §5.1 is structural precisely because the sizes are
+derived, and a tuned constant stops it holding at 500 nodes.
+
+Also for T31: the map surface is mounted by `Shell.svelte`, not by either route, and
+neither route declares a `<main>`. Skill hexes go into `MapRenderer`, which draws whatever
+`ViewBox` it is handed and holds no camera state of its own.
 
 # SESSION 23 — T32 AND T34, BUILT IN PARALLEL. THE PARALLEL FRONT IS NOW EXHAUSTED.
 

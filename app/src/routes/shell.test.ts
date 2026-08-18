@@ -47,6 +47,24 @@ const TAXONOMY_MANIFEST = {
 	}
 } as unknown as Manifest;
 
+/**
+ * A taxonomy with a *drawn* map. `manifestFixture` emits `map: { regions: [] }`,
+ * and a surface with no regions renders no region paths — which would make the
+ * identity assertion below pass for the wrong reason.
+ */
+const MAP_MANIFEST = {
+	...TAXONOMY_MANIFEST,
+	taxonomy: {
+		...TAXONOMY_MANIFEST.taxonomy,
+		map: {
+			regions: [
+				{ domain: 'home', path: 'M 0,0 L 100,0 L 100,100 L 0,100 Z' },
+				{ domain: 'mind', path: 'M 200,0 L 300,0 L 300,100 L 200,100 Z' }
+			]
+		}
+	}
+} as unknown as Manifest;
+
 const COOKING = bundleFixture({ id: 'cooking' }) as unknown as CompiledTree;
 
 const nextStepStub: NextStepSources = {
@@ -501,5 +519,87 @@ describe('§6.4 — the card, on the routes that are the map', () => {
 		await settled();
 		await settled();
 		expect(third.container.querySelector('[data-next-step]')).not.toBeNull();
+	});
+});
+
+describe('A6 — `/` and `/d/<domainId>` are one surface, not two pages', () => {
+	/**
+	 * The claim §5.1 makes is that entering a domain *flies the camera*. The route
+	 * change is the part of that a component test cannot fake: SvelteKit destroys
+	 * one route component and creates another, so the only way the surface can
+	 * survive is by being mounted here, in the shell. This asserts that by node
+	 * identity — the weaker "the map is still drawn" assertion passes just as well
+	 * when the router has rebuilt the whole thing.
+	 */
+	// `render` directly rather than through `shell()`, because these tests drive
+	// `pathname` *after* mounting — a route change is the whole subject — and the
+	// helper's spread does not carry the prop into its own type.
+	function onTheMap(pathname: string) {
+		return render(Shell, {
+			children,
+			pathname,
+			userStore: storeStub(),
+			nextStepSources: nextStepStub,
+			contentLoader: {
+				loadManifest: async () => {
+					content.setManifest(MAP_MANIFEST, false);
+					return MAP_MANIFEST;
+				},
+				isOffline: () => false
+			}
+		});
+	}
+
+	it('keeps the very same region paths when the route changes to a domain', async () => {
+		const mounted = onTheMap('/');
+		await settled();
+
+		const before = [...mounted.container.querySelectorAll('.region-plate')];
+		expect(before.length).toBe(2);
+
+		mounted.props.pathname = '/d/home';
+		flushSync();
+
+		const after = [...mounted.container.querySelectorAll('.region-plate')];
+		for (const [i, node] of after.entries()) expect(node).toBe(before[i]);
+		// And the camera did move, so the identity above is not the identity of a
+		// surface that simply ignored the route.
+		expect(
+			mounted.container.querySelector('[data-map-surface]')?.getAttribute('data-level')
+		).toBe('1');
+	});
+
+	it('flies back to level 0 on Back, and never draws a breadcrumb', async () => {
+		const mounted = onTheMap('/d/home');
+		await settled();
+
+		const before = [...mounted.container.querySelectorAll('.region-plate')];
+		expect(before.length).toBe(2);
+
+		// Browser Back is a `pathname` change and nothing else — which is exactly
+		// why there is no widget to click instead.
+		mounted.props.pathname = '/';
+		flushSync();
+
+		const after = [...mounted.container.querySelectorAll('.region-plate')];
+		for (const [i, node] of after.entries()) expect(node).toBe(before[i]);
+		expect(
+			mounted.container.querySelector('[data-map-surface]')?.getAttribute('data-level')
+		).toBe('0');
+		expect(mounted.container.innerHTML).not.toMatch(/breadcrumb/i);
+	});
+
+	it('gives both camera levels one `<main>`, and does not rebuild it', async () => {
+		const mounted = onTheMap('/');
+		await settled();
+
+		const main = mounted.container.querySelector('main.map-main');
+		expect(main).not.toBeNull();
+
+		mounted.props.pathname = '/d/home';
+		flushSync();
+
+		expect(mounted.container.querySelectorAll('main.map-main').length).toBe(1);
+		expect(mounted.container.querySelector('main.map-main')).toBe(main);
 	});
 });

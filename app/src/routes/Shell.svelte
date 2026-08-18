@@ -219,12 +219,20 @@
 	 * Moving it here first would give the phone a level-1 map with nothing on it
 	 * that a list does not already say better.
 	 */
-	let mapContainer: HTMLElement | undefined = $state();
+	/**
+	 * `null` and not `undefined` once the map has been mounted and left: Svelte
+	 * clears a `bind:this` to `null` on teardown, and the shell outlives the
+	 * `<main>` it binds — leaving the map for `/library` runs this effect again
+	 * with the element gone. An `=== undefined` guard passes that through to
+	 * `observe(null)`, which throws and takes the whole client runtime with it, so
+	 * every later navigation changes the URL and renders nothing.
+	 */
+	let mapContainer: HTMLElement | null | undefined = $state();
 	let viewport = $state<'map' | 'list'>('map');
 
 	$effect(() => {
 		const element = mapContainer;
-		if (element === undefined || typeof ResizeObserver === 'undefined') return;
+		if (element == null || typeof ResizeObserver === 'undefined') return;
 
 		const observer = new ResizeObserver((entries) => {
 			const width = entries[0]?.contentRect.width ?? element.clientWidth;
