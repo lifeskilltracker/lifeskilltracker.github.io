@@ -109,6 +109,7 @@
         "Fixture Author"
       ],
       "bundle": "content/bundles/fixture-full-feature.json",
+      "hasMastery": true,
       "cell": {
         "q": 0,
         "r": 0

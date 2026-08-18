@@ -148,9 +148,9 @@ describe('§15.4 — never colour alone, on the map', () => {
 		const making = container.querySelector('[data-domain="making"]')!;
 
 		// The silhouette: a real path, its own shape per domain.
-		const path = making.querySelector('.region-base')?.getAttribute('d');
+		const path = making.querySelector('.region-plate')?.getAttribute('d');
 		expect(path).toBeTruthy();
-		const others = [...container.querySelectorAll('.region-base')].map((p) => p.getAttribute('d'));
+		const others = [...container.querySelectorAll('.region-plate')].map((p) => p.getAttribute('d'));
 		expect(new Set(others).size).toBe(DOMAINS.length);
 
 		// The label: text, in the drawing and in the accessible name alike.
@@ -202,16 +202,39 @@ describe('§15.4 — never colour alone, on the map', () => {
 });
 
 describe('§15.5 — the map’s one animation', () => {
-	it('disables the fill transition under prefers-reduced-motion', () => {
-		const reduced = SOURCE.split('@media (prefers-reduced-motion: reduce)').slice(1).join('\n');
+	it('disables every transition under prefers-reduced-motion', () => {
+		const [normal, ...rest] = SOURCE.split('@media (prefers-reduced-motion: reduce)');
+		const reduced = rest.join('\n');
 
-		expect(reduced).toContain('clipPath rect');
 		expect(reduced).toContain('transition: none');
 
-		// The clip rect is the only thing that animates, so there is nothing else
-		// to switch off. A second `transition:` here would need its own reduce rule.
-		const declarations = [...SOURCE.matchAll(/transition:/g)];
-		expect(declarations).toHaveLength(2);
+		// Counting declarations was the old shape of this check, and it broke the
+		// moment T30 added the water line and the focus dim — which is the wrong
+		// failure, because both were switched off correctly. What actually matters
+		// is the property: **every selector that transitions outside the media
+		// query is named inside it.** That holds however many are added later.
+		const selectorsWithTransitions = (css: string): Set<string> => {
+			const found = new Set<string>();
+			// Comments first: this file explains its rules at length, and a comment
+			// sitting above a rule is otherwise read as part of its selector.
+			const stripped = css.replace(/\/\*[\s\S]*?\*\//g, '');
+			for (const rule of stripped.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+				if (!/transition:/.test(rule[2])) continue;
+				for (const selector of rule[1].split(',')) {
+					const trimmed = selector.trim();
+					if (trimmed.length > 0) found.add(trimmed);
+				}
+			}
+			return found;
+		};
+
+		const animated = selectorsWithTransitions(normal);
+		const switchedOff = selectorsWithTransitions(reduced);
+
+		expect(animated.size).toBeGreaterThan(0);
+		for (const selector of animated) {
+			expect([...switchedOff]).toContain(selector);
+		}
 	});
 
 	it('has no animation carrying information — nothing on the map is motion-only', () => {

@@ -351,6 +351,10 @@ export interface TreeEntry {
   authors: string[];
   bundle: string;
   /**
+   * Whether the tree publishes mastery content (UI-SPEC §5.4's glyph channel). Carried on the manifest rather than read from the bundle because the map draws this glyph for every skill in a domain at once, and deciding it per bundle would put twenty chunk fetches on a level-1 frame.
+   */
+  hasMastery: boolean;
+  /**
    * Sub-lattice axial coordinates. Integers: the sub-lattice is the parent lattice scaled by 1/cellDivisor about the same origin, so no cell is ever fractional.
    */
   cell: {

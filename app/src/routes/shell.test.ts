@@ -18,17 +18,59 @@ import { createRawSnippet } from 'svelte';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, click, flushSync, render } from '$lib/components/test-harness.svelte.js';
 import type { ColdStartContent, ColdStartStore } from '$lib/actions/cold-start.js';
+import type { NextStepSources } from '$lib/actions/next-step.js';
+import { sidebarCollapse } from '$lib/components/sidebar-collapse.svelte.js';
 import { content } from '$lib/content/store.svelte.js';
 import { progress } from '$lib/state/progress.svelte.js';
 import { NotWritableError, createUserStateStore } from '$lib/state/store.js';
 import { ui } from '$lib/state/ui.svelte.js';
-import type { Manifest } from '$lib/types';
-import { manifestFixture } from '$lib/content/fixtures/bundles.js';
+import type { CompiledTree, Manifest } from '$lib/types';
+import { bundleFixture, manifestFixture } from '$lib/content/fixtures/bundles.js';
 import Shell from './Shell.svelte';
 
 const children = createRawSnippet(() => ({ render: () => '<main>the page</main>' }));
 
 const MANIFEST = manifestFixture([{ id: 'cooking', bundle: 'trees/cooking.abc.json' }]) as unknown as Manifest;
+
+/**
+ * A taxonomy, which `manifestFixture` leaves empty — §6.1's blocks 2 and 4 are
+ * one row per declared domain, so a manifest with no domains renders no blocks.
+ */
+const TAXONOMY_MANIFEST = {
+	...MANIFEST,
+	taxonomy: {
+		...MANIFEST.taxonomy,
+		domains: [
+			{ id: 'home', title: 'Home', blurb: '', palette: { light: { base: '#000', accent: '#000' }, dark: { base: '#fff', accent: '#fff' } } },
+			{ id: 'mind', title: 'Mind', blurb: '', palette: { light: { base: '#000', accent: '#000' }, dark: { base: '#fff', accent: '#fff' } } }
+		]
+	}
+} as unknown as Manifest;
+
+/**
+ * A taxonomy with a *drawn* map. `manifestFixture` emits `map: { regions: [] }`,
+ * and a surface with no regions renders no region paths — which would make the
+ * identity assertion below pass for the wrong reason.
+ */
+const MAP_MANIFEST = {
+	...TAXONOMY_MANIFEST,
+	taxonomy: {
+		...TAXONOMY_MANIFEST.taxonomy,
+		map: {
+			regions: [
+				{ domain: 'home', path: 'M 0,0 L 100,0 L 100,100 L 0,100 Z' },
+				{ domain: 'mind', path: 'M 200,0 L 300,0 L 300,100 L 200,100 Z' }
+			]
+		}
+	}
+} as unknown as Manifest;
+
+const COOKING = bundleFixture({ id: 'cooking' }) as unknown as CompiledTree;
+
+const nextStepStub: NextStepSources = {
+	loadTree: async () => COOKING,
+	progressFor: () => ({ milestones: new Map(), grandfathered: new Map() })
+};
 
 function loaderStub(options: { offline?: boolean; fail?: boolean } = {}): ColdStartContent {
 	return {
@@ -74,6 +116,8 @@ beforeEach(() => {
 	progress.writable = true;
 	ui.reset();
 	content.reset();
+	globalThis.localStorage?.clear();
+	sidebarCollapse.set(false);
 });
 
 afterEach(cleanup);
@@ -265,5 +309,297 @@ describe('§16.3 row 5 — IndexedDB hydration fails', () => {
 		// And it stays refused — there is no path back to writable in a session.
 		progress.hydrated = true;
 		await expect(store.startSkill('cooking', 1)).rejects.toThrow(NotWritableError);
+	});
+});
+
+/**
+ * ─── T32: A6's chrome ──────────────────────────────────────────────────────
+ *
+ * The shell is the only place these can be checked, because they are claims
+ * about *composition*: `Sidebar.test.ts` proves the four blocks render, and this
+ * proves they render off the manifest and the mirror rather than off props a
+ * test invented. The card is the same story — `NextStepCard.test.ts` proves it
+ * shows a milestone, and this proves the shell hands it the right one, on the
+ * right routes, and remembers a dismissal for exactly one session.
+ */
+
+function skillRecord(treeId: string, lastActivityAt: string, attainedLevel = 2) {
+	return {
+		treeId,
+		startedAt: '2026-01-01T00:00:00.000Z',
+		attainedLevel,
+		lastActivityAt,
+		contentVersionSeen: 1,
+		grandfathered: {}
+	};
+}
+
+function shell(props: Record<string, unknown> = {}) {
+	return render(Shell, {
+		children,
+		contentLoader: loaderStub(),
+		userStore: storeStub(),
+		nextStepSources: nextStepStub,
+		...props
+	});
+}
+
+describe('A6 — the top nav bar is gone', () => {
+	it('renders no top chrome band; the sidebar is the primary navigation', async () => {
+		const { container } = shell();
+		await settled();
+
+		expect(container.querySelector('.shell-chrome')).toBeNull();
+		expect(container.querySelector('header')).toBeNull();
+
+		// Exactly two nav landmarks, both inside the sidebar, in §6.1's order.
+		const navs = [...container.querySelectorAll('nav')];
+		expect(navs.map((nav) => nav.getAttribute('aria-label'))).toEqual(['Primary', 'Domains']);
+		expect(navs.every((nav) => nav.closest('[data-sidebar]') !== null)).toBe(true);
+	});
+
+	it('leaves `+layout.svelte` with no navigation of its own', async () => {
+		// The acceptance criterion is a grep over the file, so this is one: a nav
+		// re-grown here would be the top bar coming back with the sidebar still in
+		// place, and nothing rendered would look wrong enough to notice.
+		const { readFileSync } = await import('node:fs');
+		// Off the workspace root rather than `import.meta.url`: under jsdom this
+		// module's URL is not a `file:` one.
+		const source = readFileSync(`${process.cwd()}/src/routes/+layout.svelte`, 'utf8');
+
+		expect(source).not.toMatch(/<nav\b/);
+		expect(source).toMatch(/<Shell\b/);
+	});
+});
+
+describe('§6.1 — the blocks are assembled from the manifest and the mirror', () => {
+	it('fills blocks 2 and 4 from the taxonomy, with band names and counts', async () => {
+		const { container } = shell({
+			contentLoader: {
+				loadManifest: async () => {
+					content.setManifest(TAXONOMY_MANIFEST, false);
+					return TAXONOMY_MANIFEST;
+				},
+				isOffline: () => false
+			}
+		});
+		await settled();
+
+		const domains = container.querySelectorAll('[data-block="domains"] [data-domain]');
+		expect(domains.length).toBe(2);
+
+		const rows = [...container.querySelectorAll('[data-block="progress"] [data-domain]')];
+		expect(rows.map((row) => row.getAttribute('data-domain'))).toEqual(['home', 'mind']);
+		// Nothing started: §11.6's first band, and the count as a word (N5, F34).
+		expect(rows[0]?.textContent).toContain('Quiet');
+		expect(rows[0]?.textContent).toContain('No skills started');
+		expect(container.querySelector('[data-block="progress"]')?.textContent).not.toContain('%');
+	});
+
+	it('links block 3 straight at a started skill, most recent first', async () => {
+		progress.skills = {
+			piano: skillRecord('piano', '2026-08-01T00:00:00.000Z'),
+			cooking: skillRecord('cooking', '2026-08-14T00:00:00.000Z', 3)
+		};
+
+		const { container } = shell();
+		await settled();
+
+		const links = [...container.querySelectorAll('[data-block="skills"] a[data-tree]')];
+		// `piano` has no manifest entry here, so it is dropped rather than named
+		// under an invented title (T26/F22) — `cooking` is the one the shell knows.
+		expect(links.map((a) => a.getAttribute('href'))).toEqual(['/s/cooking']);
+	});
+
+	it('highlights the active domain when the camera rests at level 1', async () => {
+		const { container } = shell({
+			pathname: '/d/home',
+			contentLoader: {
+				loadManifest: async () => {
+					content.setManifest(TAXONOMY_MANIFEST, false);
+					return TAXONOMY_MANIFEST;
+				},
+				isOffline: () => false
+			}
+		});
+		await settled();
+
+		const active = container.querySelectorAll('[data-block="domains"] [data-active="true"]');
+		expect([...active].map((el) => el.getAttribute('data-domain'))).toEqual(['home']);
+	});
+});
+
+describe('§6.1 — collapsing does not move the page', () => {
+	it('keeps the rendered page mounted across a toggle, so the camera cannot shift', async () => {
+		const { container } = shell();
+		await settled();
+
+		const before = container.querySelector('main');
+		expect(before).not.toBeNull();
+
+		click(container.querySelector('[data-action="toggle-sidebar"]')!);
+		flushSync();
+
+		// The same DOM node, not an equal one: a re-created `<main>` would remount
+		// the map and reset whatever camera state T30 puts in it.
+		expect(container.querySelector('main')).toBe(before);
+		expect(container.querySelector('[data-sidebar]')?.getAttribute('data-collapsed')).toBe('true');
+	});
+});
+
+describe('§6.4 — the card, on the routes that are the map', () => {
+	it('names the next available milestone in the most recently active skill', async () => {
+		progress.skills = { cooking: skillRecord('cooking', '2026-08-14T00:00:00.000Z') };
+
+		const { container } = shell();
+		await settled();
+		await settled();
+
+		const link = container.querySelector('[data-next-step-link]');
+		expect(link?.getAttribute('href')).toBe('/s/cooking/m/cooking-1-0');
+		expect(link?.textContent?.replace(/\s+/g, ' ').trim()).toBe('cooking · Milestone 1.0');
+	});
+
+	it('is reachable before the map: it precedes the page in the document', async () => {
+		progress.skills = { cooking: skillRecord('cooking', '2026-08-14T00:00:00.000Z') };
+
+		const { container } = shell();
+		await settled();
+		await settled();
+
+		const card = container.querySelector('[data-next-step]')!;
+		const main = container.querySelector('main')!;
+		expect(card.compareDocumentPosition(main) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+	});
+
+	it('rides `/d/<domainId>` too, and stays off the tree', async () => {
+		progress.skills = { cooking: skillRecord('cooking', '2026-08-14T00:00:00.000Z') };
+
+		const onDomain = shell({ pathname: '/d/home' });
+		await settled();
+		expect(onDomain.container.querySelector('[data-next-step]')).not.toBeNull();
+
+		const onTree = shell({ pathname: '/s/cooking' });
+		await settled();
+		// F36's `.` shortcut already answers this question inside a tree, and a
+		// second answer two rows away from the one the user is reading is worse
+		// than none.
+		expect(onTree.container.querySelector('[data-next-step]')).toBeNull();
+	});
+
+	it('invites a visitor who has started nothing, rather than showing an empty card', async () => {
+		const { container } = shell();
+		await settled();
+		await settled();
+
+		expect(container.querySelector('[data-next-step-invitation]')).not.toBeNull();
+		expect(container.querySelector('[data-next-step-link]')).toBeNull();
+	});
+
+	it('stays dismissed for the session, and returns on the next load', async () => {
+		progress.skills = { cooking: skillRecord('cooking', '2026-08-14T00:00:00.000Z') };
+
+		const first = shell();
+		await settled();
+		await settled();
+		click(first.container.querySelector('[data-action="dismiss-next-step"]')!);
+		flushSync();
+		expect(first.container.querySelector('[data-next-step]')).toBeNull();
+
+		// A camera move is a client-side navigation, and the card must not come
+		// back through one — that is the interruption §6.4 warns about.
+		const second = shell({ pathname: '/d/home' });
+		await settled();
+		expect(second.container.querySelector('[data-next-step]')).toBeNull();
+
+		// A reload is `ui`'s reset: nothing about the dismissal is persisted, so a
+		// user cannot lose the card by accident.
+		ui.reset();
+		const third = shell();
+		await settled();
+		await settled();
+		expect(third.container.querySelector('[data-next-step]')).not.toBeNull();
+	});
+});
+
+describe('A6 — `/` and `/d/<domainId>` are one surface, not two pages', () => {
+	/**
+	 * The claim §5.1 makes is that entering a domain *flies the camera*. The route
+	 * change is the part of that a component test cannot fake: SvelteKit destroys
+	 * one route component and creates another, so the only way the surface can
+	 * survive is by being mounted here, in the shell. This asserts that by node
+	 * identity — the weaker "the map is still drawn" assertion passes just as well
+	 * when the router has rebuilt the whole thing.
+	 */
+	// `render` directly rather than through `shell()`, because these tests drive
+	// `pathname` *after* mounting — a route change is the whole subject — and the
+	// helper's spread does not carry the prop into its own type.
+	function onTheMap(pathname: string) {
+		return render(Shell, {
+			children,
+			pathname,
+			userStore: storeStub(),
+			nextStepSources: nextStepStub,
+			contentLoader: {
+				loadManifest: async () => {
+					content.setManifest(MAP_MANIFEST, false);
+					return MAP_MANIFEST;
+				},
+				isOffline: () => false
+			}
+		});
+	}
+
+	it('keeps the very same region paths when the route changes to a domain', async () => {
+		const mounted = onTheMap('/');
+		await settled();
+
+		const before = [...mounted.container.querySelectorAll('.region-plate')];
+		expect(before.length).toBe(2);
+
+		mounted.props.pathname = '/d/home';
+		flushSync();
+
+		const after = [...mounted.container.querySelectorAll('.region-plate')];
+		for (const [i, node] of after.entries()) expect(node).toBe(before[i]);
+		// And the camera did move, so the identity above is not the identity of a
+		// surface that simply ignored the route.
+		expect(
+			mounted.container.querySelector('[data-map-surface]')?.getAttribute('data-level')
+		).toBe('1');
+	});
+
+	it('flies back to level 0 on Back, and never draws a breadcrumb', async () => {
+		const mounted = onTheMap('/d/home');
+		await settled();
+
+		const before = [...mounted.container.querySelectorAll('.region-plate')];
+		expect(before.length).toBe(2);
+
+		// Browser Back is a `pathname` change and nothing else — which is exactly
+		// why there is no widget to click instead.
+		mounted.props.pathname = '/';
+		flushSync();
+
+		const after = [...mounted.container.querySelectorAll('.region-plate')];
+		for (const [i, node] of after.entries()) expect(node).toBe(before[i]);
+		expect(
+			mounted.container.querySelector('[data-map-surface]')?.getAttribute('data-level')
+		).toBe('0');
+		expect(mounted.container.innerHTML).not.toMatch(/breadcrumb/i);
+	});
+
+	it('gives both camera levels one `<main>`, and does not rebuild it', async () => {
+		const mounted = onTheMap('/');
+		await settled();
+
+		const main = mounted.container.querySelector('main.map-main');
+		expect(main).not.toBeNull();
+
+		mounted.props.pathname = '/d/home';
+		flushSync();
+
+		expect(mounted.container.querySelectorAll('main.map-main').length).toBe(1);
+		expect(mounted.container.querySelector('main.map-main')).toBe(main);
 	});
 });

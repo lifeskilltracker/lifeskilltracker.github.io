@@ -19,9 +19,17 @@
  * *and* forgetting it existed is the failure this shape rules out.
  */
 
-import { domainScores, tierFor } from '$lib/scoring';
+import { bandFor, domainScores, tierFor } from '$lib/scoring';
 import type { SkillRecord } from '$lib/state/types.js';
-import type { DomainId, DomainScore, DomainSkillRow, Manifest, TierName } from '$lib/types';
+import type { DomainProgressRow, StartedSkillRow } from '$lib/components/next-step.js';
+import type {
+	DomainId,
+	DomainScore,
+	DomainSkillRow,
+	Manifest,
+	TierName,
+	Taxonomy
+} from '$lib/types';
 
 export interface WorldScores {
 	/** One row per started skill that the manifest still knows about. */
@@ -79,6 +87,71 @@ export interface Standing {
  * confuse with an unhydrated store: `progress.hydrated` is the only thing that
  * distinguishes them, and the card is given it separately (§13.3, T26/F23).
  */
+/**
+ * §6.1 block 3 — the started skills, most recently active first (T32).
+ *
+ * The same recency order the next-step card selects on, and for the same reason:
+ * the Player opened the application to get back to the thing they were doing, so
+ * the thing they were doing goes at the top. Ties break by tree id, ascending, so
+ * the list does not reshuffle between two renders that changed nothing —
+ * `Object.values(progress.skills)` has whatever order IndexedDB handed back.
+ *
+ * Off §12.3's denormalized level, so the whole block costs no bundle fetch and is
+ * on screen as soon as the manifest is (§3.3).
+ */
+export function startedSkillRows(
+	manifest: Manifest,
+	skills: Record<string, SkillRecord>
+): StartedSkillRow[] {
+	const entries = new Map(manifest.trees.map((tree) => [tree.id, tree]));
+
+	const rows: StartedSkillRow[] = [];
+	for (const skill of Object.values(skills)) {
+		const entry = entries.get(skill.treeId);
+		// T26/F22 again: no manifest entry, no title — the record is retained and
+		// reported on `/data`, not rendered here under a made-up name.
+		if (entry === undefined) continue;
+		rows.push({ treeId: skill.treeId, title: entry.title, attainedLevel: skill.attainedLevel });
+	}
+
+	const activity = new Map(
+		Object.values(skills).map((skill) => [skill.treeId, skill.lastActivityAt])
+	);
+	return rows.sort((a, b) => {
+		const left = activity.get(a.treeId) ?? '';
+		const right = activity.get(b.treeId) ?? '';
+		if (left !== right) return left < right ? 1 : -1;
+		return a.treeId < b.treeId ? -1 : a.treeId > b.treeId ? 1 : 0;
+	});
+}
+
+/**
+ * §6.1 block 4 — §11.6's band **name** and skills-started count, as text (T32).
+ *
+ * It lives here rather than in the sidebar because §13.4 keeps components out of
+ * the Scoring Engine: `bandFor` is the engine's presentation mapping over `fill`,
+ * and a component resolving its own band would be a second reader of a number
+ * F34 forbids showing at all. The row carries no `fill` — see the type.
+ *
+ * Total over the taxonomy, in the taxonomy's own order, because `domainScores`
+ * is (§11.6) and a domain missing from this block would read as a domain that
+ * does not exist.
+ */
+export function domainProgressRows(
+	taxonomy: Taxonomy,
+	scores: ReadonlyMap<DomainId, DomainScore>
+): DomainProgressRow[] {
+	return taxonomy.domains.map((domain) => {
+		const score = scores.get(domain.id);
+		return {
+			domain: domain.id,
+			title: domain.title,
+			band: bandFor(score?.fill ?? 0),
+			started: score?.breadth ?? 0
+		};
+	});
+}
+
 export function standings(skills: Record<string, SkillRecord>): Map<string, Standing> {
 	const out = new Map<string, Standing>();
 	for (const skill of Object.values(skills)) {

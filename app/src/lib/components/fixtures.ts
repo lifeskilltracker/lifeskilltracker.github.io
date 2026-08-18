@@ -110,6 +110,9 @@ export function manifestFixture(options: ManifestOptions = {}): Manifest {
       milestoneCount: 40,
       authors: ['fixture'],
       bundle: `bundles/${index}.json`,
+      // §5.4's glyph fact, on the manifest so the map draws it without fetching
+      // a bundle. Alternating, so a fixture map has both marks on it.
+      hasMastery: index % 2 === 0,
       // The compiler's committed sub-lattice cell (§5.3). One per tree, distinct;
       // the geometry is not the fixture's business, only that the field is there.
       cell: { q: index * 4, r: 0 },

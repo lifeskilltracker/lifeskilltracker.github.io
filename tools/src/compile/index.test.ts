@@ -176,6 +176,32 @@ describe('lst compile', () => {
     expect(result.manifest.trees.every((entry) => !('milestones' in entry))).toBe(true);
   });
 
+  it('carries mastery presence on the manifest, so the map need not fetch bundles (§5.4)', () => {
+    const repoRoot = makeRepoFromFixtures();
+    const { manifest } = runCompile({ repoRoot, write: false, now: fixedNow });
+
+    // Every entry answers, because the map draws a glyph decision for every
+    // skill in a domain and an absent field would be an undrawn one.
+    expect(manifest.trees.every((entry) => typeof entry.hasMastery === 'boolean')).toBe(true);
+
+    // And it answers correctly in both directions, or the boolean is decoration.
+    // Keyed by the tree's own id rather than by filename — the fixtures do not
+    // name their files after their ids, and neither does `content/`.
+    const authored = new Map(
+      readdirSync(path.join(repoRoot, 'content/trees')).map((file) => {
+        const tree = readYamlFile<Tree>(path.join(repoRoot, 'content/trees', file)).data;
+        return [tree.id, tree];
+      }),
+    );
+    for (const entry of manifest.trees) {
+      const tree = authored.get(entry.id);
+      expect(tree, entry.id).toBeDefined();
+      expect(entry.hasMastery, entry.id).toBe((tree!.mastery?.length ?? 0) > 0);
+    }
+    expect(manifest.trees.some((entry) => entry.hasMastery)).toBe(true);
+    expect(manifest.trees.some((entry) => !entry.hasMastery)).toBe(true);
+  });
+
   it('produces byte-identical bundles when recompiled unchanged', () => {
     const repoRoot = makeRepoFromFixtures();
     const first = runCompile({ repoRoot, write: true, now: fixedNow });

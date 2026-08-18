@@ -19,6 +19,7 @@ import { makeScoringTree, progressOf, uidOf } from '$lib/scoring/fixtures.js';
 import type { CompiledTree, MilestoneState } from '$lib/types';
 import TreeView from './TreeView.svelte';
 import type { MilestoneIntent } from './intents.js';
+import { anchorFor, type CameraTarget } from './tree-camera.js';
 import { cleanup, click, flushSync, focus, press, render } from './test-harness.svelte.js';
 
 afterEach(cleanup);
@@ -823,5 +824,424 @@ describe('F29 — module labels are drawn', () => {
 		expect(node(container, tree, 't2').querySelector('.node-meta')?.textContent?.trim()).toBe(
 			'musicianship'
 		);
+	});
+});
+
+/* -------------------------------------------------------------------------- *
+ * T34 — the Survey restyle and the level camera.
+ *
+ * The restyle's whole risk is that it stops being one. Everything below either
+ * pins a coordinate the restyle may not move, or checks a Survey rule that the
+ * restyle exists to satisfy.
+ * -------------------------------------------------------------------------- */
+
+const TREE_SOURCE = readFileSync(join(process.cwd(), 'src/lib/components/TreeView.svelte'), 'utf8');
+
+/** Ten levels, two milestones each — the fixture the camera and the guardrail share. */
+function tenLevelTree(): CompiledTree {
+	return makeScoringTree({
+		id: 'restyle-fixture',
+		levels: Array.from({ length: 10 }, (_, i) => ({
+			level: i + 1,
+			milestones: [`l${i + 1}-a`, `l${i + 1}-b`]
+		})),
+		requires: { 'l2-a': ['l1-a'] }
+	});
+}
+
+function completeThrough(level: number): Record<string, MilestoneState> {
+	const states: Record<string, MilestoneState> = {};
+	for (let l = 1; l <= level; l += 1) {
+		states[`l${l}-a`] = 'complete';
+		states[`l${l}-b`] = 'complete';
+	}
+	return states;
+}
+
+/**
+ * §8's output for `tenLevelTree()`, frozen at the moment T34 began.
+ *
+ * **This is the guardrail that keeps T34 a restyle.** §8 is settled — F27 closed
+ * its last five silences — and N11's reproducibility claim is stated in these
+ * numbers. Every restyle drifts toward a "small" layout improvement; a diff that
+ * moves one of these is a T06 change and belongs in T06.
+ */
+const LAYOUT_FIXTURE = {
+	width: 272,
+	height: 960,
+	rows: [864, 768, 672, 576, 480, 384, 288, 192, 96, 0],
+	nodes: {
+		'l1-a': { x: 0, y: 890 },
+		'l1-b': { x: 100, y: 890 },
+		'l5-a': { x: 0, y: 506 },
+		'l10-b': { x: 100, y: 26 }
+	} as Record<string, { x: number; y: number }>,
+	edge: 'M 50 890 V 864 H 50 V 838'
+} as const;
+
+describe('T34 — the layout is untouched (§8, N11)', () => {
+	it('lays the fixture tree out at exactly the coordinates it did before the restyle', () => {
+		const layout = layoutTree(tenLevelTree(), 'wide');
+
+		expect([layout.width, layout.height]).toEqual([
+			LAYOUT_FIXTURE.width,
+			LAYOUT_FIXTURE.height
+		]);
+		expect(layout.rows.map((row) => row.y)).toEqual([...LAYOUT_FIXTURE.rows]);
+		expect(layout.rows.every((row) => row.h === 96)).toBe(true);
+		expect(layout.edges.map((edge) => edge.path)).toEqual([LAYOUT_FIXTURE.edge]);
+	});
+
+	it('draws every node at the position the engine gave it, and nowhere else', () => {
+		const tree = tenLevelTree();
+		const layout = layoutTree(tree, 'wide');
+		const { container } = mountTree(tree, {});
+
+		for (const positioned of layout.nodes) {
+			const rendered = container.querySelector(`.node[data-uid="${positioned.uid}"]`);
+			expect(rendered?.getAttribute('transform')).toBe(
+				`translate(${positioned.x}, ${positioned.y})`
+			);
+		}
+
+		// And the frozen sample, so a change in the *engine* fails here too rather
+		// than being carried silently into the drawing.
+		for (const [slug, at] of Object.entries(LAYOUT_FIXTURE.nodes)) {
+			expect(node(container, tree, slug).getAttribute('transform')).toBe(
+				`translate(${at.x}, ${at.y})`
+			);
+		}
+	});
+
+	it('maps the viewBox onto the engine’s own extent, so a unit is still a unit', () => {
+		const tree = tenLevelTree();
+		const { container } = mountTree(tree, {});
+
+		expect(container.querySelector('svg.tree')?.getAttribute('viewBox')).toBe(
+			`0 0 ${LAYOUT_FIXTURE.width} ${LAYOUT_FIXTURE.height}`
+		);
+	});
+
+	it('routes every edge along the engine’s own path string', () => {
+		const tree = tenLevelTree();
+		const layout = layoutTree(tree, 'wide');
+		const { container } = mountTree(tree, {});
+
+		const drawn = [...container.querySelectorAll('path.edge')].map((p) => p.getAttribute('d'));
+		expect(drawn).toEqual(layout.edges.map((edge) => edge.path));
+	});
+});
+
+describe('§4.6 — the five states in Survey terms, encoding unchanged', () => {
+	const expected: [string, string, string, string][] = [
+		// slug, state, stroke-dasharray, stroke-width
+		['a1', 'complete', 'none', '1.3'],
+		['b1', 'bonus', 'none', '1.3'],
+		['open', 'available', 'none', '2.2'],
+		['gated', 'locked', '6 4', '1.3'],
+		['nope', 'dismissed', '1 4', '1.3']
+	];
+
+	it.each(expected)('draws %s (%s) with the §4.6 border', (slug, _state, dash, width) => {
+		const tree = fiveStateTree();
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+		const box = node(container, tree, slug).querySelector('rect.node-box');
+
+		expect(box?.getAttribute('stroke-dasharray')).toBe(dash);
+		expect(box?.getAttribute('stroke-width')).toBe(width);
+	});
+
+	it('carries §4.6’s plate strength as an attribute, not only as a colour', () => {
+		const tree = fiveStateTree();
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		const plates = expected.map(
+			([slug]) => node(container, tree, slug).getAttribute('data-plate')
+		);
+		expect(plates).toEqual(['full', 'bonus', 'open', 'open', 'open']);
+	});
+
+	it('keeps the glyphs real <use> elements, which is what survives forced colours', () => {
+		const tree = fiveStateTree();
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		for (const [slug] of expected) {
+			const glyph = node(container, tree, slug).querySelector('use.state-glyph');
+			expect(glyph?.tagName.toLowerCase()).toBe('use');
+			expect(container.querySelector(`symbol${glyph?.getAttribute('href')}`)).not.toBeNull();
+		}
+	});
+
+	it('is distinguishable with the plate thrown away entirely', () => {
+		const tree = fiveStateTree();
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		// Strip fill: keep only what `forced-colors: active` leaves standing.
+		const signatures = expected.map(([slug]) => {
+			const rendered = node(container, tree, slug);
+			const box = rendered.querySelector('rect.node-box');
+			return [
+				rendered.querySelector('use.state-glyph')?.getAttribute('href'),
+				box?.getAttribute('stroke-dasharray'),
+				box?.getAttribute('stroke-width')
+			].join('|');
+		});
+		expect(new Set(signatures).size).toBe(5);
+	});
+});
+
+describe('§4 — the tree wears the token sheet and names no colour of its own', () => {
+	it('has no colour literal anywhere in the file (T27 owns hue)', () => {
+		const styles = TREE_SOURCE.slice(TREE_SOURCE.indexOf('<style>'));
+		// §4.3 gives hue one source. A hex, an rgb()/hsl() call or a CSS named
+		// colour here is a second source, and a second source drifts silently.
+		expect(styles).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+		expect(styles).not.toMatch(/\b(rgba?|hsla?)\s*\(/);
+		expect(styles).not.toMatch(/:\s*(white|black|red|green|blue|grey|gray)\b/);
+	});
+
+	it('draws its ink, paper and rules from the token sheet', () => {
+		for (const token of ['var(--ink)', 'var(--paper)', 'var(--rule)', 'var(--plate-open)']) {
+			expect(TREE_SOURCE).toContain(token);
+		}
+	});
+
+	it('takes the plate from the tree’s own domain, resolved by the theme (§4.2, A7)', () => {
+		const tree = fiveStateTree();
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+		const root = container.querySelector('.tree-view');
+
+		expect(root?.getAttribute('style')).toContain(`var(--domain-${tree.domain}`);
+	});
+
+	it('sets the level and tier labels in the display face, with the knockout halo', () => {
+		const tree = fiveStateTree();
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+		const label = container.querySelector('.row[data-level="1"] text.row-label');
+
+		// §4.5's halo is an accessibility mechanism, not a flourish: label ink on a
+		// full-strength plate runs 1.45:1 without it.
+		expect(label?.getAttribute('class')).toContain('display');
+		expect(label?.getAttribute('class')).toContain('halo');
+	});
+
+	it('sets the counts in the data face, so digits do not jitter as they change', () => {
+		const tree = fiveStateTree();
+		const { container } = mountTree(tree, FIVE_STATE_MILESTONES);
+
+		for (const readout of container.querySelectorAll('.row .group-progress')) {
+			expect(readout.getAttribute('class')).toContain('tabular');
+		}
+	});
+
+	it('never fogs a tree — hachure belongs to the map (§4.4, §7)', () => {
+		expect(TREE_SOURCE).not.toMatch(/hachure|--plate-fog/);
+	});
+
+	it('offers no zoom or pan control in any form (§7)', () => {
+		// Declined by name in §7: §15.2's arrow grid and roving `tabindex` both
+		// assume stable positions. Asserted against the machinery rather than the
+		// prose — a `transform: scale`, a `zoom`, a wheel or a gesture handler are
+		// the four ways one gets in.
+		expect(TREE_SOURCE).not.toMatch(/transform:\s*scale/);
+		expect(TREE_SOURCE).not.toMatch(/\bzoom:/);
+		expect(TREE_SOURCE).not.toMatch(/onwheel|ongesture|ontouchmove|pinch-zoom/);
+	});
+});
+
+describe('§4.3 — the water line on the level header', () => {
+	function waterY(container: HTMLElement, level: number): number {
+		const line = container.querySelector(`.row[data-level="${level}"] line.water-line`);
+		return Number(line?.getAttribute('y1'));
+	}
+
+	it('rules one line per level, in ink at --rule-water', () => {
+		const tree = tenLevelTree();
+		const { container } = mountTree(tree, {});
+
+		expect(container.querySelectorAll('line.water-line')).toHaveLength(10);
+		expect(TREE_SOURCE).toContain('var(--rule-water)');
+	});
+
+	it('sits at the foot of an untouched level and at the head of a satisfied one', () => {
+		const tree = tenLevelTree();
+		const layout = layoutTree(tree, 'wide');
+		const { container } = mountTree(tree, completeThrough(1));
+
+		const row1 = layout.rows.find((row) => row.level === 1)!;
+		const row2 = layout.rows.find((row) => row.level === 2)!;
+		// Satisfied: the line is at the top of the header, the plate full beneath it.
+		expect(waterY(container, 1)).toBe(row1.y);
+		// Untouched: at the foot, with nothing below it.
+		expect(waterY(container, 2)).toBeGreaterThan(row2.y);
+	});
+
+	it('renders the plate above the line at --plate-open, never as a faded hue (§4.3)', () => {
+		const tree = tenLevelTree();
+		const { container } = mountTree(tree, {});
+		const plate = container.querySelector('.row[data-level="1"] rect.header-plate');
+
+		expect(plate).not.toBeNull();
+		expect(plate?.getAttribute('fill')).toBeNull(); // colour lives in CSS (§15.4)
+		expect(TREE_SOURCE).toMatch(/\.header-plate\s*\{[^}]*var\(--plate-open\)/);
+	});
+
+	it('keeps §9.6’s per-group counts, which are the channel §15.4 makes load-bearing', () => {
+		const tree = tenLevelTree();
+		const { container } = mountTree(tree, completeThrough(1));
+
+		expect(
+			container.querySelector('.row[data-level="1"] .group-progress')?.textContent?.trim()
+		).toBe('2 / 2');
+	});
+});
+
+/** `matchMedia` is absent in jsdom; the camera asks for it and must survive both answers. */
+function stubReducedMotion(reduce: boolean): void {
+	Object.defineProperty(globalThis, 'matchMedia', {
+		configurable: true,
+		writable: true,
+		value: (query: string) => ({
+			matches: reduce && query.includes('prefers-reduced-motion'),
+			media: query,
+			addEventListener() {},
+			removeEventListener() {}
+		})
+	});
+}
+
+interface CameraInstance {
+	moveCamera(target: CameraTarget): void;
+}
+
+describe('§7 — the level camera', () => {
+	afterEach(() => {
+		Reflect.deleteProperty(globalThis, 'matchMedia');
+	});
+
+	it('gives the wide tree a scroll viewport for the camera to move', () => {
+		const tree = tenLevelTree();
+		const { container } = mountTree(tree, {});
+
+		expect(container.querySelector('.tree-camera')).not.toBeNull();
+		expect(TREE_SOURCE).toMatch(/\.tree-camera\s*\{[^}]*overflow-y:\s*auto/);
+	});
+
+	it.each([
+		['blocking', { kind: 'blocking' } as CameraTarget],
+		['next-available', { kind: 'next-available' } as CameraTarget],
+		['level 10', { kind: 'level', level: 10 } as CameraTarget]
+	])('resolves the %s anchor through the pure camera, not through the DOM', (_name, target) => {
+		const tree = tenLevelTree();
+		const layout = layoutTree(tree, 'wide');
+		const treeProgress = progressOf(tree, completeThrough(3));
+		const progress = scoreSkill(tree, treeProgress);
+
+		stubReducedMotion(true);
+		const mounted = mountTree(tree, completeThrough(3));
+		(mounted.instance as unknown as CameraInstance).moveCamera(target);
+		flushSync();
+
+		const camera = mounted.container.querySelector('.tree-camera')!;
+		expect(camera.getAttribute('data-camera-anchor')).toBe(
+			String(anchorFor(target, layout, progress))
+		);
+	});
+
+	it('moves instantly under prefers-reduced-motion, losing nothing (§15.5)', () => {
+		const tree = tenLevelTree();
+		stubReducedMotion(true);
+		const mounted = mountTree(tree, completeThrough(3));
+
+		(mounted.instance as unknown as CameraInstance).moveCamera({ kind: 'level', level: 4 });
+		flushSync();
+
+		const camera = mounted.container.querySelector('.tree-camera') as HTMLElement;
+		// Level 4's band, arrived at within the same tick — no frame in between.
+		expect(camera.scrollTop).toBe(576);
+		expect(camera.getAttribute('data-camera-anchor')).toBe('576');
+	});
+
+	it('has an anchor for a tree at level 10 and for one with nothing available', () => {
+		const tree = tenLevelTree();
+		const layout = layoutTree(tree, 'wide');
+		stubReducedMotion(true);
+
+		const finished = scoreSkill(tree, progressOf(tree, completeThrough(10)));
+		expect(finished.available).toHaveLength(0);
+
+		const mounted = mountTree(tree, completeThrough(10));
+		(mounted.instance as unknown as CameraInstance).moveCamera({ kind: 'next-available' });
+		flushSync();
+
+		expect(
+			mounted.container.querySelector('.tree-camera')?.getAttribute('data-camera-anchor')
+		).toBe(String(anchorFor({ kind: 'next-available' }, layout, finished)));
+	});
+
+	it('declares no free zoom: the camera takes named anchors and nothing else', () => {
+		// The type is the enforcement — this asserts the runtime honours it by
+		// resolving an out-of-range level to a band rather than to a scale.
+		const tree = tenLevelTree();
+		stubReducedMotion(true);
+		const mounted = mountTree(tree, {});
+
+		(mounted.instance as unknown as CameraInstance).moveCamera({ kind: 'level', level: 99 });
+		flushSync();
+
+		expect(
+			mounted.container.querySelector('.tree-camera')?.getAttribute('data-camera-anchor')
+		).toBe('0');
+	});
+});
+
+describe('§15.2, F36 — `.` moves focus AND the camera', () => {
+	afterEach(() => {
+		Reflect.deleteProperty(globalThis, 'matchMedia');
+	});
+
+	it('brings the camera to the level the shortcut just put focus on', () => {
+		const tree = tenLevelTree();
+		const layout = layoutTree(tree, 'wide');
+		stubReducedMotion(true);
+		// Level 1 complete, so the next available milestone is at level 2.
+		const { container } = mountTree(tree, completeThrough(1));
+
+		const first = node(container, tree, 'l1-a');
+		focus(first);
+		press(first, '.');
+
+		const focused = document.activeElement as Element;
+		expect(focused.getAttribute('data-level')).toBe('2');
+
+		const level2 = layout.rows.find((row) => row.level === 2)!.y;
+		expect(container.querySelector('.tree-camera')?.getAttribute('data-camera-anchor')).toBe(
+			String(level2)
+		);
+	});
+
+	it('leaves the camera where it was when nothing is available', () => {
+		const tree = tenLevelTree();
+		stubReducedMotion(true);
+		const { container } = mountTree(tree, completeThrough(10));
+
+		const first = node(container, tree, 'l1-a');
+		focus(first);
+		press(first, '.');
+
+		// `.` moved nothing, so the camera has nothing to report either.
+		expect(container.querySelector('.tree-camera')?.getAttribute('data-camera-anchor')).toBeNull();
+	});
+
+	it('does not disturb the narrow list, whose presentation is unchanged (§9.5)', () => {
+		const tree = tenLevelTree();
+		stubReducedMotion(true);
+		const { container } = mountTree(tree, completeThrough(1), { viewport: 'narrow' });
+
+		expect(container.querySelector('.tree-camera')).toBeNull();
+		const first = node(container, tree, 'l1-a');
+		focus(first);
+		press(first, '.');
+		expect((document.activeElement as Element).getAttribute('data-level')).toBe('2');
 	});
 });

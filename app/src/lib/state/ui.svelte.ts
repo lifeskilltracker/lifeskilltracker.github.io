@@ -46,6 +46,19 @@ class UiState {
 
   notices = $state<Notice[]>([]);
 
+  /**
+   * §6.4 — whether the next-step card has been dismissed (T32).
+   *
+   * Here, and deliberately **not** in `localStorage` or `sessionStorage`. The
+   * spec's two failure modes pull in opposite directions: a card that comes back
+   * mid-session is an interruption, and one that never comes back is a feature
+   * the user loses by accident. Module-level state is exactly the scope between
+   * them — it survives every client-side navigation between `/` and
+   * `/d/<domainId>`, and a reload discards it. `sessionStorage` would survive the
+   * reload too, which is the wrong answer.
+   */
+  nextStepDismissed = $state(false);
+
   #nextId = 1;
 
   openPanel(treeId: string, uid: string): void {
@@ -75,6 +88,7 @@ class UiState {
     this.viewport = 'wide';
     this.panel = null;
     this.notices = [];
+    this.nextStepDismissed = false;
     this.#nextId = 1;
   }
 }

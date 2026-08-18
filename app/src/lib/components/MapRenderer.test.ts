@@ -21,6 +21,9 @@ import type { DomainScore, DomainSkillRow } from '$lib/types';
 import MapRenderer from './MapRenderer.svelte';
 import {
   FOG_AFFORDANCE,
+  HACHURE_PLATE_OPACITY,
+  HACHURE_SPACING,
+  HACHURE_STROKE,
   MAP_LIST_BELOW,
   breadthText,
   fillRect,
@@ -89,7 +92,7 @@ describe('MapRenderer — the fill channel (§10.5, F34)', () => {
     const { container } = mount();
     const making = regionOf(container, 'making');
 
-    const fill = making.querySelector('.region-fill');
+    const fill = making.querySelector('.region-below');
     expect(fill).not.toBeNull();
     const clip = fill!.getAttribute('clip-path');
     expect(clip).toMatch(/^url\(#.+\)$/);
@@ -104,7 +107,7 @@ describe('MapRenderer — the fill channel (§10.5, F34)', () => {
     expect(height).toBeCloseTo(100 * (45 / 93), 6);
 
     // The whole point of a clip rather than an opacity (§10.5).
-    expect(making.querySelector('.region-fill[opacity]')).toBeNull();
+    expect(making.querySelector('.region-below[opacity]')).toBeNull();
     expect(making.innerHTML).not.toMatch(/opacity/i);
   });
 
@@ -142,6 +145,61 @@ describe('MapRenderer — the fill channel (§10.5, F34)', () => {
     expect(making.querySelector('.region-band')).toBeNull();
     focus(making);
     expect(making.querySelector('.region-band')?.textContent?.trim()).toBe('Moderate');
+  });
+
+  it('A3 — the plate is at open strength at EVERY score, never at fill', () => {
+    // The rule this file exists to protect. Two regions at very different
+    // scores must differ by the height of the water line and by *nothing else*:
+    // a plate whose opacity followed the score would drain the map of colour at
+    // exactly the scores most domains hold most of the time (§4.3).
+    const { container, scores } = mount();
+    const high = regionOf(container, 'making');
+    const low = regionOf(container, 'mind');
+    expect(scores.get('making')!.fill).toBeGreaterThan(scores.get('mind')!.fill);
+
+    const plateStyle = (region: Element, domain: string) =>
+      (region.querySelector('.region-plate')?.getAttribute('style') ?? '').replaceAll(domain, '<d>');
+    expect(plateStyle(high, 'making')).toBe(plateStyle(low, 'mind'));
+
+    // And the plate carries no per-region opacity at all — `--plate-open` is a
+    // constant in the stylesheet, not a number computed per region.
+    for (const region of [high, low]) {
+      const plate = region.querySelector('.region-plate')!;
+      expect(plate.getAttribute('opacity')).toBeNull();
+      expect(plate.getAttribute('fill-opacity')).toBeNull();
+    }
+  });
+
+  it('A3 — the score is the water line’s height, and it is ruled in ink', () => {
+    const { container, scores } = mount();
+    const making = regionOf(container, 'making');
+    const line = making.querySelector('.region-waterline')!;
+
+    // §4.3: the line sits at height `1 − fill` of the region's own box. The
+    // fixture's regions are 100 tall from y=0 (`squarePath`).
+    const fill = scores.get('making')!.fill;
+    expect(Number(line.getAttribute('y1'))).toBeCloseTo(100 * (1 - fill), 6);
+    // Horizontal, and spanning the region.
+    expect(line.getAttribute('y1')).toBe(line.getAttribute('y2'));
+    expect(Number(line.getAttribute('x2'))).toBeGreaterThan(Number(line.getAttribute('x1')));
+    // Clipped to the silhouette, so it never rules across a neighbour.
+    expect(line.getAttribute('clip-path')).toMatch(/^url\(#.+\)$/);
+  });
+
+  it('A3 — a region at fill 0 differs from a high one only by the line', () => {
+    const { container } = mount({ rows: [] });
+    // With no rows at all every fill is 0, so every water line sits on its
+    // region's *base* — an empty region is at low water, not at high. (Getting
+    // this backwards is the easy mistake: `1 − fill` is a y in a downward axis.)
+    for (const domain of ['making', 'mind']) {
+      const region = regionOf(container, domain);
+      expect(Number(region.querySelector('.region-waterline')!.getAttribute('y1'))).toBeCloseTo(100, 6);
+      // The plate is still there, still at full hue. An empty domain is drawn,
+      // not faded out.
+      expect(region.querySelector('.region-plate')).not.toBeNull();
+      expect(region.querySelector('.region-outline')).not.toBeNull();
+      expect(region.querySelector('.region-label')?.textContent?.trim().length).toBeGreaterThan(0);
+    }
   });
 
   it('carries no band threshold of its own (T26/F18)', () => {
@@ -206,9 +264,39 @@ describe('MapRenderer — fog (§10.5, F22)', () => {
     expect(play.classList.contains('is-fogged')).toBe(true);
     expect(play.querySelector('.region-label')?.textContent?.trim()).toBe(FOG_AFFORDANCE);
     expect(play.getAttribute('aria-label')).toBe('Play. No skills published yet — contribute one.');
-    // No quantitative channel on a region the library has nothing for.
-    expect(play.querySelector('.region-fill')).toBeNull();
+    // No quantitative channel on a region the library has nothing for. The
+    // water line especially: an empty region drawn with a line at the bottom
+    // says "scored zero", and §4.4's whole point is that it is not scored.
+    expect(play.querySelector('.region-below')).toBeNull();
+    expect(play.querySelector('.region-waterline')).toBeNull();
     expect(play.querySelector('.region-breadth')).toBeNull();
+
+    // Unsurveyed, not blank: the ruling is what carries F22's invitation
+    // visually, and it is drawn from the one shared pattern.
+    const hachure = play.querySelector('.region-hachure');
+    expect(hachure).not.toBeNull();
+    expect(hachure!.getAttribute('fill')).toMatch(/^url\(#.*-hachure\)$/);
+    expect(play.querySelector('.region-plate')?.classList.contains('is-hachured')).toBe(true);
+  });
+
+  it('rules every fogged region at one spacing, from §4.4’s three constants', () => {
+    const { container } = mount();
+
+    // `userSpaceOnUse`, so two equally unsurveyed regions are ruled identically
+    // rather than in proportion to their own size.
+    const pattern = container.querySelector('pattern[id$="-hachure"]')!;
+    expect(pattern.getAttribute('patternUnits')).toBe('userSpaceOnUse');
+    expect(pattern.getAttribute('patternTransform')).toBe('rotate(45)');
+    expect(pattern.getAttribute('width')).toBe(String(HACHURE_SPACING));
+    expect(pattern.querySelector('line')?.getAttribute('stroke-width')).toBe(
+      String(HACHURE_STROKE),
+    );
+
+    // The plate opacity reaches the stylesheet as a variable, so the number has
+    // one home rather than two that can drift apart.
+    expect(container.querySelector('svg')?.getAttribute('style')).toContain(
+      `--hachure-plate: ${HACHURE_PLATE_OPACITY}`,
+    );
   });
 
   it('does not fog a published domain the user has never touched', () => {
@@ -227,7 +315,7 @@ describe('MapRenderer — subregions (§10.6, F27)', () => {
     const subregions = making.querySelector('.subregions');
 
     expect(subregions).not.toBeNull();
-    expect(subregions!.querySelectorAll('.region-fill')).toHaveLength(0);
+    expect(subregions!.querySelectorAll('.region-below')).toHaveLength(0);
     expect(subregions!.querySelectorAll('.region-outline')).toHaveLength(0);
 
     const boundaries = subregions!.querySelectorAll('.subregion-boundary');

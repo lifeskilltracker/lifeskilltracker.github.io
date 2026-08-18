@@ -117,6 +117,43 @@ export function fillRect(bounds: Box, fill: number): Box {
   return { x: bounds.x, y: bounds.y + bounds.height - height, width: bounds.width, height };
 }
 
+/**
+ * A3 / §4.3 — **the water line**, and the single most important rule in the
+ * interface spec.
+ *
+ * The obvious implementation of "fill" is opacity: a domain at 18% renders its
+ * colour at 18%. It is wrong, and it was wrong in this design's own first draft.
+ * A domain at 18% is *a domain with a low water line*, not *a faded domain* —
+ * and since most domains are low-scoring most of the time, opacity-as-fill
+ * drains the whole map of colour exactly when it is most needed and destroys the
+ * per-region identity F21 asks for. It also violates §10.5's own requirement
+ * that a partly-filled region keep its full-strength outline and label.
+ *
+ * So the plate renders at `--plate-open` at *every* score, the score is this
+ * horizontal line at height `1 − fill`, and the plate goes to full opacity below
+ * it. Two regions at different scores differ by the height of this line and by
+ * nothing else — which is the property `MapRenderer.test.ts` asserts directly.
+ *
+ * `fill` stays §11.6's concave `s/(s+k)` curve and is never a raw percentage
+ * anywhere on the map (F34).
+ */
+export function waterLine(fill: number, bounds: Box): { y: number } {
+  const fraction = Math.min(1, Math.max(0, fill));
+  return { y: bounds.y + bounds.height * (1 - fraction) };
+}
+
+/**
+ * §4.4's hachure — 45° ruling for a domain with no published trees. Unsurveyed
+ * ground rather than empty ground, which is F22's whole intent: the fogged
+ * region is a promise and an invitation, not an absence.
+ *
+ * The pattern is declared once in `<defs>` and referenced by every fogged
+ * region, so the spacing is a single number rather than one per region.
+ */
+export const HACHURE_SPACING = 6;
+export const HACHURE_STROKE = 0.7;
+export const HACHURE_PLATE_OPACITY = 0.1;
+
 const DATE_FORMAT = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'long',
@@ -178,5 +215,33 @@ export function regionAccessibleName(
     `${breadthText(score.breadth)}.`,
     `Fill: ${bandFor(score.fill)}.`,
     `${formatLastActivity(score.lastActivityAt)}.`,
+  ].join(' ');
+}
+
+/**
+ * §8.2 — **camera transitions are announced, not just animated.** Entering a
+ * domain says the region name, band, breadth, and how many skills the library
+ * publishes there.
+ *
+ * The published count is the one channel here that is *not* on the region at
+ * level 0, and it is the one a reader arriving at level 1 most needs: it is the
+ * difference between "this domain is empty for me" and "this domain is empty".
+ * As everywhere else on the map, fill arrives as its named band and never as a
+ * number (F34).
+ */
+export function domainEntryAnnouncement(
+  title: string,
+  score: DomainScore,
+  publishedSkills: number,
+  fogged: boolean,
+): string {
+  if (fogged) {
+    return `${title}. No skills published yet — contribute one.`;
+  }
+  return [
+    `${title}.`,
+    `Fill: ${bandFor(score.fill)}.`,
+    `${breadthText(score.breadth)}.`,
+    `${publishedSkills} skill${publishedSkills === 1 ? '' : 's'} published.`,
   ].join(' ');
 }

@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete |
 | **Phase** | 2 |
 | **Cluster** | views |
 | **Blocked by** | T29, T30 |
@@ -98,22 +98,22 @@ export function neighbourInDirection(
 
 ## Acceptance criteria
 
-- [ ] Level 0 renders no skill hexes; level 1 renders exactly the published trees of the
+- [x] Level 0 renders no skill hexes; level 1 renders exactly the published trees of the
       focused domain, each at its ledger cell.
-- [ ] Every hex's accessible name carries title, attained level, tier, started-ness and
+- [x] Every hex's accessible name carries title, attained level, tier, started-ness and
       mastery — everything the four visual channels carry (§15.3).
-- [ ] No channel is colour-only: an unstarted and a started hex differ in border style, and
+- [x] No channel is colour-only: an unstarted and a started hex differ in border style, and
       a mastery hex carries a real `<use>` glyph that survives `forced-colors: active`.
-- [ ] Clicking a hex opens the panel and does **not** navigate; **Open tree** navigates to
+- [x] Clicking a hex opens the panel and does **not** navigate; **Open tree** navigates to
       `/s/<treeId>`. Asserted as two separate interactions.
-- [ ] Every hex is a real link with a resolved `href`, reachable by keyboard in the
+- [x] Every hex is a real link with a resolved `href`, reachable by keyboard in the
       documented order; arrow keys traverse by nearest neighbour; `Esc` returns to level 0.
-- [ ] At phone width, level 0 renders the map and level 1 renders the list. Asserted at
+- [x] At phone width, level 0 renders the map and level 1 renders the list. Asserted at
       both widths against the same data.
-- [ ] The list and the hex layer carry the same skills in the same order.
-- [ ] Adding a tree to a fixture domain changes one hex and moves none of the others
+- [x] The list and the hex layer carry the same skills in the same order.
+- [x] Adding a tree to a fixture domain changes one hex and moves none of the others
       (N11, inherited from T29 and asserted here at the render layer).
-- [ ] `app/a11y/manual-passes.mjs` passes unchanged.
+- [x] `app/a11y/manual-passes.mjs` passes unchanged.
 
 ## Verification
 
@@ -138,3 +138,78 @@ npm run check:budget
   budget surprise.
 - **Placement comes from the manifest, never re-derived in the app.** Re-running the spiral
   client-side would put an N11 guarantee in two places, and they would disagree.
+
+## Outcome — what the build settled
+
+Every acceptance criterion is met and the composed gate is green: **1021 + 349 tests**,
+`svelte-check` 563 files 0 errors, `eslint` clean, `a11y:manual` **43 of 43 unchanged**,
+budget **51.6 / 52.0 kB** first route, `check:s1` holds. Verified end to end in a real
+browser against the built app: `/` draws no hexes, `/d/making` draws them, clicking one
+leaves the URL where it was and opens the panel, and **Open tree** is the only thing that
+navigates.
+
+### The hazard the task doc named, answered in two halves
+
+`hasMastery` is now a **required field on the manifest**, and the panel loads a bundle.
+
+- **The hexes never fetch.** A level-1 frame draws a glyph decision for *every* skill in
+  the domain; deciding it per bundle would put twenty chunk fetches on that frame, which is
+  exactly what §7.1's small-manifest/large-chunks split exists to prevent. So the one fact
+  the map needed and did not have — whether a tree publishes mastery content — moved onto
+  the manifest, in `schema/manifest.schema.json` and `tools/src/compile/manifest.ts`, with
+  a compile test asserting it in both directions.
+- **The panel does fetch, on a gesture.** Progress to next, the blocking level and the next
+  available milestone are all functions of the compiled tree and no summary of them belongs
+  on the manifest. One bundle, when a panel opens, off the critical path. The panel paints
+  its manifest half first, so opening it never looks like nothing happened, and a failed
+  load is a **degraded panel, not an absent one**.
+
+### §17.1 was the binding constraint, and it bound immediately
+
+The first draft took `App JS, first route` to **52.9 / 52.0 kB** — over the gate the moment
+it was written, because everything level 1 needs was reachable from the shell. Two changes
+brought it to 51.6:
+
+- **`SkillHexLayer`, `DomainSkillList`, `SkillDetail` and `skill-detail.ts` are all
+  `import()`ed on demand.** They are level-1 only, and level 0 is the route every visitor
+  lands on. §5.6 already holds the layer 120 ms behind the camera and fades it over 260 ms,
+  so the chunk lands inside a window that already exists.
+- **`readingOrder` was rewritten to sort on integers**, and the hex geometry moved out of
+  `camera.ts` into its own `skill-hex.ts`. On a pointy-top lattice `y` is monotonic in `r`
+  and, within a row, `x` is monotonic in `q` — so `(r, q)` *is* reading order, and the
+  ordering the shell needs no longer drags the corner table and the path builder onto the
+  first route.
+
+**There is now 0.4 kB of first-route headroom.** T33 and T35 should assume the budget is
+spent and reach for a chunk before reaching for the shell.
+
+### Judgment calls worth a second opinion
+
+- **§5.5's arrow keys use a ±60° cone, and diagonals answer two keys.** A pointy-top hex
+  has neighbours at 0°/60°/120°/180°/240°/300° and *nothing* at 90°: the cell below
+  `(q, r)` is `(q − 1, r + 2)`, two rows away. Four arrow keys cannot partition six
+  directions, and any cone narrow enough to keep `down` off the diagonals makes `down` skip
+  a whole row. The cost — `→` at the end of a row moving down-and-right — is asserted
+  explicitly rather than hidden, because the alternative strands the reader.
+- **`MapRenderer` keeps its `viewport` prop and its region list.** U-10 moves the *choice*
+  to `MapSurface`, which passes `viewport="map"` unconditionally, so the level-0 list is
+  no longer reachable from the shell. The markup was kept rather than deleted because §8.1
+  says §15.3's convergence claim "must be restated, not dropped" and names the region list
+  as what the screen reader gets at the world level; deleting it would have removed the
+  only place that claim is asserted. **If that reading is wrong, the list should go.**
+- **The glyph channel is two marks, not one.** §5.4's cell reads "mastery content present,
+  level 10 attained", which is a list of the channel's values in the same shape as the
+  border's "started (solid) vs unstarted (dashed)". So `hasMastery` (library) and
+  `attainedMax` (reader) are separate facts with separate glyphs and separate sentences in
+  the accessible name.
+
+### Still open, and handed on
+
+**T30's skill-label question is not settled and was deliberately not settled here.**
+`SKILL_LABEL_WORLD_SIZE` still resolves to 12–13 px for `play` and `outdoors-nature`
+against §5.2's 14–18 px band. Nothing in T31's criteria depends on it and the hexes are
+legible at that size, so shipping the layer did not require an answer — but the answer is a
+**UI-SPEC amendment**, not a code change, and it belongs to whoever is willing to widen
+§5.2's band (recording that two extreme-aspect regions set the floor) or to refit level 1
+to a constant box (which crops `outdoors-nature`, 381 wide, or wastes the frame on `play`).
+Do not hand-tune the constant until one number passes.

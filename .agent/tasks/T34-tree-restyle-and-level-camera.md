@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete |
 | **Phase** | 2 |
 | **Cluster** | views |
 | **Blocked by** | T27 |
@@ -106,21 +106,21 @@ export function visualFor(state: NodeState): MilestoneVisual;
 
 ## Acceptance criteria
 
-- [ ] Node positions are byte-identical before and after the restyle. Asserted against a
+- [x] Node positions are byte-identical before and after the restyle. Asserted against a
       layout fixture — this is the check that keeps the task a restyle.
-- [ ] All five states render their specified glyph, plate and border, and each is
+- [x] All five states render their specified glyph, plate and border, and each is
       distinguishable with colour removed. Asserted by a test that strips fill.
-- [ ] Glyphs remain `<use>` elements and survive `forced-colors: active`.
-- [ ] No colour-only encoding is introduced: the existing §15.4 redundancy assertions pass
+- [x] Glyphs remain `<use>` elements and survive `forced-colors: active`.
+- [x] No colour-only encoding is introduced: the existing §15.4 redundancy assertions pass
       unchanged.
-- [ ] `.` moves focus to the next available milestone **and** brings the camera to it.
-- [ ] The three camera targets resolve correctly on a ten-level fixture tree, including a
+- [x] `.` moves focus to the next available milestone **and** brings the camera to it.
+- [x] The three camera targets resolve correctly on a ten-level fixture tree, including a
       tree with no available milestone and a tree at level 10.
-- [ ] Under `prefers-reduced-motion: reduce` the camera moves instantly and nothing is lost.
-- [ ] Arrow-key traversal and roving `tabindex` behave exactly as before. The existing
+- [x] Under `prefers-reduced-motion: reduce` the camera moves instantly and nothing is lost.
+- [x] Arrow-key traversal and roving `tabindex` behave exactly as before. The existing
       `TreeView.test.ts` and `TreeView.a11y.test.ts` keyboard assertions pass unchanged.
-- [ ] No colour literal remains in `TreeView.svelte` (T27's tokens only).
-- [ ] `app/a11y/manual-passes.mjs` passes unchanged.
+- [x] No colour literal remains in `TreeView.svelte` (T27's tokens only).
+- [x] `app/a11y/manual-passes.mjs` passes unchanged.
 
 ## Verification
 
@@ -143,3 +143,33 @@ npm run check:budget
 - **`a11y/manual-passes.mjs` was written against roles and accessible names only, with no
   CSS selector, no pixel and no screenshot, specifically so the UI could be reworked
   without breaking it.** If it fails here, that is a real regression, not test churn.
+
+## Outcome — what the task doc left open, and how it was settled
+
+- **"Plates at `--plate-open`" and "a water line on the level header" are one thing.**
+  Each level band gains a 20-unit header strip inked with the domain plate at
+  `--plate-open`, and §4.3's water line is ruled across it in ink at `--rule-water`, with
+  the plate at full strength below the line. The whole row band is *not* plated: ten bands
+  of 52% domain ink is a wash, and the map's own model says the plate strength is constant
+  and the *line* is what moves. The line states nothing the per-group `n / m` readouts
+  beside it do not already state in text, so it adds no channel N5 has to police.
+- **§4.6's "open" plate is bare paper, not `--plate-open`.** Reading it as 0.52 would make
+  `available` darker than `bonus` at 0.42, which inverts the table it comes from.
+  `locked`/`dismissed` keep §9.3's "recessed" as a neutral `--rule` wash rather than a
+  third strength of the domain ink — a third strength would read as a third score, which
+  §4.3 forbids the plate from carrying.
+- **A label on a full-strength plate is reversed to `--paper`, not haloed.** The node
+  label is HTML in a `foreignObject` and has no `paint-order` to halo with. The `.halo`
+  class is used where it works — the SVG level labels — with only its *width* overridden
+  locally, since 2.8 world units is sized for a map region and would swallow 10px type.
+- **The camera scrolls a viewport the wide tree owns** (`.tree-camera`,
+  `max-block-size: 78svh`), rather than the document. Narrow is untouched: §9.5's stack
+  scrolls itself and §7 leaves its presentation unchanged, so the controls are wide-only.
+- **`.` moves the camera to the level focus actually landed on**, not to
+  `next-available`'s own answer — `.` wraps through every available milestone in turn, so
+  the camera must show the one the user just reached.
+- **`tree-camera.ts` declares its inputs structurally** (`CameraLayout`, `CameraProgress`)
+  rather than importing `$lib/layout`, exactly as `keyboard-grid.ts` does. §13.4 keeps
+  `TreeView` the only view-layer file that may name the Layout Engine, and
+  `view-boundaries.test.ts` enforces it; a real `TreeLayout`/`SkillProgress` satisfies the
+  structural types without a cast.

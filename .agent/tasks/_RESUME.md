@@ -1,6 +1,152 @@
 # RESUME — implementation
 
-Updated 2026-08-16: **T27, T28 and T29 are complete.** Phase 2 is under way.
+Updated 2026-08-17: **T27–T32 and T34 are complete.** Only T33 and T35 remain.
+
+# SESSION 25 — T31 COMPLETE. THE MAP ANSWERS "WHAT IS IN THIS DOMAIN".
+
+Composed verification: **1021 + 349 tests**, `svelte-check` 563 files 0 errors, `eslint`
+clean, `a11y:manual` **43 of 43**, budget **51.6 / 52.0 kB**, `check:s1` holds. Checked end
+to end in a real browser: clicking a hex leaves the URL alone and opens the panel; **Open
+tree** is the only thing that navigates.
+
+**T33 is the next actionable task**; T35 needs it. Two things to read before starting.
+
+## §17.1 is now the binding constraint — 0.4 kB of first-route headroom
+
+T31's first draft took `App JS, first route` to **52.9 / 52.0 kB**, over the gate the moment
+it was written, because everything level 1 needs was reachable from the shell. It is at
+**51.6** now, and that took two changes:
+
+- Every level-1 component (`SkillHexLayer`, `DomainSkillList`, `SkillDetail`) and
+  `skill-detail.ts` are `import()`ed on demand.
+- `readingOrder` was rewritten to sort on `(r, q)` integers, and the hex geometry moved out
+  of `camera.ts` into `skill-hex.ts`, so the ordering the shell needs no longer drags the
+  corner table onto the first route.
+
+**Find and Info should be a chunk, not a shell import.** Assume the budget is spent. And
+note the tab-budget warning from session 23 still stands: the sidebar is 14 of 16 tabs.
+
+## A new required manifest field
+
+**`hasMastery` is required on `manifest.trees[]`** (schema + `tools/src/compile/manifest.ts`
++ generated types). The map draws a glyph decision for every skill in a domain at once, so
+reading it from bundles would put twenty fetches on a level-1 frame. Anything else the map
+needs *per skill* belongs on the manifest for the same reason; anything only a *panel*
+needs belongs in the bundle, fetched on the gesture that opens it.
+
+## Still unsettled, and it is a spec change
+
+**T30's skill-label band.** `SKILL_LABEL_WORLD_SIZE` resolves to 12–13 px for `play` and
+`outdoors-nature` against §5.2's 14–18 px. T31 did not need an answer and did not invent
+one. The fix is a **UI-SPEC amendment**: widen the band and record that two extreme-aspect
+regions set the floor, or refit level 1 to a constant box (which crops `outdoors-nature` at
+381 wide, or wastes the frame on `play`). **Do not hand-tune the constant** — the sizes
+being derived is what makes §5.1's LOD argument hold at 500 nodes.
+
+## One judgment call to sanity-check
+
+`MapRenderer` **kept** its `viewport` prop and its region list, even though U-10 means no
+caller passes `'list'` any more. §8.1 says §15.3's convergence claim "must be restated, not
+dropped" and names the region list as what the screen reader gets at the world level, and
+deleting it would remove the only place that claim is asserted. If that reading is wrong,
+the list and the prop should both go.
+
+# SESSION 24 — T30 COMPLETE. THE MAP HAS A CAMERA, AND THE SHELL HOLDS IT.
+
+Composed verification: **950 + 348 tests pass**, `svelte-check` 551 files 0 errors,
+`eslint` clean, `a11y:manual` **43 of 43**, budget **58.8 / 82.0 kB**, `check:s1` holds,
+and `build/d/` holds all eight prerendered listings.
+
+**The next actionable task is T31**, and it is still the only one: T33 needs T30 and T31,
+T35 needs all four. Nothing in phase 2 parallelises.
+
+## The one defect, and why nothing caught it sooner
+
+`Shell.svelte` guarded its `ResizeObserver` with `element === undefined`. **A `bind:this`
+clears to `null`.** The shell outlives the `<main>` it binds, so leaving the map for
+`/library` re-ran the effect with the element gone, called `observe(null)`, threw, and took
+the client runtime down with it — after which every navigation changed the URL and rendered
+nothing.
+
+Only `a11y:manual` saw it, because **every unit test mounts the shell at one path and none
+of them leaves the map**. A cold load of `/s/piano` was fine and so was
+`/library → /s/piano`; only `/ → /library → /s/piano` failed, which made it read as a
+tree-route problem for a while. If you add shell state that binds to something inside
+`{#if onMap}`, the route it breaks is the one you did not navigate to.
+
+## For T31 — the label band does not hold, and that is your call
+
+`SKILL_LABEL_WORLD_SIZE` resolves to **12–13 px for `play` and `outdoors-nature`** against
+§5.2's 14–18 px. Those two fit by their long axis (208×260 and 381×140) and so zoom least;
+§5.3 already names them as the pair that "set the floor" but does not notice they fall under
+its own. `camera.test.ts` asserts the shortfall by name rather than hiding it.
+
+Widen the band, or fit level 1 to a constant box. **Do not hand-tune the constant until one
+number passes** — the LOD argument in §5.1 is structural precisely because the sizes are
+derived, and a tuned constant stops it holding at 500 nodes.
+
+Also for T31: the map surface is mounted by `Shell.svelte`, not by either route, and
+neither route declares a `<main>`. Skill hexes go into `MapRenderer`, which draws whatever
+`ViewBox` it is handed and holds no camera state of its own.
+
+# SESSION 23 — T32 AND T34, BUILT IN PARALLEL. THE PARALLEL FRONT IS NOW EXHAUSTED.
+
+Both were blocked only by T27 and touch disjoint files, so they were built simultaneously
+in separate worktrees and merged with **no conflicts**. Composed verification after the
+merge: 901 + 348 tests pass, `svelte-check` 547 files 0 errors, `a11y:manual` **43 of 43
+unchanged**, budget 57.7/82.0 kB, `check:s1` holds, `eslint` clean.
+
+**The next actionable task is T30, and it is the only one.** T31 needs T30; T33 needs T30
+and T31; T35 needs all four. There is nothing left to parallelise in phase 2.
+
+## Retire the session-22 note about three failing tests
+
+Session 22 recorded that the `dismiss/undismiss` property test and two axe gates "fail
+identically on a clean tree". **They do not.** Both agents went looking and neither
+reproduced it. What is actually there:
+
+- `domains.test.ts` fails **before a compile** — it needs `static/content/manifest.json`.
+  Run `npm run build` first. (CI already orders it this way as of `d7577f0`.)
+- `s/[tree]/page-render.test.ts`'s axe gate is a **timing flake** under full-suite load
+  (~5.6 s); it passes in isolation and on re-run.
+- The `dismiss/undismiss` property test is randomized and passed every run.
+
+Do not spend time on these three as if they were a standing regression.
+
+## Carried forward — read before T33
+
+- **The tab budget is now the binding a11y constraint.** Reaching the first milestone on
+  `/s/piano` costs **16 tabs** against `manual-passes.mjs`'s `< 20`, up from 7, and it
+  **grows by one per started skill**. The sidebar is 14 of the 16. T33's Find and Info are
+  map affordances and must sit behind the same route guard the next-step card uses — do not
+  add tab stops before `main` on the tree route. When the check finally trips, the right fix
+  is to re-anchor it to count tabs *inside* `main`, not to raise the number.
+- **`domain.test.ts` greps every source file for the band thresholds** `0.15 / 0.35 / 0.55 /
+  0.72`. It catches innocent CSS like `font-size: 0.72rem`. T32 hit this and worked around
+  it with `0.7` / `0.16` / `0.36`.
+
+## For T31 specifically
+
+`app/src/lib/components/node-state.ts` is the **single producer** of the §4.6 mapping:
+
+```ts
+export function visualFor(state: NodeState): MilestoneVisual;   // NodeState, not `| undefined`
+export const MILESTONE_VISUAL: Record<NodeState, MilestoneVisual>;
+```
+
+Consume `visualFor`. Do not re-map states — the cross-task invariant exists because two
+surfaces will otherwise disagree about what `bonus` looks like. `presentationFor` is the
+SVG-attribute rendering of the same table and is now derived from `visualFor`.
+
+## Two judgment calls worth a second opinion
+
+- **§4.6's "open" plate shipped as bare paper, not `--plate-open`.** Reading it as 0.52
+  makes `available` darker than `bonus` at 0.42, inverting the table's own ordering.
+  `locked`/`dismissed` got a neutral `--rule` wash instead, on the grounds that a third
+  strength of domain ink would read as a third score. This is a departure from the spec's
+  literal text, recorded in T34's Outcome section.
+- **UI-SPEC Q3 shipped as recency with no flag**, as specified. Revisit once three trees
+  exist, per T32's scope.
 
 # SESSION 22 — T29 COMPLETE. EVERY SKILL HAS A POSITION NOBODY AUTHORED.
 

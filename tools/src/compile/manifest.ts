@@ -26,6 +26,16 @@ export interface ManifestTreeEntry {
   milestoneCount: number;
   authors: string[];
   bundle: string;
+  /**
+   * Whether the tree publishes mastery content (§5.4's glyph channel, T31).
+   *
+   * It is here rather than read from the bundle because the map draws this
+   * glyph for *every* skill in a domain at once: a level-1 frame would have to
+   * fetch twenty bundles to decide twenty glyphs, which is precisely the
+   * first-paint cost §7.1 splits the manifest from the chunks to avoid. A
+   * boolean per tree is the cheapest form of the fact that answers it.
+   */
+  hasMastery: boolean;
   /** The tree's committed sub-lattice cell (§5.3). Absent only before T29's ledger exists. */
   cell?: Cell;
 }
@@ -58,6 +68,9 @@ function manifestTreeEntry(tree: Tree, bundlePath: string, cell?: Cell): Manifes
     milestoneCount: countMilestones(tree),
     authors: tree.provenance.authors.map((author) => author.name),
     bundle: bundlePath,
+    // Presence, not count: §5.4 spends a glyph on "there is mastery content
+    // here", and a number would be a fifth channel the hex has no room for.
+    hasMastery: (tree.mastery?.length ?? 0) > 0,
   };
   if (tree.secondaryDomains) {
     entry.secondaryDomains = tree.secondaryDomains;

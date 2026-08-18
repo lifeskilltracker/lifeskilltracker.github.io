@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete |
 | **Phase** | 2 |
 | **Cluster** | views |
 | **Blocked by** | T27 |
@@ -105,22 +105,22 @@ export interface DomainProgressRow { domain: DomainId; band: string; started: nu
 
 ## Acceptance criteria
 
-- [ ] The top nav bar is gone; `grep -rn "nav" app/src/routes/+layout.svelte` shows the
+- [x] The top nav bar is gone; `grep -rn "nav" app/src/routes/+layout.svelte` shows the
       sidebar as the only primary navigation.
-- [ ] The four blocks render in the specified order, and block 2 highlights the active
+- [x] The four blocks render in the specified order, and block 2 highlights the active
       domain at level 1.
-- [ ] Block 3 links directly to `/s/<treeId>` — reaching a started skill from a cold load
+- [x] Block 3 links directly to `/s/<treeId>` — reaching a started skill from a cold load
       takes one click and never touches the map.
-- [ ] With no started skills, block 3 renders an invitation with a real action, not an
+- [x] With no started skills, block 3 renders an invitation with a real action, not an
       empty list.
-- [ ] Block 4 renders each domain's band **name** and started count as text; no number in
+- [x] Block 4 renders each domain's band **name** and started count as text; no number in
       it is a raw fill percentage (F34).
-- [ ] Collapsing the sidebar persists across a reload and does not shift the map's camera.
-- [ ] `selectNextStep` picks the most-recently-active skill's next available milestone, and
+- [x] Collapsing the sidebar persists across a reload and does not shift the map's camera.
+- [x] `selectNextStep` picks the most-recently-active skill's next available milestone, and
       breaks ties by tree id — asserted over a fixture with two equal timestamps.
-- [ ] The card is exposed as a landmark and is reachable by keyboard before the map.
-- [ ] Dismissing the card hides it for the session and it returns on the next load.
-- [ ] `app/a11y/manual-passes.mjs` passes unchanged.
+- [x] The card is exposed as a landmark and is reachable by keyboard before the map.
+- [x] Dismissing the card hides it for the session and it returns on the next load.
+- [x] `app/a11y/manual-passes.mjs` passes unchanged.
 
 ## Verification
 
@@ -144,3 +144,48 @@ npm run check:budget
   and a second producer of this row is exactly the drift F4 closed at the engine boundary.
 - **`.`'s existing behaviour in the tree is unchanged.** The card is its map-level
   counterpart, not a replacement, and T34 owns the tree-side visual counterpart.
+
+## What landed, and the calls the task left open
+
+- **The sidebar lives in `routes/Shell.svelte`, not in `+layout.svelte` itself.** A6 says
+  "`+layout` gains the sidebar"; `Shell.svelte` *is* the layout's implementation and exists
+  so its dependencies can be injected (T14). `+layout.svelte` now reads `page.url.pathname`
+  and hands it down — a route component is the only place a router state read belongs, and
+  passing it keeps the shell mountable without a router, which is what makes §13.3's four
+  branches testable at all.
+- **`NextStep` gained a `milestoneSlug`.** §6.4 requires activating the card to *open the
+  milestone*, §13.1 addresses a milestone by slug, and the uid has no route. The uid is kept
+  beside it because it is the stable identity.
+- **`DomainProgressRow` gained a `title`** — the taxonomy's display name — so the sidebar
+  never re-derives one and `bandFor` stays behind `lib/actions` (§13.4 forbids a component
+  importing the Scoring Engine).
+- **The card renders on `/` and `/d/<domainId>` only.** §6.4 scopes it to the map; inside a
+  tree, F36's `.` shortcut already answers the question, and a second answer two rows from
+  the one the user is reading is worse than none.
+- **A skill whose available set is empty is skipped, not named.** The rule falls through to
+  the next-most-recent skill. A tree with everything left locked or dismissed has no
+  concrete action, and the card promises one.
+- **The card has three view states, not two.** `pending` covers the gap between "the
+  manifest resolved" and "the started bundles were scored"; without it a returning Player
+  is shown the invitation to start something while their own progress is still loading —
+  the display twin of §13.3's "read as empty, then wrote".
+- **Dismissal lives in `ui.svelte.ts`, in memory.** `sessionStorage` would survive a
+  reload, which is the wrong scope: §6.4 wants a dismissal that outlives a camera move and
+  dies at the reload.
+- **Collapsed state lives in `lib/components/sidebar-collapse.svelte.ts`** on the
+  `theme.svelte.ts` model — a chrome preference in `localStorage`, not user data, so
+  `lib/state` keeps meaning "the only user-data writer".
+- **"Does not shift the map's camera" is asserted as DOM identity**: `<main>` is the same
+  node before and after a toggle, so nothing remounts. The map does get wider, which is a
+  resize the SVG `viewBox` absorbs, not a camera move.
+- **UI-SPEC §12 Q3 was not implemented in any form.** Recency ships; there is no flag.
+
+### For whoever picks up T33 or the integration
+
+The keyboard traversal on `/s/<treeId>` now costs **16 tab stops** to reach the first
+milestone against `manual-passes.mjs`'s `< 20` (it was 7). The sidebar is 14 of those and
+grows by one per started skill, so the check trips once a user has started four skills in a
+library that has them. The check's intent is "the tree is one tab stop, not fifty"; when it
+next fails it should be re-anchored to count tabs *inside* `main` rather than from the top
+of the document. **T33 must not add tab stops before `main` on the tree route** — Find and
+Info are map affordances and belong behind the same route guard the card uses.
