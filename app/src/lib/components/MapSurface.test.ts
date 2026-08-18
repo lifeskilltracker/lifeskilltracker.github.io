@@ -15,10 +15,11 @@
  * destination on the very next flush, with no frame ever requested.
  */
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, flushSync, render } from './test-harness.svelte.js';
 import MapSurface from './MapSurface.svelte';
 import { fit, type CameraLevel } from './camera.js';
+import type { SkillHexRow } from '$lib/actions/skill-hexes.js';
 import type { DomainId, DomainScore, Manifest } from '$lib/types';
 
 const palette = { light: { base: '#123456', accent: '#abcdef' }, dark: { base: '#123456', accent: '#abcdef' } };
@@ -248,5 +249,131 @@ describe('§5.2 — the outline steps with the level', () => {
 		mounted.props.level = { level: 1, domain: 'home' };
 		flushSync();
 		expect(widthAt()).toBe('0.9');
+	});
+});
+
+describe('U-10 — the threshold is the camera level, not the viewport (§8.1, T31)', () => {
+	/**
+	 * The table §8.1 states, asserted as a table. The failure it guards is the
+	 * one U-10 exists to fix: a phone visitor who never sees the map at all.
+	 */
+	const ROWS: readonly SkillHexRow[] = [
+		{
+			treeId: 'cooking',
+			title: 'Cooking',
+			domain: 'home',
+			cell: { q: 0, r: 0 },
+			attainedLevel: 3,
+			started: true,
+			hasMastery: true,
+			attainedMax: false,
+			tier: 'Apprentice'
+		},
+		{
+			treeId: 'baking',
+			title: 'Baking',
+			domain: 'home',
+			cell: { q: 1, r: 0 },
+			attainedLevel: 0,
+			started: false,
+			hasMastery: false,
+			attainedMax: false,
+			tier: null
+		}
+	];
+
+	/**
+	 * Both level-1 components are `import()`ed on demand, and a *cold* module
+	 * graph takes more turns of the event loop to resolve than a warm one — which
+	 * would make these tests pass or fail by their order in the file. Resolving
+	 * them once up front removes that, and leaves `at()` waiting only for Svelte
+	 * to render an already-resolved promise.
+	 */
+	beforeAll(async () => {
+		await import('./SkillHexLayer.svelte');
+		await import('./DomainSkillList.svelte');
+	});
+
+	/**
+	 * The skill layer and the phone list are both `import()`ed on demand (§17.1 —
+	 * they are level-1 only and the first route's JS budget is 52 kB), so they
+	 * land a microtask after the render rather than during it. Awaiting here is
+	 * what a real browser does too; §5.6 already holds the layer back 120 ms
+	 * behind the camera, so the delay is invisible in use.
+	 */
+	async function at(level: CameraLevel, viewport: 'map' | 'list') {
+		const mounted = render(MapSurface, {
+			manifest: MANIFEST,
+			domainScores: SCORES,
+			level,
+			viewport,
+			skills: ROWS,
+			reducedMotion: true
+		});
+		// Macrotasks, not microtasks: the module graph has to resolve before the
+		// `{#await}` can render its `then` branch, and a cold chunk takes more than
+		// one turn. Flushing after each is what turns the resolution into DOM.
+		for (let i = 0; i < 5; i += 1) {
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			flushSync();
+		}
+		return mounted;
+	}
+
+	it('draws the map at level 0 on a phone, where it used to draw a list', async () => {
+		const { container } = await at({ level: 0 }, 'list');
+		expect(container.querySelector('svg.world-map')).not.toBeNull();
+		expect(container.querySelector('[data-skill-list]')).toBeNull();
+	});
+
+	it('draws the map at level 0 on a desktop', async () => {
+		const { container } = await at({ level: 0 }, 'map');
+		expect(container.querySelector('svg.world-map')).not.toBeNull();
+	});
+
+	it('substitutes the skill list at level 1 on a phone', async () => {
+		const { container } = await at({ level: 1, domain: 'home' }, 'list');
+		expect(container.querySelector('svg.world-map')).toBeNull();
+		expect(container.querySelector('[data-skill-list]')).not.toBeNull();
+	});
+
+	it('draws hexes at level 1 on a desktop', async () => {
+		const { container } = await at({ level: 1, domain: 'home' }, 'map');
+		expect(container.querySelector('[data-skill-layer]')).not.toBeNull();
+		expect(container.querySelectorAll('[data-skill]')).toHaveLength(2);
+	});
+
+	it('draws no hexes at level 0, whatever rows it is handed', async () => {
+		// The level gates the layer, not the rows: this is what bounds the
+		// labelled-hex count as the library grows to 500 (§5.1).
+		const { container } = await at({ level: 0 }, 'map');
+		expect(container.querySelector('[data-skill-layer]')).toBeNull();
+	});
+
+	it('carries the same skills in the same order in both presentations (A5)', async () => {
+		const names = (root: HTMLElement) =>
+			[...root.querySelectorAll('[data-skill]')].map((el) => el.getAttribute('data-skill'));
+
+		const hexes = await at({ level: 1, domain: 'home' }, 'map');
+		const order = names(hexes.container);
+		expect(order).toEqual(['cooking', 'baking']);
+		cleanup();
+
+		const list = await at({ level: 1, domain: 'home' }, 'list');
+		expect(names(list.container)).toEqual(order);
+	});
+
+	it('says the same things about a skill in both presentations (A5)', async () => {
+		const labelOf = (root: HTMLElement, id: string) =>
+			root.querySelector(`[data-skill="${id}"]`)?.getAttribute('aria-label');
+
+		const hexes = await at({ level: 1, domain: 'home' }, 'map');
+		const hexLabel = labelOf(hexes.container, 'cooking');
+		cleanup();
+
+		// The same builder feeds both, which is the only way the claim stays true.
+		const list = await at({ level: 1, domain: 'home' }, 'list');
+		expect(labelOf(list.container, 'cooking')).toBe(hexLabel);
+		expect(hexLabel).toContain('Level 3 of 10.');
 	});
 });

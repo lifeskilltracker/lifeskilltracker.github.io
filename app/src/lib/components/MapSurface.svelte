@@ -31,6 +31,10 @@
 		interpolate
 	} from './camera.js';
 	import { domainEntryAnnouncement, isFogged, regionBounds } from './map-presentation.js';
+	import type { SkillHexRow } from '$lib/actions/skill-hexes.js';
+
+	/** Level-1 only, so its own chunk — see `MapRenderer`'s note (§17.1). */
+	const domainSkillList = () => import('./DomainSkillList.svelte');
 
 	interface Props {
 		manifest: Manifest;
@@ -38,7 +42,12 @@
 		/** Where the URL says the camera is (§5.1 — every camera state is a URL). */
 		level: CameraLevel;
 		viewport: 'map' | 'list';
+		/** §5.4's rows for the focused domain, in §15.3's order (T31). */
+		skills?: readonly SkillHexRow[];
+		selectedSkill?: string | null;
 		onselect?: (selection: DomainSelection) => void;
+		onskillselect?: (row: SkillHexRow) => void;
+		onleavelevel?: () => void;
 		/**
 		 * Injected only by tests. In a browser this follows the media query, but
 		 * jsdom has no real one and §15.5's "instant, not faster" is exactly the
@@ -47,7 +56,40 @@
 		reducedMotion?: boolean;
 	}
 
-	let { manifest, domainScores, level, viewport, onselect, reducedMotion }: Props = $props();
+	let {
+		manifest,
+		domainScores,
+		level,
+		viewport,
+		skills = [],
+		selectedSkill = null,
+		onselect,
+		onskillselect,
+		onleavelevel,
+		reducedMotion
+	}: Props = $props();
+
+	/**
+	 * **U-10 — the threshold is the camera level, not the viewport** (§8.1, T31).
+	 *
+	 * ARCH §10.7 substituted a list below a width, so a phone visitor never saw
+	 * the map at all. The Curious Browser is disproportionately on a phone and the
+	 * map is the entire reason they might care, so the threshold was in the wrong
+	 * place. Eight labelled regions genuinely do fit a phone; *skill hexes* are
+	 * where labels stop being legible and 44×44 px touch targets stop fitting.
+	 *
+	 * So level 0 is a map on every viewport, and only level 1 substitutes — and
+	 * what it substitutes is the **skill** list, not the region list. The width
+	 * measurement is unchanged; only what it decides has moved.
+	 */
+	const substituteList = $derived(level.level === 1 && viewport === 'list');
+
+	const domainTitle = $derived(
+		level.level === 0
+			? ''
+			: (manifest.taxonomy.domains.find((entry) => entry.id === level.domain)?.title ??
+				level.domain)
+	);
 
 	const world = $derived({
 		regions: manifest.taxonomy.map.regions.map((region) => ({
@@ -148,7 +190,31 @@
 </script>
 
 <div class="map-surface" data-map-surface data-level={level.level}>
-	<MapRenderer {manifest} {domainScores} {viewport} {level} view={current} {onselect} />
+	{#if substituteList}
+		{#await domainSkillList() then list}
+			<list.default rows={skills} {domainTitle} onselect={onskillselect} />
+		{/await}
+	{:else}
+		<!--
+			`viewport="map"` unconditionally: U-10 moved the substitution above, and
+			passing the measured value through would reinstate the level-0 list this
+			task exists to remove. `MapRenderer` keeps the prop because its region
+			list is still §15.3's documented order made visible, and the a11y suite
+			compares the two orders against each other through it.
+		-->
+		<MapRenderer
+			{manifest}
+			{domainScores}
+			viewport="map"
+			{level}
+			view={current}
+			{skills}
+			{selectedSkill}
+			{onselect}
+			{onskillselect}
+			{onleavelevel}
+		/>
+	{/if}
 
 	<!--
 		Polite, and the map's own: §15.2 reserves "one shared live region" for the

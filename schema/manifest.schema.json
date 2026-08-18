@@ -157,9 +157,13 @@
           "items": { "type": "string", "minLength": 1 }
         },
         "bundle": { "type": "string", "minLength": 1 },
+        "hasMastery": {
+          "description": "Whether the tree publishes mastery content (UI-SPEC §5.4's glyph channel). Carried on the manifest rather than read from the bundle because the map draws this glyph for every skill in a domain at once, and deciding it per bundle would put twenty chunk fetches on a level-1 frame.",
+          "type": "boolean"
+        },
         "cell": { "$ref": "./placement.schema.json#/$defs/cell" }
       },
-      "required": ["id", "contentVersion", "title", "summary", "domain", "milestoneCount", "authors", "bundle", "cell"],
+      "required": ["id", "contentVersion", "title", "summary", "domain", "milestoneCount", "authors", "bundle", "hasMastery", "cell"],
       "additionalProperties": false
     }
   }

@@ -1,6 +1,55 @@
 # RESUME — implementation
 
-Updated 2026-08-17: **T27, T28, T29, T30, T32 and T34 are complete.** Phase 2 is under way.
+Updated 2026-08-17: **T27–T32 and T34 are complete.** Only T33 and T35 remain.
+
+# SESSION 25 — T31 COMPLETE. THE MAP ANSWERS "WHAT IS IN THIS DOMAIN".
+
+Composed verification: **1021 + 349 tests**, `svelte-check` 563 files 0 errors, `eslint`
+clean, `a11y:manual` **43 of 43**, budget **51.6 / 52.0 kB**, `check:s1` holds. Checked end
+to end in a real browser: clicking a hex leaves the URL alone and opens the panel; **Open
+tree** is the only thing that navigates.
+
+**T33 is the next actionable task**; T35 needs it. Two things to read before starting.
+
+## §17.1 is now the binding constraint — 0.4 kB of first-route headroom
+
+T31's first draft took `App JS, first route` to **52.9 / 52.0 kB**, over the gate the moment
+it was written, because everything level 1 needs was reachable from the shell. It is at
+**51.6** now, and that took two changes:
+
+- Every level-1 component (`SkillHexLayer`, `DomainSkillList`, `SkillDetail`) and
+  `skill-detail.ts` are `import()`ed on demand.
+- `readingOrder` was rewritten to sort on `(r, q)` integers, and the hex geometry moved out
+  of `camera.ts` into `skill-hex.ts`, so the ordering the shell needs no longer drags the
+  corner table onto the first route.
+
+**Find and Info should be a chunk, not a shell import.** Assume the budget is spent. And
+note the tab-budget warning from session 23 still stands: the sidebar is 14 of 16 tabs.
+
+## A new required manifest field
+
+**`hasMastery` is required on `manifest.trees[]`** (schema + `tools/src/compile/manifest.ts`
++ generated types). The map draws a glyph decision for every skill in a domain at once, so
+reading it from bundles would put twenty fetches on a level-1 frame. Anything else the map
+needs *per skill* belongs on the manifest for the same reason; anything only a *panel*
+needs belongs in the bundle, fetched on the gesture that opens it.
+
+## Still unsettled, and it is a spec change
+
+**T30's skill-label band.** `SKILL_LABEL_WORLD_SIZE` resolves to 12–13 px for `play` and
+`outdoors-nature` against §5.2's 14–18 px. T31 did not need an answer and did not invent
+one. The fix is a **UI-SPEC amendment**: widen the band and record that two extreme-aspect
+regions set the floor, or refit level 1 to a constant box (which crops `outdoors-nature` at
+381 wide, or wastes the frame on `play`). **Do not hand-tune the constant** — the sizes
+being derived is what makes §5.1's LOD argument hold at 500 nodes.
+
+## One judgment call to sanity-check
+
+`MapRenderer` **kept** its `viewport` prop and its region list, even though U-10 means no
+caller passes `'list'` any more. §8.1 says §15.3's convergence claim "must be restated, not
+dropped" and names the region list as what the screen reader gets at the world level, and
+deleting it would remove the only place that claim is asserted. If that reading is wrong,
+the list and the prop should both go.
 
 # SESSION 24 — T30 COMPLETE. THE MAP HAS A CAMERA, AND THE SHELL HOLDS IT.
 

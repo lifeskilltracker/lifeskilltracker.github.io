@@ -723,6 +723,24 @@ tasks:
     status: written
     doc: T31-skill-hex-layer.md
     note: >
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-17; task-doc status remains lifecycle
+      metadata. `hasMastery` is a NEW REQUIRED FIELD on the manifest (schema + compiler):
+      the map draws a glyph decision for every skill in a domain at once, so deciding it
+      per bundle would put twenty chunk fetches on a level-1 frame. The panel is the only
+      thing that fetches, on a gesture, and a failed load is a degraded panel not an
+      absent one.
+      §17.1 BOUND IMMEDIATELY: the first draft hit 52.9/52.0 kB. SkillHexLayer,
+      DomainSkillList, SkillDetail and skill-detail.ts are all `import()`ed on demand, and
+      `readingOrder` was rewritten onto integers so the hex geometry (now `skill-hex.ts`)
+      stays off the first route. THERE IS 0.4 kB OF HEADROOM LEFT — T33 and T35 should
+      reach for a chunk, not for the shell.
+      Arrow keys use a ±60° cone and diagonals answer two keys, because a pointy-top hex
+      has nothing at 90° and four keys cannot partition six directions.
+      U-10: MapSurface passes `viewport="map"` unconditionally; MapRenderer's region list
+      was KEPT because §8.1 says §15.3's convergence claim must be restated not dropped.
+      CARRIED FORWARD: T30's skill-label band (12-13 px for play and outdoors-nature vs
+      §5.2's 14-18) is STILL UNSETTLED. It is a UI-SPEC amendment, not a code change.
+      Original plan note follows.
       Level 1 draws the skills at T29's ledger cells, four channels each, none colour-only.
       The two-click path (hex → panel → Open tree) is deliberate and is the first thing an
       implementer will try to collapse. Carries U-10: the phone threshold moves from viewport

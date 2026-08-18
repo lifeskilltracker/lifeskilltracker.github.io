@@ -49,6 +49,19 @@
 		worldScores
 	} from '$lib/actions/domain-scores.js';
 	import { assembleNextStep, type NextStepSources } from '$lib/actions/next-step.js';
+	import { skillHexRows, type SkillHexRow } from '$lib/actions/skill-hexes.js';
+	import type { SkillDetail as SkillDetailData } from '$lib/actions/skill-detail.js';
+
+	/**
+	 * The panel and its assembly are both level-1, gesture-triggered, and behind
+	 * a `{#await}` for the same reason the hex layer is: §17.1's first-route JS
+	 * budget is 52 kB and the map at level 0 needs none of this (§7.1).
+	 *
+	 * `skill-detail.js` is imported dynamically too — it reaches `scoreSkill`,
+	 * and a panel nobody has opened should not put the Scoring Engine's level
+	 * evaluation on the first paint.
+	 */
+	const skillDetailPanel = () => import('$lib/components/SkillDetail.svelte');
 	import { exportPrompt } from '$lib/state/export-prompt.svelte.js';
 	import {
 		coldStart,
@@ -283,6 +296,74 @@
 		});
 	});
 
+	/**
+	 * §5.4's rows for whichever domain the camera is in (T31).
+	 *
+	 * Derived, not fetched: every channel the hexes draw is on the manifest or in
+	 * §12.3's denormalized level, which is what keeps a level-1 frame free of
+	 * bundle loads. The panel is the only thing here that reaches for one.
+	 */
+	let skillRows = $derived<SkillHexRow[]>(
+		content.manifest === null || activeDomain === null
+			? []
+			: skillHexRows(content.manifest, activeDomain, progress.skills)
+	);
+
+	/**
+	 * §5.5's panel. The selection is a tree id rather than a row so that it
+	 * survives the rows being re-derived — completing a milestone rebuilds every
+	 * row, and a panel that closed itself on each completion would be unusable.
+	 */
+	let selectedSkill = $state<string | null>(null);
+	let skillDetail = $state<SkillDetailData | null>(null);
+	let detailGeneration = 0;
+
+	function openSkill(row: SkillHexRow): void {
+		selectedSkill = row.treeId;
+
+		const manifest = content.manifest;
+		if (manifest === null) return;
+
+		const mine = ++detailGeneration;
+		const sources = nextStepSources ?? {
+			loadTree: (treeId: string) => loader().loadTree(treeId),
+			progressFor: (treeId: string) => store.progressFor(treeId)
+		};
+
+		void import('$lib/actions/skill-detail.js').then(
+			async ({ loadSkillDetail, skillDetailHeader }) => {
+				// A slow load must not overwrite the answer to a newer question — the
+				// same race the next-step card guards, for the same reason.
+				if (mine !== detailGeneration) return;
+				// The manifest half first, so opening the panel never looks like
+				// nothing happened; the bundle half replaces it when it lands.
+				skillDetail = skillDetailHeader(manifest, row);
+
+				const result = await loadSkillDetail(sources, manifest, row);
+				if (mine !== detailGeneration) return;
+				skillDetail = result;
+			}
+		);
+	}
+
+	function closeSkill(): void {
+		detailGeneration += 1;
+		selectedSkill = null;
+		skillDetail = null;
+	}
+
+	/** §5.5 — `Esc` inside the skill layer leaves level 1. Back is still the URL. */
+	function leaveLevel(): void {
+		closeSkill();
+		void goto(resolve('/'));
+	}
+
+	// Leaving a domain closes its panel: a panel naming a skill from the domain
+	// the camera has just left is worse than no panel at all.
+	$effect(() => {
+		if (activeDomain === null) closeSkill();
+	});
+
 	let nextStepView = $derived<NextStepView>(
 		step !== null ? { kind: 'step', step } : stepResolved ? { kind: 'invitation' } : { kind: 'pending' }
 	);
@@ -372,8 +453,22 @@
 						domainScores={world.scores}
 						{level}
 						{viewport}
+						skills={skillRows}
+						{selectedSkill}
 						{onselect}
+						onskillselect={openSkill}
+						onleavelevel={leaveLevel}
 					/>
+				{/if}
+
+				<!--
+					§5.5's panel, beside the surface rather than inside it: it is HTML
+					over an `<svg>`, and the map must not have to know what a panel is.
+				-->
+				{#if skillDetail !== null}
+					{#await skillDetailPanel() then panel}
+						<panel.default detail={skillDetail} onclose={closeSkill} />
+					{/await}
 				{/if}
 				{@render children()}
 			</main>

@@ -50,6 +50,23 @@
 	 */
 	import { resolve } from '$app/paths';
 	import { bandFor } from '$lib/scoring';
+	import type { SkillHexRow } from '$lib/actions/skill-hexes.js';
+
+	/**
+	 * **The skill layer is a separate chunk** (§17.1, §7.1). It is level-1 only,
+	 * and level 0 is the first route every visitor lands on — a static import
+	 * would put the hexes, their glyphs and their keyboard model into the frame
+	 * that has to paint before anything else, which took `App JS, first route`
+	 * over its 52 kB budget the moment it was written.
+	 *
+	 * Hoisted to module scope rather than written inline in the `{#await}` so the
+	 * import expression is evaluated once, not once per render.
+	 *
+	 * The delay is free: §5.6 already holds the layer back 120 ms behind the
+	 * camera and fades it over 260 ms, so a chunk that lands inside that window
+	 * is invisible.
+	 */
+	const skillLayer = () => import('./SkillHexLayer.svelte');
 	import type { CompiledMapRegion, DomainId, DomainScore, Manifest } from '$lib/types';
 	import {
 		DOMAIN_LABEL_WORLD_SIZE,
@@ -101,12 +118,25 @@
 		view?: ViewBox;
 		/**
 		 * Which level the camera is at. It selects the outline weight (§5.2) and
-		 * nothing else — the drawing is identical at both levels, because level 1's
-		 * extra layer is T31's skill hexes and is not this component's.
+		 * whether the skill layer is drawn at all — level 0 renders eight paths and
+		 * no hexes, which is what bounds the labelled-hex count as the library
+		 * grows (§5.1).
 		 */
 		level?: CameraLevel;
+		/**
+		 * §5.4's rows for the focused domain, already in §15.3's documented order
+		 * (T31). Empty or absent at level 0, and the component does not check: the
+		 * layer is gated on the *level*, because "no rows" and "not at level 1" are
+		 * different states and only one of them should draw nothing.
+		 */
+		skills?: readonly SkillHexRow[];
+		/** Which skill the detail panel is open on. Owned by the shell (§13.4). */
+		selectedSkill?: string | null;
 		/** User intent, upward. This component never navigates and never writes. */
 		onselect?: (selection: DomainSelection) => void;
+		onskillselect?: (row: SkillHexRow) => void;
+		/** `Esc` inside the skill layer — the shell owns the route back to level 0. */
+		onleavelevel?: () => void;
 	}
 
 	let {
@@ -115,7 +145,11 @@
 		viewport,
 		view: cameraView,
 		level = { level: 0 },
-		onselect
+		skills = [],
+		selectedSkill = null,
+		onselect,
+		onskillselect,
+		onleavelevel
 	}: Props = $props();
 
 	/**
@@ -408,6 +442,25 @@
 				{/if}
 			</g>
 		{/each}
+
+		<!--
+			§5.4's hexes, at level 1 only (T31). They are drawn *inside* this `<svg>`
+			in world coordinates, so the camera moves them for free — there is no
+			second viewBox and no transform of their own. Gated on the level rather
+			than on the rows being non-empty: a domain with no published trees at
+			level 1 is a fogged region, and it should render as one rather than as an
+			empty skill layer.
+		-->
+		{#if level.level === 1}
+			{#await skillLayer() then layer}
+				<layer.default
+					rows={skills}
+					selected={selectedSkill}
+					onselect={onskillselect}
+					onleave={onleavelevel}
+				/>
+			{/await}
+		{/if}
 	</svg>
 {:else}
 	<!--
