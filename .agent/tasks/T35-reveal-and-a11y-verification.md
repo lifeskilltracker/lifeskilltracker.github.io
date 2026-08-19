@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | pending |
+| **Status** | complete |
 | **Phase** | 2 |
 | **Cluster** | views |
 | **Blocked by** | T30, T31, T32, T33, T34 |
@@ -114,25 +114,25 @@ export function shouldReveal(): boolean;
 
 ## Acceptance criteria
 
-- [ ] The reveal plays on a first load and does not play on the second. Asserted across a
+- [x] The reveal plays on a first load and does not play on the second. Asserted across a
       simulated reload with the flag persisted.
-- [ ] `frameAt(REVEAL_MS, t)` equals the resting frame for every `t` — plates at
+- [x] `frameAt(REVEAL_MS, t)` equals the resting frame for every `t` — plates at
       `--plate-open`, hachure settled, labels at full opacity and 0.14em, camera at 1.00.
-- [ ] With no user data, the reveal renders eight open plates, **no water lines**, and
+- [x] With no user data, the reveal renders eight open plates, **no water lines**, and
       hachure on exactly the domains the manifest reports as fogged.
-- [ ] Under `prefers-reduced-motion: reduce` the reveal does not run at all and the map's
+- [x] Under `prefers-reduced-motion: reduce` the reveal does not run at all and the map's
       first painted frame is the resting frame. Asserted as "no animation started", not as
       "animation completed quickly".
-- [ ] `getTotalLength()` is called once per region after first paint and cached; a test
+- [x] `getTotalLength()` is called once per region after first paint and cached; a test
       asserts the call count, since measuring inside the animation setup forces layout
       per region.
-- [ ] Every animation across T30–T34 is disabled or made instant under reduced motion, and
+- [x] Every animation across T30–T34 is disabled or made instant under reduced motion, and
       the resulting page carries the same information. Enumerated in the audit script.
-- [ ] Under `forced-colors: active`, all five milestone states, both hex border styles, fog,
+- [x] Under `forced-colors: active`, all five milestone states, both hex border styles, fog,
       and the water line remain distinguishable.
-- [ ] `npm run a11y:manual --workspace app` passes **unchanged** against the finished build.
-- [ ] `npm run check:budget` passes at the 82 kB first-paint total with the reveal included.
-- [ ] `docs/RELEASE-CHECKLIST.md` lists both new passes.
+- [x] `npm run a11y:manual --workspace app` passes **unchanged** against the finished build.
+- [x] `npm run check:budget` passes at the 82 kB first-paint total with the reveal included.
+- [x] `docs/RELEASE-CHECKLIST.md` lists both new passes.
 
 ## Verification
 
@@ -159,3 +159,39 @@ npm run check:budget
 - **This task is the only place the interface is tested as one surface.** Five individually
   compliant tasks composing into a non-compliant page is the specific failure it exists to
   catch, which is why it is blocked by all five rather than by the last one.
+
+## Completion record — 2026-08-19
+
+**Results.** `npm test --workspace app` 1125 passed (34 of them new: `reveal.test.ts` 20,
+`MapRenderer.reveal.test.ts` 14); root `npm test` 1125 + 349; `svelte-check` 576 files,
+0 errors; `eslint` clean; `check:s1` holds; `check:budget` **52.9 / 54.0 kB** first route
+and 63.4 / 82.0 kB total; `a11y:manual` **43 / 43, unchanged**; `a11y:reduced-motion`
+12 / 12; `a11y:forced-colors` 10 / 10.
+
+**Verified in a real browser**, not only in jsdom: an in-page rAF recorder over a pristine
+profile read plate 0.000 / dash 800px / label 0.00 / tracking 3.33px at 0 ms → plate 0.433,
+dash 0 at 479 ms → plate 0.520, label 1.00, tracking 2.331px at 1083 ms, holding after.
+The second load reported `revealing = false`.
+
+**One spec conflict was resolved, and it changed a resting value.** §5.7 says the plates
+phase raises hachure "to 0.55", but T32's map rested it at full strength — so the reveal as
+written would have *popped* on its final frame, breaking the criterion above it. 0.55 is now
+the resting opacity (a fourth fog number), restored to 1 under `forced-colors: active` where
+opacity is the wrong channel anyway. Recorded as an amendment in UI-SPEC §4.4.
+
+**The resting frame is structural, not a coincidence.** The reveal drives `--reveal-*`
+custom properties whose CSS *fallbacks* are the resting values, so dropping the style
+attribute is what lands the map. There is no second set of numbers to drift.
+
+**Caveat on the forced-colors criterion.** Four of the five milestone states are rendered
+live and compared (dismissed, complete, available, locked); `bonus` is not reachable by
+driving the UI from a cold profile, so it is covered by the glyph-library assertion — five
+distinct `symbol[id^="glyph-"]`, all in `currentColor` — rather than by a live render. The
+script says so where it checks.
+
+**Pre-existing suite flakiness, not introduced here.** `export-prompt-wiring.test.ts`
+("goes away when dismissed…") and the two `s/[tree]` axe gates fail intermittently under
+full-suite load. Established by stashing all T35 work: the baseline failed **2 of 3** full
+runs (including that exact test), while the T35 tree passed 3 of 3 full runs plus 6 targeted
+runs of the three files together. Load-sensitive timeouts in the axe and IndexedDB tests;
+worth its own task, out of scope here.

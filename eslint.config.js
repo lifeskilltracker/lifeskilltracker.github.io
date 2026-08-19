@@ -244,6 +244,11 @@ const a11yHarness = {
       document: 'readonly',
       getComputedStyle: 'readonly',
       window: 'readonly',
+      // T35's two composed-surface audits reach for two more of them: the
+      // once-ever reveal flag lives in `localStorage`, and "did this move in one
+      // frame or over 420 ms" is a question only `requestAnimationFrame` can ask.
+      localStorage: 'readonly',
+      requestAnimationFrame: 'readonly',
     },
   },
 };

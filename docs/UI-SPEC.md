@@ -112,7 +112,9 @@ So:
 
 ### 4.4 Fog
 
-A domain with no published trees (F22 — a property of the manifest, never of user state) renders as **hachure**: 45° ruling in ink at 0.7 units, the plate at 0.10, and the region name replaced by the contribute affordance. No colour, no fill, no water line. This reads as *unsurveyed ground*, which is precisely F22's intent — promise rather than emptiness.
+A domain with no published trees (F22 — a property of the manifest, never of user state) renders as **hachure**: 45° ruling in ink at 0.7 units and 0.55 opacity, the plate at 0.10, and the region name replaced by the contribute affordance. No colour, no fill, no water line. This reads as *unsurveyed ground*, which is precisely F22's intent — promise rather than emptiness.
+
+**Amended by T35 (2026-08-18): the ruling's opacity is a fourth fog number, and it is 0.55.** §5.7's plates phase raises the hachure *to 0.55*, which only ends on the resting frame if 0.55 is also where the hachure rests — before T35 it rested at full strength, so the reveal would have popped on its last frame. The alternative, animating to full and rewriting §5.7's table, was declined: 0.55 is the value the visual direction chose for the ruling, and the reveal's job is to arrive at the design rather than to overshoot it. The one place it is restored to full is `forced-colors: active`, where the user's palette replaces every colour and opacity is the single channel they cannot compensate for (§15.4).
 
 ### 4.5 Typography
 

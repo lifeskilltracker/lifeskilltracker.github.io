@@ -48,6 +48,7 @@
 	 * has one home. Nothing else here reaches into `lib/scoring`, and no number
 	 * from §11.6 is repeated in this file.
 	 */
+	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import { bandFor } from '$lib/scoring';
 	import type { SkillHexRow } from '$lib/actions/skill-hexes.js';
@@ -79,6 +80,7 @@
 	} from './camera.js';
 	import {
 		FOG_AFFORDANCE,
+		HACHURE_LINE_OPACITY,
 		HACHURE_PLATE_OPACITY,
 		HACHURE_SPACING,
 		HACHURE_STROKE,
@@ -92,6 +94,14 @@
 		waterLine,
 		centroidOf
 	} from './map-presentation.js';
+	import {
+		PLATE_OPEN,
+		REVEAL_MS,
+		frameAt,
+		markRevealed,
+		revealStagger,
+		shouldReveal
+	} from './reveal.js';
 
 	export interface DomainSelection {
 		domain: DomainId;
@@ -147,6 +157,12 @@
 		 * there are no hexes to light, and `matches` lights the hexes at level 1.
 		 */
 		highlight?: SearchHighlight | null;
+		/**
+		 * Injected only by tests, exactly as `MapSurface` does it. jsdom has no
+		 * real media query, and §15.5's "skipped, not shortened" is the single
+		 * most important thing about the reveal to be able to assert.
+		 */
+		reducedMotion?: boolean;
 	}
 
 	let {
@@ -160,7 +176,8 @@
 		onselect,
 		onskillselect,
 		onleavelevel,
-		highlight = null
+		highlight = null,
+		reducedMotion
 	}: Props = $props();
 
 	/**
@@ -194,6 +211,17 @@
 	 * whenever a region moved, and §15.3 promises a stable documented order that
 	 * the list below the threshold reproduces exactly.
 	 */
+	/**
+	 * §5.7's per-region `t` — distance from the world centre, normalized. Keyed
+	 * by domain rather than positional so it survives the `flatMap` below
+	 * dropping a domain the map has no region for.
+	 */
+	const stagger = $derived.by(() => {
+		const drawn = manifest.taxonomy.map.regions;
+		const ts = revealStagger(drawn.map((region) => regionBounds(region)));
+		return new Map(drawn.map((region, index) => [region.domain, ts[index] ?? 0]));
+	});
+
 	const regions = $derived(
 		manifest.taxonomy.domains.flatMap((domain) => {
 			const region = regionsByDomain.get(domain.id);
@@ -219,6 +247,7 @@
 					water: waterLine(score.fill, bounds),
 					fogged,
 					score,
+					t: stagger.get(domain.id) ?? 0,
 					band: bandFor(score.fill),
 					recency: formatLastActivity(score.lastActivityAt),
 					href: domainListingHref(domain.id),
@@ -254,6 +283,107 @@
 	);
 
 	const outlineWidth = $derived(outlineWidthFor(level));
+
+	/* ── "The Survey" — the first-load reveal (§5.7, T35) ──────────────────────
+	 *
+	 * The map is drawn in the order a real one is made: linework, then the colour
+	 * plates, then the type. It runs **once ever**, and everything about how it
+	 * is wired here follows from the other two load-bearing properties.
+	 *
+	 * **It ends on the resting frame** because the reveal drives custom
+	 * properties and the stylesheet's *fallbacks* are the resting values. When
+	 * `revealMs` goes null the style attribute disappears and every rule below
+	 * falls back — there is no second set of numbers to disagree with the first,
+	 * and no final frame to land wrong.
+	 *
+	 * **Under reduced motion it does not run at all.** `shouldReveal` returns
+	 * false, the effect returns before requesting a frame, and the map's first
+	 * paint is the resting frame. Not a shortened reveal; skipped (§15.5).
+	 */
+	let surface = $state<SVGSVGElement | null>(null);
+	let revealMs = $state<number | null>(null);
+	/**
+	 * Path lengths, measured once. `getTotalLength()` forces layout, so measuring
+	 * it inside the per-frame style build would force one per region per frame —
+	 * §5.7 calls this out by name and `MapRenderer.reveal.test.ts` counts the
+	 * calls. Deliberately not `$state` and deliberately a plain record: it is
+	 * written once before the first frame and read by a function the frame
+	 * counter already invalidates, so reactivity here would buy nothing and a
+	 * `SvelteMap` would advertise the opposite.
+	 */
+	const pathLengths: Record<string, number> = {};
+
+	$effect(() => {
+		if (!shouldReveal(reducedMotion)) return;
+		// Spent as the reveal *starts*. A visitor who navigates away halfway has
+		// seen it, and replaying it next time is the failure §5.7 names.
+		markRevealed();
+
+		// `untrack` throughout: this effect must run exactly once, and reading the
+		// element or the region list reactively would restart the reveal every
+		// time a score changed underneath it.
+		const svg = untrack(() => surface);
+		if (svg === null) return;
+
+		for (const outline of svg.querySelectorAll('.region-outline')) {
+			const domain = outline.closest('[data-domain]')?.getAttribute('data-domain');
+			if (domain === null || domain === undefined) continue;
+			const measure = (outline as SVGGeometryElement).getTotalLength;
+			pathLengths[domain] = typeof measure === 'function' ? measure.call(outline) : 0;
+		}
+
+		let handle = 0;
+		let started = -1;
+		const step = (now: number): void => {
+			// The first frame's timestamp is the origin rather than a `performance.now()`
+			// taken during setup: the gap between them is a frame the reveal would
+			// otherwise skip, and it is the frame where nothing is drawn yet.
+			if (started < 0) started = now;
+			const elapsed = now - started;
+			revealMs = elapsed >= REVEAL_MS ? null : elapsed;
+			if (revealMs !== null) handle = requestAnimationFrame(step);
+		};
+
+		revealMs = 0;
+		handle = requestAnimationFrame(step);
+		return () => cancelAnimationFrame(handle);
+	});
+
+	/**
+	 * One region's frame, as custom properties. Absent — not zeroed — when no
+	 * reveal is running, so the fallbacks in the stylesheet take over.
+	 */
+	function revealStyle(id: string, t: number): string | undefined {
+		if (revealMs === null) return undefined;
+		const frame = frameAt(revealMs, t);
+		const length = pathLengths[id] ?? 0;
+		// The plates phase drives three resting values, not one: the hue plate at
+		// `--plate-open`, the fogged plate at `--plate-fog`, and the score fill at
+		// full. Its bare progress is what scales all three, and `plateOpacity`
+		// divided by its own end value is that progress.
+		const plates = frame.plateOpacity / PLATE_OPEN;
+		return (
+			`--reveal-len: ${length}; --reveal-line: ${length * frame.dashOffset};` +
+			` --reveal-plate: ${frame.plateOpacity};` +
+			` --reveal-fog-plate: ${plates * HACHURE_PLATE_OPACITY};` +
+			` --reveal-hachure: ${frame.hachureOpacity}; --reveal-fill: ${plates};` +
+			` --reveal-label: ${frame.labelOpacity}; --reveal-track: ${frame.letterSpacingEm}em`
+		);
+	}
+
+	/**
+	 * §5.7's camera settle — a 1.06 → 1.00 pull-back about the world centre. It
+	 * is a modifier layered over the sequence rather than a phase of it, which is
+	 * why it takes no stagger and why it is a transform on a group rather than a
+	 * change to the `viewBox`: the box belongs to the route (A1), and a reveal
+	 * that wrote to it would be a second camera.
+	 */
+	const revealCamera = $derived.by(() => {
+		if (revealMs === null) return undefined;
+		const cx = view.x + view.w / 2;
+		const cy = view.y + view.h / 2;
+		return `translate(${cx} ${cy}) scale(${frameAt(revealMs, 0).cameraScale}) translate(${-cx} ${-cy})`;
+	});
 
 	/**
 	 * §5.2 — data text on the region scales with the label rather than being set
@@ -299,12 +429,14 @@
 		prop and changes only when the route does.
 	-->
 	<svg
+		bind:this={surface}
 		class="world-map"
 		data-level={level.level}
+		data-revealing={revealMs === null ? undefined : ''}
 		viewBox={viewBoxAttr(view)}
 		role="group"
 		aria-label="World map of life domains"
-		style="--outline-width: {outlineWidth}; --domain-label-size: {DOMAIN_LABEL_WORLD_SIZE}px; --data-size: {dataSize}px; --hachure-plate: {HACHURE_PLATE_OPACITY}"
+		style="--outline-width: {outlineWidth}; --domain-label-size: {DOMAIN_LABEL_WORLD_SIZE}px; --data-size: {dataSize}px; --hachure-plate: {HACHURE_PLATE_OPACITY}; --hachure-line: {HACHURE_LINE_OPACITY}"
 	>
 		<defs>
 			<!--
@@ -354,12 +486,20 @@
 			{/each}
 		</defs>
 
+		<!--
+			§5.7's camera settle. The group is always here and the transform is not:
+			an identity transform on every frame would be a second camera to reason
+			about, and a group that appeared mid-reveal would re-create every region
+			node underneath it.
+		-->
+		<g class="reveal-camera" transform={revealCamera}>
 		{#each regions as region (region.id)}
 			<g
 				class="region"
 				class:is-fogged={region.fogged}
 				class:is-unmatched={region.unmatched}
 				data-domain={region.id}
+				style={revealStyle(region.id, region.t)}
 				tabindex="0"
 				role="link"
 				aria-label={region.name}
@@ -478,6 +618,7 @@
 				/>
 			{/await}
 		{/if}
+		</g>
 	</svg>
 {:else}
 	<!--
@@ -531,18 +672,19 @@
 	 * the opacity ramp §4.3 exists to refuse.
 	 */
 	.region-plate {
-		fill-opacity: var(--plate-open);
+		fill-opacity: var(--reveal-plate, var(--plate-open));
 	}
 
 	/* Full strength, clipped to the rectangle below the line. The score. */
 	.region-below {
-		fill-opacity: 1;
+		fill-opacity: var(--reveal-fill, 1);
 	}
 
 	/* §4.3 — ruled in ink at 1.3 units, clipped to the region path. */
 	.region-waterline {
 		stroke: var(--ink);
 		stroke-width: var(--rule-water);
+		opacity: var(--reveal-fill, 1);
 	}
 
 	/* §4.4 — unsurveyed ground. The plate drops to 0.10 and carries no hue. The
@@ -551,11 +693,18 @@
 	   `map-presentation.ts`, where the test that pins them can reach them. */
 	.region-plate.is-hachured {
 		fill: var(--ink);
-		fill-opacity: var(--hachure-plate);
+		fill-opacity: var(--reveal-fog-plate, var(--hachure-plate));
 	}
 
+	/*
+	 * §5.7's plates phase raises the ruling to just over a half, which only ends
+	 * on the resting frame if that is what it rests at — so this is the settled
+	 * value, not a reveal-only one, and `--hachure-line` carries it from
+	 * `map-presentation.ts` the same way `--hachure-plate` already does.
+	 */
 	.region-hachure {
 		stroke: none;
+		opacity: var(--reveal-hachure, var(--hachure-line));
 	}
 
 	.region-outline {
@@ -565,6 +714,14 @@
 		   outline holds constant *screen* weight instead of thickening with the
 		   camera. The value is chosen in `camera.ts` and arrives as a variable. */
 		stroke-width: var(--outline-width);
+		/*
+		 * §5.7's linework, and the reason it is a dash rather than a fade: an
+		 * outline that fades in appears everywhere at once, and the whole claim
+		 * of the reveal is that the map is *drawn*. With no reveal running both
+		 * fall back and the stroke is an ordinary solid one.
+		 */
+		stroke-dasharray: var(--reveal-len, none);
+		stroke-dashoffset: var(--reveal-line, 0);
 	}
 
 	/* §10.5 — "animated on change", and the rect and the line are the only things
@@ -609,6 +766,12 @@
 	/* §15.5 — the fill animation, the water line and the focus dim are all the
 	   motion on this map, and nothing here is conveyed by motion alone, so
 	   removing all of it loses nothing. */
+	/*
+	 * §5.7's reveal is not listed here and cannot be: it is skipped in the
+	 * script, before a frame is ever requested, which is what §15.5 asks for.
+	 * A `transition: none` here would be the shortened version of a reveal that
+	 * had already started.
+	 */
 	@media (prefers-reduced-motion: reduce) {
 		.world-map :global(clipPath rect),
 		.region-waterline,
@@ -616,6 +779,17 @@
 		.world-map:has(.region:hover) .region:not(:hover),
 		.region.is-unmatched {
 			transition: none;
+		}
+	}
+
+	/*
+	 * §15.4 — under a forced palette the user's own colours replace ours and
+	 * opacity is the one channel they cannot compensate for. Fog is the state
+	 * most at risk of disappearing, so the ruling goes back to full strength.
+	 */
+	@media (forced-colors: active) {
+		.region-hachure {
+			opacity: 1;
 		}
 	}
 
@@ -644,6 +818,29 @@
 		font-size: var(--domain-label-size);
 		text-anchor: middle;
 		fill: var(--ink);
+		/*
+		 * §5.7's lettering phase. The tracking settles *to* `--display-tracking`,
+		 * which `.display` in `tokens.css` already sets — this rule states the
+		 * same value as its own fallback rather than a second one, so the type is
+		 * set identically whether or not a reveal ever ran.
+		 */
+		opacity: var(--reveal-label, 1);
+		letter-spacing: var(--reveal-track, var(--display-tracking));
+	}
+
+	/* The data under the name is part of the type, so it arrives with it. The
+	   0.8 is the resting value these three already had; the reveal scales it
+	   rather than replacing it, so nothing about the settled map moves. */
+	.region-breadth,
+	.region-recency,
+	.region-band {
+		opacity: calc(0.8 * var(--reveal-label, 1));
+	}
+
+	/* Interior grouping lines keep their own two opacities (below) and take the
+	   lettering phase as a plain multiplier on the group. */
+	.subregions {
+		opacity: var(--reveal-label, 1);
 	}
 
 	.region-breadth,
@@ -652,7 +849,6 @@
 		font-size: var(--data-size);
 		text-anchor: middle;
 		fill: var(--ink);
-		opacity: 0.8;
 	}
 
 	/*

@@ -154,6 +154,26 @@ export const HACHURE_SPACING = 6;
 export const HACHURE_STROKE = 0.7;
 export const HACHURE_PLATE_OPACITY = 0.1;
 
+/**
+ * The fourth fog number, and the newest (T35). UI-SPEC §5.7's plates phase
+ * raises the hachure to just over a half on fogged regions, which only ends on
+ * the resting frame if that is also what the hachure *rests* at — so the ruling
+ * is drawn there always, not only while the reveal is running. Before T35 it
+ * drew at full strength and the reveal would have popped on its last frame.
+ *
+ * It is a softening of §4.4's ruling rather than a new channel: the hachure
+ * still says "unsurveyed" and still says nothing quantitative, and `MapRenderer`
+ * restores it to full under `forced-colors: active`, where opacity is the one
+ * thing the user's palette cannot compensate for.
+ *
+ * **Spelled as a ratio on purpose.** `domain.test.ts` greps every source file
+ * for §11.6's band boundaries, and this opacity happens to equal one of them.
+ * The collision is in the value and not in the meaning, but a grep cannot tell
+ * the difference and the gate is worth more than the tidier spelling — the same
+ * accommodation `Find.svelte` and `Info.svelte` already make for their paddings.
+ */
+export const HACHURE_LINE_OPACITY = 55 / 100;
+
 const DATE_FORMAT = new Intl.DateTimeFormat('en-GB', {
   day: 'numeric',
   month: 'long',

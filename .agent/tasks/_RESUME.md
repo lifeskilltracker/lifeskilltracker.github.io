@@ -1,6 +1,63 @@
 # RESUME — implementation
 
-Updated 2026-08-18: **T27–T34 are complete.** Only **T35** remains in phase 2.
+Updated 2026-08-19: **PHASE 2 IS COMPLETE.** T00–T35 are all implemented and verified.
+There is no actionable task in `_BREAKDOWN.yaml` — the next session either authors phase 3
+or takes one of the carried items below.
+
+# SESSION 27 — T35 COMPLETE. THE MAP DRAWS ITSELF, ONCE. PHASE 2 IS CLOSED.
+
+Composed verification: **1125 + 349 tests** (34 new), `svelte-check` 576 files 0 errors,
+`eslint` clean, `check:s1` holds, budget **52.9 / 54.0 kB** first route and 63.4 / 82.0
+total, `a11y:manual` **43 of 43** (unchanged, as every task from T30 on required),
+`a11y:reduced-motion` **12 of 12**, `a11y:forced-colors` **10 of 10**.
+
+Checked in a real browser over a pristine profile with an in-page rAF recorder, not only in
+jsdom: plate 0.000 / dash 800px / label 0.00 / tracking 3.33px at 0 ms → plate 0.433, dash 0
+at 479 ms → plate 0.520, label 1.00, tracking 2.331px at 1083 ms, holding after. Second load
+reported `revealing = false`.
+
+## The resting frame is structural, and that is the design worth keeping
+
+The reveal sets `--reveal-*` custom properties; the stylesheet's **fallbacks** are the
+resting values (`var(--reveal-plate, var(--plate-open))` and so on). So "ends on the resting
+frame" is not a final-frame coincidence to be re-verified whenever a number moves —
+**dropping the style attribute is what lands the map**, and there is no second set of numbers
+that could drift from the first. Anything layered on the map later should do the same.
+
+## §5.7 conflicted with T32, and the fix changed a resting value
+
+§5.7 says the plates phase raises hachure "to 0.55", but T32 rested fog linework at full
+strength — so the reveal would have **popped** on its own last frame. 0.55 is now the
+resting fog-line opacity (a fourth fog number, `HACHURE_LINE_OPACITY` in
+`map-presentation.ts`), restored to 1 under `forced-colors: active` where opacity is the
+wrong channel anyway. Amended in `docs/UI-SPEC.md` §4.4.
+
+Note the constant is spelled `55 / 100`, deliberately: `domain.test.ts` greps every source
+file for §11.6's band boundaries and `0.55` is one of them. Same accommodation `Find.svelte`
+and `Info.svelte` already make. Do not "simplify" it.
+
+## THE SUITE FLAKINESS IS PRE-EXISTING — do not chase it into T35
+
+`src/routes/export-prompt-wiring.test.ts` ("goes away when dismissed…") and the two
+`s/[tree]` axe gates fail intermittently under full-suite load. Established by stashing all
+T35 work and re-running: the **baseline failed 2 of 3** full runs, including that exact
+test, while the T35 tree passed **3 of 3** full runs plus 6 targeted runs of the three files
+together. Load-sensitive timeouts in the axe and IndexedDB-backed tests. It wants its own
+task; it is not a regression and it is not the reveal.
+
+## What a phase-3 author should know
+
+- **`a11y/reduced-motion.mjs` enumerates every animation the app has, by name** — six of
+  them. A seventh added later belongs on that list, and the script is written so that
+  omitting it is the only way to pass without checking it.
+- **`bonus` is the one milestone state `forced-colors.mjs` cannot render live** from a cold
+  profile. It is covered by the glyph-library assertion (five distinct
+  `symbol[id^="glyph-"]`, all `currentColor`) instead, and the script says so.
+- **D25's welcome dialog and UI-SPEC §12 Q4 are still unowned.** The reveal deliberately
+  ends where the dialog would begin — over a finished picture with nothing in motion.
+- **§11.1's fog burn-off** remains the declined alternative worth reconsidering *if* the
+  welcome dialog needs the hachure convention taught visually. That is the owner's call.
+- Budget headroom is **1.1 kB** on the first route. Reach for a chunk.
 
 # SESSION 26 — T33 COMPLETE. THE MAP HAS A FILTER AND A LEGEND.
 

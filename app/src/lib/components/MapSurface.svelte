@@ -220,6 +220,7 @@
 			{skills}
 			{selectedSkill}
 			{highlight}
+			{reducedMotion}
 			{onselect}
 			{onskillselect}
 			{onleavelevel}

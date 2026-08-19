@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "a11y:manual": "node a11y/manual-passes.mjs",
+    "a11y:reduced-motion": "node a11y/reduced-motion.mjs",
+    "a11y:forced-colors": "node a11y/forced-colors.mjs",
     "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check": "npm run typecheck && npm run test"
   },
