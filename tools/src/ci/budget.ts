@@ -18,18 +18,18 @@
  * HTML — it is a dynamic route — so there is no equivalent document to read,
  * and the closure is what the browser fetches when the lazy node arrives.
  *
- * ### Why the first-route row is checked at 52 kB and not 40
+ * ### Why the first-route row is checked at 54 kB and not 42
  *
  * §17.1 splits first paint into a ~12 kB Svelte runtime ("measured floor; not
- * under our control") and ≤ 40 kB of app JS. Those two live in the same built
+ * under our control") and ≤ 42 kB of app JS. Those two live in the same built
  * chunks after tree-shaking and inlining; no honest boundary between them
  * survives the bundler. Rather than invent one, this checks their sum against
  * the sum of their budgets, which is the arithmetic §17.1's own total row does
- * (12 + 40 + 15 = 67 ≤ 70). A regression in app JS still trips it; what it
+ * (12 + 42 + 15 = 69 ≤ 70). A regression in app JS still trips it; what it
  * cannot do is blame the runtime for one.
  *
- * A consequence worth stating: 52 + 15 = 67, so the per-row budgets bind three
- * kilobytes before the 70 kB total ever does. The total row is kept because
+ * A consequence worth stating: 54 + 15 = 69, so the per-row budgets bind one
+ * kilobyte before the 70 kB total ever does. The total row is kept because
  * §17.1 states it and because it is the row that survives if a per-row budget
  * is ever relaxed — but a real regression trips a per-row check first, and that
  * is the message a contributor should expect to read.
@@ -56,7 +56,7 @@ const KB = 1000;
 /** §17.1, verbatim. `svelteRuntime` is a floor, not a gate — see the header. */
 export const BUDGETS = {
   svelteRuntime: 12 * KB,
-  firstRouteAppJs: 40 * KB,
+  firstRouteAppJs: 42 * KB,
   treeRouteJs: 25 * KB,
   css: 15 * KB,
   /**

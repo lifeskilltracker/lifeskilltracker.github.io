@@ -32,6 +32,7 @@
 	} from './camera.js';
 	import { domainEntryAnnouncement, isFogged, regionBounds } from './map-presentation.js';
 	import type { SkillHexRow } from '$lib/actions/skill-hexes.js';
+	import type { SearchHighlight } from './search.js';
 
 	/** Level-1 only, so its own chunk — see `MapRenderer`'s note (§17.1). */
 	const domainSkillList = () => import('./DomainSkillList.svelte');
@@ -48,6 +49,13 @@
 		onselect?: (selection: DomainSelection) => void;
 		onskillselect?: (row: SkillHexRow) => void;
 		onleavelevel?: () => void;
+		/**
+		 * §6.2's filter, straight through to the renderer (T33). It is a prop here
+		 * rather than state because **Q5 resolves to persist**: the highlight
+		 * outlives every camera move, so it belongs to the shell, which outlives
+		 * the route change, and not to the surface.
+		 */
+		highlight?: SearchHighlight | null;
 		/**
 		 * Injected only by tests. In a browser this follows the media query, but
 		 * jsdom has no real one and §15.5's "instant, not faster" is exactly the
@@ -66,6 +74,7 @@
 		onselect,
 		onskillselect,
 		onleavelevel,
+		highlight = null,
 		reducedMotion
 	}: Props = $props();
 
@@ -210,6 +219,7 @@
 			view={current}
 			{skills}
 			{selectedSkill}
+			{highlight}
 			{onselect}
 			{onskillselect}
 			{onleavelevel}

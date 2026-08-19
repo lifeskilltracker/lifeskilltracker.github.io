@@ -293,6 +293,8 @@ Block 3 is empty for a first-time visitor and renders as an invitation, not a vo
 
 Matching runs over skill title, domain, subregion, and facet tags. It shall not silently omit a content type.
 
+**The highlight persists across camera moves** (Q5, resolved 2026-08-18). Entering a region, leaving it, and `Enter`'s own fly all leave the dim standing; only `Esc` or an emptied query clears it. `Esc` clears before it closes, so a dimmed map never outlives the box that dimmed it. The match count is stated as text beside the input — a dim alone is the colour-only encoding N5 forbids (§8.2).
+
 ### 6.3 Info
 
 **U-05.** Bottom-right beside Find. Opens the legend: what the water line means, the five band names, what hachure means, what the hex borders mean, and what the glyphs mean.
@@ -431,4 +433,4 @@ Four were built and played against the chosen one before The Survey (§5.7) was 
 - **Q2. Resolved (2026-08-16): `cellDivisor` is 4, globally, and the per-region override is dropped.** Measured against the real `map.yaml`: 3 overflows Making, Body, and Home at §5.1's 500-skill projection, and 5 puts the smallest level-1 cell at 36 px, under WCAG 2.5.5 AAA's 44 px. See §5.3.
 - **Q3.** Whether the next-step card's selection rule (§6.4) should prefer the most recent activity or the nearest-to-completion level. Recency is specified; the alternative is worth a look once three trees exist.
 - **Q4.** D25's remainder — how a Curious Browser reaches a compelling *tree* view without starting a skill.
-- **Q5.** Whether Find should persist its highlight across a camera move, or clear on navigation. Specified as clear-on-`Esc` only; untested.
+- **Q5. Resolved (2026-08-18): the highlight persists across camera moves.** Zoom, pan and `Enter`'s fly all leave it standing; only `Esc` or an emptied query clears it. Find is a filter you keep on while you explore, and clearing on navigation would drop the highlight at the moment the reader arrives in the region they narrowed to — which breaks "what have I got in this area", one of the three questions §6.2 exists to answer. The highlight is therefore state the shell owns rather than the control's, and `Esc` clears before it closes so a dimmed map cannot outlive the box that dimmed it. See §6.2 and T33.

@@ -51,6 +51,7 @@
 	import { resolve } from '$app/paths';
 	import { bandFor } from '$lib/scoring';
 	import type { SkillHexRow } from '$lib/actions/skill-hexes.js';
+	import type { SearchHighlight } from './search.js';
 
 	/**
 	 * **The skill layer is a separate chunk** (§17.1, §7.1). It is level-1 only,
@@ -137,6 +138,15 @@
 		onskillselect?: (row: SkillHexRow) => void;
 		/** `Esc` inside the skill layer — the shell owns the route back to level 0. */
 		onleavelevel?: () => void;
+		/**
+		 * §6.2's filter (T33). `null` when Find is closed or its query is empty —
+		 * and `null` is not the same as an empty result, which dims *everything*
+		 * and is the honest picture of a query that matched nothing.
+		 *
+		 * It reaches both levels: `domains` lights the regions at level 0, where
+		 * there are no hexes to light, and `matches` lights the hexes at level 1.
+		 */
+		highlight?: SearchHighlight | null;
 	}
 
 	let {
@@ -149,7 +159,8 @@
 		selectedSkill = null,
 		onselect,
 		onskillselect,
-		onleavelevel
+		onleavelevel,
+		highlight = null
 	}: Props = $props();
 
 	/**
@@ -212,6 +223,10 @@
 					recency: formatLastActivity(score.lastActivityAt),
 					href: domainListingHref(domain.id),
 					name: regionAccessibleName(domain.title, score, fogged),
+					// §6.2 reuses T30's dim rather than writing a second dimming path:
+					// same opacity, same 140 ms, same "everything stays on screen" rule.
+					// Only the trigger differs — a query instead of a pointer.
+					unmatched: highlight !== null && !highlight.domains.has(domain.id),
 					subregions: (region.subregions ?? []).map((subregion) => ({
 						id: subregion.id,
 						path: subregion.path,
@@ -343,6 +358,7 @@
 			<g
 				class="region"
 				class:is-fogged={region.fogged}
+				class:is-unmatched={region.unmatched}
 				data-domain={region.id}
 				tabindex="0"
 				role="link"
@@ -455,6 +471,7 @@
 			{#await skillLayer() then layer}
 				<layer.default
 					rows={skills}
+					{highlight}
 					selected={selectedSkill}
 					onselect={onskillselect}
 					onleave={onleavelevel}
@@ -578,6 +595,17 @@
 		transition: opacity 140ms ease-out;
 	}
 
+	/*
+	 * §6.2's filter dim — T30's treatment above, driven by a query instead of a
+	 * pointer. Deliberately the same two numbers: two different "this is not the
+	 * thing you are looking at" strengths on one map would read as two different
+	 * meanings.
+	 */
+	.region.is-unmatched {
+		opacity: 0.38;
+		transition: opacity 140ms ease-out;
+	}
+
 	/* §15.5 — the fill animation, the water line and the focus dim are all the
 	   motion on this map, and nothing here is conveyed by motion alone, so
 	   removing all of it loses nothing. */
@@ -585,7 +613,8 @@
 		.world-map :global(clipPath rect),
 		.region-waterline,
 		.world-map:has(.region:focus-visible) .region:not(:focus-visible),
-		.world-map:has(.region:hover) .region:not(:hover) {
+		.world-map:has(.region:hover) .region:not(:hover),
+		.region.is-unmatched {
 			transition: none;
 		}
 	}

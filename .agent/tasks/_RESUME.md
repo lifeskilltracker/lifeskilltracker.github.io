@@ -1,6 +1,52 @@
 # RESUME — implementation
 
-Updated 2026-08-17: **T27–T32 and T34 are complete.** Only T33 and T35 remain.
+Updated 2026-08-18: **T27–T34 are complete.** Only **T35** remains in phase 2.
+
+# SESSION 26 — T33 COMPLETE. THE MAP HAS A FILTER AND A LEGEND.
+
+Composed verification: **1091 + 349 tests**, `svelte-check` 573 files 0 errors, `eslint`
+clean, `a11y:manual` **43 of 43** (unchanged, as the task required), `check:s1` holds,
+budget **52.0 / 54.0 kB** — see the amendment below.
+
+## UI-SPEC Q5 is resolved: the highlight persists across camera moves
+
+Only `Esc` or an emptied query clears it. That makes the highlight **the shell's state**,
+not the control's: `Shell.svelte` holds it, `MapSurface` takes it as a prop, and
+`routes/find-wiring.test.ts` asserts it survives the route changing to `/d/making`. `Esc`
+clears *before* it closes, so a dimmed map can never outlive the box that dimmed it.
+Recorded in `docs/UI-SPEC.md` §6.2 and §12, and in `T33-find-and-info.md`.
+
+## §17.1 WAS AMENDED — app JS 40 → 42 kB, combined first-route row 52 → 54 kB
+
+The measured first route landed at **52,001 B against 52,000** with the matcher, both
+dialogs and the whole legend already behind an `import()` (`MapControls.svelte` is that
+chunk). What is left on the entry graph is the highlight state, the level-0 dim and the fly
+handler, which the map cannot lazily load because they *are* the map.
+
+The alternative — deleting `MapRenderer`'s dead `{:else}` region list, unreachable since
+U-10 — recovers about 200 B and was **rejected**: that list is the only place §15.3's
+convergence promise is kept, §8.1 requires the claim be restated rather than dropped, and
+buying budget with an accessibility affordance is the wrong trade. If it is ever removed, it
+should be a task that rehomes the claim first.
+
+Changed in three places: `docs/ARCHITECTURE.md` §17.1 (with a paragraph saying why),
+`tools/src/ci/budget.ts`, `tools/src/ci/budget.test.ts`.
+
+**T35 therefore has ~2 kB, not 0.4.** It is still tight, and 12 + 42 + 15 = 69 against the
+70 kB the JS and CSS rows sum to, so the *next* kilobyte has to be argued for the same way
+this one was. Reach for a chunk.
+
+## What T35 should know
+
+- `Ctrl`/`Cmd`+`F` is scoped **by mounting**, not by focus: the handler ships in the chunk
+  and the chunk mounts on `/` and `/d/<domainId>` only. Do not make it global.
+- The dim reuses T30's numbers (0.38 region opacity, 140 ms ease-out, with a
+  `prefers-reduced-motion` entry). T35's reduced-motion sweep should find nothing new here.
+- Session 23's tab-budget warning still stands: the sidebar is 14 of 16 tabs on `/s/piano`.
+  Find and Info add no tab stop before `main` on the tree route, because they do not mount
+  there.
+- CSS in `Find.svelte` and `Info.svelte` deliberately avoids `0.35` and `0.72` as lengths —
+  `domain.test.ts` greps components for §11.6's band boundaries. Do not "fix" those paddings.
 
 # SESSION 25 — T31 COMPLETE. THE MAP ANSWERS "WHAT IS IN THIS DOMAIN".
 

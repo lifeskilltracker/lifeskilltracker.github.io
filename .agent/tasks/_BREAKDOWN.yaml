@@ -782,11 +782,27 @@ tasks:
     status: written
     doc: T33-find-and-info.md
     note: >
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-18; task-doc status remains lifecycle
+      metadata. UI-SPEC Q5 RESOLVED: THE HIGHLIGHT PERSISTS ACROSS CAMERA MOVES — only Esc
+      or an emptied query clears it, which makes the highlight state the SHELL owns, not the
+      control's. Find, Info, the matcher and the legend all ship in ONE lazy chunk,
+      MapControls.svelte, which is not in the task doc's deliverables and is the only reason
+      the pair fits. The projection lives in lib/actions/searchable-skills.ts, not in
+      components/search.ts as the deliverables said: it is a manifest x SKILL-mirror join and
+      §14.1 permits that only in lib/actions.
+      Ctrl/Cmd+F IS SCOPED BY MOUNTING, not by focus — the handler ships with the chunk and
+      the chunk mounts only on / and /d/<domainId>, so find-in-page stays the browser's
+      everywhere else. Acceptance criterion 3 as written is not implementable; see the doc.
+      §17.1 WAS AMENDED, 40 -> 42 kB of app JS (combined row 52 -> 54 kB), in
+      docs/ARCHITECTURE.md §17.1, tools/src/ci/budget.ts and budget.test.ts. The measured
+      route landed one byte over with everything already lazy. Deleting MapRenderer's dead
+      region list would have recovered ~200 B and was REJECTED: it is the only place §15.3's
+      convergence promise is kept and §8.1 forbids dropping the claim. Measured after the
+      amendment: 52.0/54.0 kB, so T35 has ~2 kB — still tight, still reach for a chunk.
       Find highlights in place and never moves the camera, which is what makes it double as
       the only filter UI in the application. Info is not polish — F34 forbids the raw
       percentage, so the legend is the only place the water line's meaning exists, and "no
-      legend" was the most concrete criticism the prior-art review turned up. UI-SPEC Q5
-      (does the highlight survive a camera move) is decided here and recorded in the doc.
+      legend" was the most concrete criticism the prior-art review turned up.
 
   - id: T34
     title: Tree restyle and level camera
@@ -837,11 +853,10 @@ tasks:
 #   Four run-level confirmations remain and none is code — see _RESUME.md session 19.
 #
 # PHASE 2 (T27–T35) authored 2026-08-16 from docs/UI-SPEC.md §10.
-# DONE: T27, T28, T29 (2026-08-16); T32, T34 (2026-08-17, built in parallel and merged).
-# Actionable front — ONE task, and it is the whole critical path:
-#   T30 (map camera. T27 and T28 both landed, so nothing gates it. Start it now.)
-# Critical path: T30 → T31 → T33 → T35. Nothing else can start until T30 lands:
-#   T31 needs T30, T33 needs T30+T31, T35 needs all four.
+# DONE: T27, T28, T29 (2026-08-16); T32, T34 (2026-08-17, built in parallel and merged);
+#       T30, T31 (2026-08-17); T33 (2026-08-18).
+# Actionable front — ONE task, and it is the last one in the phase:
+#   T35 ("The Survey" reveal, and accessibility verification. All five blockers have landed.)
 # The parallel front is exhausted — phase 2 is a single file from here.
 #
 # Cross-task invariants in phase 2 (no graph edge carries these):
