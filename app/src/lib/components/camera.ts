@@ -109,8 +109,15 @@ const round2 = (n: number): number => Math.round(n * 100) / 100;
 /**
  * §5.2 — 22–28 px at level 0, taken at the midpoint so both bounds have equal
  * headroom against a narrower or wider frame than the reference one.
+ *
+ * The screen size is exported as well as spent: §5.7's reveal opens the
+ * lettering at *5 px* of tracking and settles it at *0.14em*, and converting
+ * between those two units needs the label's own pixel size. Reading it from
+ * here keeps that conversion a division rather than a hand-tuned em value that
+ * would silently stop meaning 5 px the next time this band moves.
  */
-export const DOMAIN_LABEL_WORLD_SIZE = round2(25 / LEVEL_0_SCALE);
+export const DOMAIN_LABEL_SCREEN_PX = 25;
+export const DOMAIN_LABEL_WORLD_SIZE = round2(DOMAIN_LABEL_SCREEN_PX / LEVEL_0_SCALE);
 
 /**
  * §5.2 — below 9 px at level 0 (illegible, therefore visually absent) and

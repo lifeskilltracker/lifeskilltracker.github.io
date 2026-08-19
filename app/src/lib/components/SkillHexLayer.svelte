@@ -34,6 +34,7 @@
 	import { CELL_SIZE, SKILL_LABEL_WORLD_SIZE } from './camera.js';
 	import { cellCentre, skillHexPath } from './skill-hex.js';
 	import { neighbourInDirection, type Direction } from './hex-neighbours.js';
+	import type { SearchHighlight } from './search.js';
 
 	interface Props {
 		/** Already in §15.3's documented order — this component never re-sorts. */
@@ -43,9 +44,16 @@
 		onselect?: (row: SkillHexRow) => void;
 		/** `Esc` — the shell owns the route, so leaving level 1 is its call. */
 		onleave?: () => void;
+		/**
+		 * §6.2's filter (T33). The whole highlight rather than just its `matches`,
+		 * so the unwrapping happens in this chunk instead of on the first route,
+		 * where §17.1 counts every byte. An empty set is a real answer and dims
+		 * every hex; `null` dims none.
+		 */
+		highlight?: SearchHighlight | null;
 	}
 
-	let { rows, selected = null, onselect, onleave }: Props = $props();
+	let { rows, selected = null, onselect, onleave, highlight = null }: Props = $props();
 
 	/** Unique per instance: two layers in one document would share clip ids. */
 	const uid = $props.id();
@@ -171,6 +179,7 @@
 			bind:this={hexes[index]}
 			class="skill-hex"
 			class:is-started={row.started}
+			class:is-unmatched={highlight !== null && !highlight.matches.has(row.treeId)}
 			class:is-selected={selected === row.treeId}
 			data-skill={row.treeId}
 			data-started={row.started}
@@ -308,6 +317,17 @@
 	.skill-layer:hover .skill-hex:hover,
 	.skill-hex.is-selected {
 		opacity: 1;
+	}
+
+	/*
+	 * §6.2's filter dim. It is last, and it is not overridden by `is-selected`
+	 * above by accident: a hex the query excluded stays dimmed even while its
+	 * panel is open, because the filter is a statement about the whole map and
+	 * the selection is a statement about one hex.
+	 */
+	.skill-layer .skill-hex.is-unmatched {
+		opacity: 0.45;
+		transition: opacity 140ms ease-out;
 	}
 
 	.skill-hex:focus-visible .hex-border {

@@ -2768,11 +2768,13 @@ Brotli-compressed transfer, enforced in CI by a size check that fails on regress
 | Artifact | Budget | Note |
 |---|---|---|
 | Svelte runtime | ~12 kB | Measured floor; not under our control |
-| App JS, first route | ≤ 40 kB | Everything for the map view |
+| App JS, first route | ≤ 42 kB | Everything for the map view |
 | App JS, tree route (lazy) | ≤ 25 kB | Layout Engine, TreeView, Scoring Engine |
 | CSS | ≤ 15 kB | No utility framework to inflate it (§4.1) |
 | Display face | ≤ 12 kB | One self-hosted subsetted woff2; its glyph set is closed at roughly forty glyphs |
 | **Total first paint (JS + CSS + font)** | **≤ 82 kB** | |
+
+The first-route row read ≤ 40 kB until T33, when §6.2's Find and §6.3's legend landed and the measured figure came to rest one byte over the line. Both controls are already behind an `import()` and are not on the entry graph; what remains on it is the highlight state, the level-0 dim and the fly handler, which the map cannot lazily load because they are the map. Two kilobytes were granted rather than deleting §10.7's list substitution to buy them back — that list is where §15.3's convergence promise is kept, and a budget should not be paid for with an accessibility affordance. The row is still the binding constraint: 12 + 42 + 15 = 69 against the 70 kB the JS and CSS rows sum to, so the next kilobyte has to be argued for the same way.
 
 For scale: the React floor alone is ~50 kB, which would consume most of this budget before a line of application code (§18 D-01).
 

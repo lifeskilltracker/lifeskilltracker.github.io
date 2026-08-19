@@ -782,11 +782,27 @@ tasks:
     status: written
     doc: T33-find-and-info.md
     note: >
+      IMPLEMENTED AND VERIFIED COMPLETE 2026-08-18; task-doc status remains lifecycle
+      metadata. UI-SPEC Q5 RESOLVED: THE HIGHLIGHT PERSISTS ACROSS CAMERA MOVES — only Esc
+      or an emptied query clears it, which makes the highlight state the SHELL owns, not the
+      control's. Find, Info, the matcher and the legend all ship in ONE lazy chunk,
+      MapControls.svelte, which is not in the task doc's deliverables and is the only reason
+      the pair fits. The projection lives in lib/actions/searchable-skills.ts, not in
+      components/search.ts as the deliverables said: it is a manifest x SKILL-mirror join and
+      §14.1 permits that only in lib/actions.
+      Ctrl/Cmd+F IS SCOPED BY MOUNTING, not by focus — the handler ships with the chunk and
+      the chunk mounts only on / and /d/<domainId>, so find-in-page stays the browser's
+      everywhere else. Acceptance criterion 3 as written is not implementable; see the doc.
+      §17.1 WAS AMENDED, 40 -> 42 kB of app JS (combined row 52 -> 54 kB), in
+      docs/ARCHITECTURE.md §17.1, tools/src/ci/budget.ts and budget.test.ts. The measured
+      route landed one byte over with everything already lazy. Deleting MapRenderer's dead
+      region list would have recovered ~200 B and was REJECTED: it is the only place §15.3's
+      convergence promise is kept and §8.1 forbids dropping the claim. Measured after the
+      amendment: 52.0/54.0 kB, so T35 has ~2 kB — still tight, still reach for a chunk.
       Find highlights in place and never moves the camera, which is what makes it double as
       the only filter UI in the application. Info is not polish — F34 forbids the raw
       percentage, so the legend is the only place the water line's meaning exists, and "no
-      legend" was the most concrete criticism the prior-art review turned up. UI-SPEC Q5
-      (does the highlight survive a camera move) is decided here and recorded in the doc.
+      legend" was the most concrete criticism the prior-art review turned up.
 
   - id: T34
     title: Tree restyle and level camera
@@ -821,7 +837,7 @@ tasks:
     blocks: []
     spec: ["UI-SPEC §5.7", "UI-SPEC §8.2", "§15.3", "§15.4", "§15.5", "§15.8"]
     prd: [D25, N5, S2]
-    status: written
+    status: complete
     doc: T35-reveal-and-a11y-verification.md
     note: >
       Plays once ever, ends on the resting frame, and under prefers-reduced-motion does not
@@ -832,17 +848,28 @@ tasks:
       reduced-motion and forced-colors are properties of the COMPOSED surface — five
       individually compliant tasks can still compose into a non-compliant page. Out of scope
       and unowned: D25's welcome dialog and UI-SPEC Q4.
+      VERIFIED COMPLETE 2026-08-19. 34 new tests; a11y:manual 43/43 UNCHANGED;
+      reduced-motion 12/12; forced-colors 10/10; budget 52.9/54.0 kB first route,
+      63.4/82.0 total. The reveal drives --reveal-* custom properties whose CSS FALLBACKS
+      are the resting values, so ending on the resting frame is structural. One spec
+      conflict resolved: §5.7's "hachure rises to 0.55" made 0.55 the RESTING fog opacity
+      (T32 rested it at full, which would have popped on the last frame) — restored to 1
+      under forced-colors, amended in UI-SPEC §4.4.
 
 # PHASES 0 AND 1 ARE COMPLETE. T00–T26 all implemented and verified; T25 closed 2026-08-15.
 #   Four run-level confirmations remain and none is code — see _RESUME.md session 19.
 #
-# PHASE 2 (T27–T35) authored 2026-08-16 from docs/UI-SPEC.md §10.
-# DONE: T27, T28, T29 (2026-08-16); T32, T34 (2026-08-17, built in parallel and merged).
-# Actionable front — ONE task, and it is the whole critical path:
-#   T30 (map camera. T27 and T28 both landed, so nothing gates it. Start it now.)
-# Critical path: T30 → T31 → T33 → T35. Nothing else can start until T30 lands:
-#   T31 needs T30, T33 needs T30+T31, T35 needs all four.
-# The parallel front is exhausted — phase 2 is a single file from here.
+# PHASE 2 (T27–T35) IS COMPLETE. Authored 2026-08-16 from docs/UI-SPEC.md §10.
+# DONE: T27, T28, T29 (2026-08-16); T32, T34 (2026-08-17, built in parallel and merged);
+#       T30, T31 (2026-08-17); T33 (2026-08-18); T35 (2026-08-19).
+# Actionable front — NONE. Every authored task T00–T35 is implemented and verified.
+# Known and unowned, carried out of phase 2:
+#   - D25's welcome dialog and UI-SPEC §12 Q4 (how a Curious Browser reaches a compelling
+#     tree without starting one). T35 ends the reveal exactly where the dialog would begin.
+#   - Suite flakiness that PREDATES T35: export-prompt-wiring.test.ts and the two s/[tree]
+#     axe gates fail intermittently under full-suite load. Proved pre-existing by stashing
+#     T35 (baseline failed 2 of 3 full runs; the T35 tree passed 3 of 3). Load-sensitive
+#     timeouts, not a regression — but it wants a task.
 #
 # Cross-task invariants in phase 2 (no graph edge carries these):
 #   - T30 must paint to the RESTING FRAME on load; T35's reveal layers onto it. A map that

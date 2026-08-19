@@ -46,13 +46,21 @@ npm run build        # tools compile, then app build
 npm run check:s1     # §14.7 grep gate — no `archetype` in layout/scoring/components
 npm run check:budget # §17.1 bundle budget, Brotli, against app/build
 
-npm run a11y:manual --workspace app   # §15.8 keyboard pass; needs a build first
+npm run a11y:manual --workspace app          # §15.8 keyboard pass; needs a build first
+npm run a11y:reduced-motion --workspace app  # §15.5 over the composed surface
+npm run a11y:forced-colors --workspace app   # §15.4 over the composed surface
 ```
 
 `a11y:manual` drives the four core flows keyboard-only in Chromium against
 `app/build`. Not a CI gate — it is a release checklist item, recorded in
 `docs/RELEASE-CHECKLIST.md`. It asserts roles and accessible names only, never
 markup, so restyling the UI does not break it.
+
+The other two audit the **composed** interface under a media feature, and they
+do read computed styles: five surfaces each honouring `prefers-reduced-motion`
+individually can still compose into a page that does not. `a11y:reduced-motion`
+enumerates every animation the app has by name — a seventh one added later
+belongs on that list.
 
 CI is `.github/workflows/ci.yml` (seven gating jobs, one advisory) and
 `.github/workflows/deploy.yml` (push to `main` → GitHub Pages). Every gate has a

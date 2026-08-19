@@ -19,6 +19,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { cleanup, flushSync, render } from './test-harness.svelte.js';
 import MapSurface from './MapSurface.svelte';
 import { fit, type CameraLevel } from './camera.js';
+import type { SearchHighlight } from './search.js';
 import type { SkillHexRow } from '$lib/actions/skill-hexes.js';
 import type { DomainId, DomainScore, Manifest } from '$lib/types';
 
@@ -58,7 +59,10 @@ function mount(level: CameraLevel = { level: 0 }, reducedMotion = true) {
 		domainScores: SCORES,
 		level,
 		viewport: 'map' as const,
-		reducedMotion
+		reducedMotion,
+		// Declared here so the reactive props proxy carries it: §6.2's tests set it
+		// after mount, and a key absent from the initial object is not reactive.
+		highlight: null as SearchHighlight | null
 	});
 }
 
@@ -375,5 +379,77 @@ describe('U-10 — the threshold is the camera level, not the viewport (§8.1, T
 		const list = await at({ level: 1, domain: 'home' }, 'list');
 		expect(labelOf(list.container, 'cooking')).toBe(hexLabel);
 		expect(hexLabel).toContain('Level 3 of 10.');
+	});
+});
+
+/**
+ * §6.2's highlight, applied to the map (T33).
+ *
+ * **The camera invariant is the acceptance criterion.** "Typing in Find
+ * highlights matches and dims the rest without changing the viewBox" is the
+ * whole reason highlight-in-place is worth building, and it is exactly the
+ * property that would be lost by someone later making Find "helpfully" frame its
+ * results. Comparing the `viewBox` across a query is the only assertion that
+ * catches that.
+ *
+ * **Q5, resolved (2026-08-18): the highlight persists across a camera move.** A
+ * filter you keep on while you explore is what makes "what have I got in this
+ * area" answerable; one that cleared on entering the area would answer it for
+ * exactly as long as it took to look.
+ */
+describe('§6.2 — Find highlights in place', () => {
+	it('dims the regions holding no match, and holds the matching ones', () => {
+		const mounted = mount({ level: 0 });
+
+		mounted.props.highlight = { domains: new Set(['home']), matches: new Set(['cooking']) };
+		flushSync();
+
+		const home = mounted.container.querySelector('.region[data-domain="home"]')!;
+		const body = mounted.container.querySelector('.region[data-domain="body"]')!;
+		expect(home.classList.contains('is-unmatched')).toBe(false);
+		expect(body.classList.contains('is-unmatched')).toBe(true);
+	});
+
+	it('dims nothing at all when there is no query', () => {
+		const mounted = mount({ level: 0 });
+
+		mounted.props.highlight = null;
+		flushSync();
+
+		expect(mounted.container.querySelectorAll('.is-unmatched').length).toBe(0);
+	});
+
+	it('does not move the camera when a query arrives', () => {
+		const mounted = mount({ level: 0 });
+		const before = viewBoxOf(mounted.container);
+
+		mounted.props.highlight = { domains: new Set(['body']), matches: new Set(['x']) };
+		flushSync();
+
+		expect(viewBoxOf(mounted.container)).toBe(before);
+	});
+
+	it('does not move the camera when the query is cleared either', () => {
+		const mounted = mount({ level: 1, domain: 'home' });
+		mounted.props.highlight = { domains: new Set(['body']), matches: new Set(['x']) };
+		flushSync();
+		const before = viewBoxOf(mounted.container);
+
+		mounted.props.highlight = null;
+		flushSync();
+
+		expect(viewBoxOf(mounted.container)).toBe(before);
+	});
+
+	it('Q5 — survives the camera moving to another level', () => {
+		const mounted = mount({ level: 0 });
+		mounted.props.highlight = { domains: new Set(['home']), matches: new Set(['cooking']) };
+		flushSync();
+
+		mounted.props.level = { level: 1, domain: 'home' };
+		flushSync();
+
+		// Still applied after the fly, on whatever the new level draws.
+		expect(mounted.container.querySelectorAll('.is-unmatched').length).toBeGreaterThan(0);
 	});
 });

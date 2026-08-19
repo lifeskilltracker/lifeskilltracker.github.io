@@ -50,6 +50,8 @@
 	} from '$lib/actions/domain-scores.js';
 	import { assembleNextStep, type NextStepSources } from '$lib/actions/next-step.js';
 	import { skillHexRows, type SkillHexRow } from '$lib/actions/skill-hexes.js';
+	import type { SearchResult } from '$lib/components/search.js';
+	import type { DomainId } from '$lib/types';
 	import type { SkillDetail as SkillDetailData } from '$lib/actions/skill-detail.js';
 
 	/**
@@ -62,6 +64,14 @@
 	 * evaluation on the first paint.
 	 */
 	const skillDetailPanel = () => import('$lib/components/SkillDetail.svelte');
+
+	/**
+	 * §6.2 and §6.3's corner, on the same seam and for the same reason (T33). The
+	 * matcher, both dialogs and the whole legend are one chunk, fetched on the map
+	 * route rather than reached from the entry graph — §17.1's first-route budget
+	 * had 0.4 kB of headroom when this landed.
+	 */
+	const mapControls = () => import('$lib/components/MapControls.svelte');
 	import { exportPrompt } from '$lib/state/export-prompt.svelte.js';
 	import {
 		coldStart,
@@ -358,6 +368,31 @@
 		void goto(resolve('/'));
 	}
 
+	/**
+	 * §6.2's filter, owned here (T33).
+	 *
+	 * **Q5, resolved (2026-08-18): the highlight persists across a camera move.**
+	 * It is shell state for exactly that reason — the shell survives the
+	 * navigation that `onfly` performs and that clicking a region performs, so a
+	 * filter put anywhere below this would be cleared by the very move it was
+	 * meant to survive. "What have I got in this area" has to still be answered
+	 * once the reader has arrived in the area.
+	 *
+	 * `null` when Find is closed or empty; an empty result is a different state,
+	 * and dims everything, which is the honest picture of a query matching nothing.
+	 */
+	let highlight = $state<SearchResult | null>(null);
+
+	/**
+	 * §6.2 — `Enter` flies to the top hit's region. Not to the hex: there is no
+	 * free camera (§5.1), level 1 is the closest the camera comes to one skill,
+	 * and §5.5's two-click path is deliberate — the panel opens on a click on the
+	 * hex, not on arriving near it.
+	 */
+	function flyTo(domain: DomainId): void {
+		void goto(resolve('/d/[domain]', { domain }));
+	}
+
 	// Leaving a domain closes its panel: a panel naming a skill from the domain
 	// the camera has just left is worse than no panel at all.
 	$effect(() => {
@@ -455,6 +490,7 @@
 						{viewport}
 						skills={skillRows}
 						{selectedSkill}
+						{highlight}
 						{onselect}
 						onskillselect={openSkill}
 						onleavelevel={leaveLevel}
@@ -470,6 +506,21 @@
 						<panel.default detail={skillDetail} onclose={closeSkill} />
 					{/await}
 				{/if}
+
+				<!--
+					§6.2/§6.3's corner. Inside `main` and only on the map, which is what
+					keeps `Ctrl`/`Cmd`+`F` the browser's on every other route: the
+					handler is installed by `Find`, so not mounting it is the whole of
+					the scoping.
+				-->
+				{#await mapControls() then controls}
+					<controls.default
+						manifest={content.manifest}
+						skills={progress.skills}
+						onresult={(next) => (highlight = next)}
+						onfly={flyTo}
+					/>
+				{/await}
 				{@render children()}
 			</main>
 		{:else}

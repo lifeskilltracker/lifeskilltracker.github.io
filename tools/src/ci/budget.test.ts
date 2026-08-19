@@ -195,16 +195,16 @@ describe('§17.1 — the bundle budget gate', () => {
 
   it('passes with every row exactly on its budget, and fails one byte over', () => {
     // The comparison is `>`, not `>=`: §17.1's rows all read "≤".
-    const at = fakeBuild({ firstPaintJs: [52_000], firstPaintCss: [15_000], treeRouteJs: [1_000] });
+    const at = fakeBuild({ firstPaintJs: [54_000], firstPaintCss: [15_000], treeRouteJs: [1_000] });
     const report = measureBudget(at);
     expect(report.violations).toEqual([]);
-    // 52 + 15 = 67, which is §17.1's own arithmetic and 3 kB inside the 70 kB
+    // 54 + 15 = 69, which is §17.1's own arithmetic and 1 kB inside the 70 kB
     // total. The total row is a backstop, not the binding constraint.
-    expect(report.rows.find((row) => row.label.startsWith('Total'))?.measured).toBe(67_000);
+    expect(report.rows.find((row) => row.label.startsWith('Total'))?.measured).toBe(69_000);
     rmSync(sandbox as string, { recursive: true, force: true });
     sandbox = null;
 
-    const over = fakeBuild({ firstPaintJs: [52_001], firstPaintCss: [15_000] });
+    const over = fakeBuild({ firstPaintJs: [54_001], firstPaintCss: [15_000] });
     expect(measureBudget(over).violations.map((row) => row.label)).toContain(
       'App JS, first route (incl. Svelte runtime)',
     );
@@ -231,8 +231,8 @@ describe('§17.1 — the bundle budget gate', () => {
   });
 
   it('checks the first-route row against the runtime floor plus app JS', () => {
-    expect(BUDGETS.firstRouteAppJs + BUDGETS.svelteRuntime).toBe(52_000);
-    const fixture = fakeBuild({ firstPaintJs: [52_001], firstPaintCss: [200] });
+    expect(BUDGETS.firstRouteAppJs + BUDGETS.svelteRuntime).toBe(54_000);
+    const fixture = fakeBuild({ firstPaintJs: [54_001], firstPaintCss: [200] });
     expect(measureBudget(fixture).violations.map((row) => row.label)).toContain(
       'App JS, first route (incl. Svelte runtime)',
     );

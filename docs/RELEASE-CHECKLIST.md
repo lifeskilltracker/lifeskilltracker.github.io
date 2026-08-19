@@ -71,13 +71,25 @@ accessibility pass, which is why section 2 exists and is not optional.
       reader** (§15.8). **Not covered by the script**, which reads the
       accessibility tree but cannot tell you how a reader behaves over it.
       Record the reader-and-browser pair used, below.
-- [ ] The app viewed once under `forced-colors: active` (Windows High Contrast,
-      or Firefox's `browser.display.document_color_use`), confirming every
-      milestone state is still distinguishable by glyph and border (§15.4) —
-      the script covers the Chromium half of this
-- [ ] The app viewed once with **reduced motion** on, confirming nothing is lost
-      when the fill animation and edge transitions stop (§15.5) — also driven by
-      the script
+- [ ] **The composed reduced-motion audit** (§15.5) —
+      `npm run a11y:reduced-motion --workspace app`. Twelve checks over the six
+      animations the interface has: the first-load reveal, the map camera fly,
+      the skill-hex layer, the Find dim, the water line and focus dim, and the
+      tree level camera. It asserts both halves of §15.5 — that the motion is
+      *gone* rather than shortened, and that what the motion carried is still on
+      the page as text or as an attribute. **An animation added to any of those
+      surfaces belongs on that list**; a new one that nobody adds is caught only
+      by the script's whole-page sweep, which is the weaker of the two checks.
+- [ ] **The composed forced-colors check** (§15.4) —
+      `npm run a11y:forced-colors --workspace app`. Ten checks: §4.6's glyph
+      library, the states it can reach live (it drives placement and a dismissal
+      to render four of the five), that no two rendered states share a glyph and
+      a border, that nothing sets `forced-color-adjust: none`, and that fog, the
+      water line and the hex borders all survive the palette being replaced.
+- [ ] The app viewed once **by eye** under `forced-colors: active` (Windows High
+      Contrast, or Firefox's `browser.display.document_color_use`) and once with
+      **reduced motion** on. The two scripts above cover the Chromium half of
+      each; neither can tell you the result still *reads* as a map.
 
 ## 3. Manual, per schema bump
 
@@ -89,6 +101,45 @@ accessibility pass, which is why section 2 exists and is not optional.
 
 §15.8 asks for a dated record naming the reader-and-browser combination used.
 Newest first. An entry is only complete when every flow in it has a verdict.
+
+### 2026-08-18 — T35, the composed surface
+
+**Status: the interface built in T27–T35 was verified as one surface. The
+screen-reader spot check is still the one outstanding item, unchanged.**
+
+The point of doing this once at the end rather than five times along the way:
+`prefers-reduced-motion` and `forced-colors` are properties of the *composed*
+page, and five tasks each honouring them individually can still compose into a
+page that does not. Two new scripts, both against the production build served
+the way Pages serves it:
+
+| Pass | Checks | Result |
+|---|---|---|
+| `a11y:manual` | 43 | **pass, unchanged** — the reveal and the restyle cost none of §15's semantics |
+| `a11y:reduced-motion` | 12 | **pass** — six animations enumerated by name |
+| `a11y:forced-colors` | 10 | **pass** — four of §4.6's five states reached live |
+
+**Environment.** Chromium via Playwright 1.62.1, 1280×900, against
+`npm run build` with `404.html` as the SPA fallback.
+
+**What the reduced-motion audit covers, and what it deliberately does not.** It
+reads computed styles and class names, unlike `a11y:manual` — a media-feature
+audit is a claim about rendering and there is no accessible-name form of "this
+element is still transitioning". Both halves of §15.5 are asserted: the motion
+is gone, and its information is still present (the camera fly's destination is
+still announced in words; the tree camera's anchor is still reflected as
+`data-camera-anchor`).
+
+**The reveal is the one animation that is skipped rather than instant.** It is
+gated in script, before a frame is ever requested, so there is no transition to
+zero out — which is why the audit samples across the whole window it would have
+occupied instead of checking once after it would have finished.
+
+**Not reached live by the forced-colors script: `bonus`.** It drives placement
+and a dismissal, which renders `complete`, `available`, `locked` and
+`dismissed`; the surplus-completion state needs a tree state the script does not
+build. It is covered only by the glyph-library check, and the script says so in
+its own summary rather than reporting five where it saw four.
 
 ### 2026-08-15 — the keyboard pass, driven; screen readers still outstanding
 
