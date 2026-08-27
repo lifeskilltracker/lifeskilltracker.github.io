@@ -21,6 +21,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { makeTree } from '$lib/layout/fixtures.js';
 import { openDatabase, STORES, type Database } from '$lib/state/db.js';
 import { durability } from '$lib/state/durability.js';
+import type { Dismissals } from '$lib/state/export-prompt.js';
 import { exportPrompt } from '$lib/state/export-prompt.svelte.js';
 import { progress } from '$lib/state/progress.svelte.js';
 import { createUserStateStore } from '$lib/state/store.js';
@@ -190,6 +191,41 @@ describe('dismissal (T26/F15)', () => {
     // The whole hazard: a dismissal that wrote `lastExportAt` would silence
     // every later trigger and claim a backup that does not exist.
     expect((await store.storageStatus()).lastExportAt).toBeUndefined();
+  });
+
+  it('is not undone by a refresh that was already in flight', async () => {
+    const store = freshStore();
+    await store.hydrate();
+    progress.milestones = completions(10);
+    await refreshExportPrompt({ store, now: NOW });
+    expect(exportPrompt.visible).toBe(true);
+
+    // A second refresh that read its inputs *before* the dismissal and lands
+    // after it — the shell's session-start refresh racing a user who dismisses
+    // the moment the prompt appears. Its answer is stale by the time it has
+    // one, and a stale answer must not put the prompt back.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const slow = {
+      storageStatus: () => store.storageStatus(),
+      exportPromptDismissals: async () => {
+        const dismissals = await store.exportPromptDismissals();
+        await gate;
+        return dismissals;
+      },
+      recordExportPromptDismissal: (dismissals: Dismissals) =>
+        store.recordExportPromptDismissal(dismissals),
+    };
+    const inFlight = refreshExportPrompt({ store: slow, now: NOW });
+
+    await dismissExportPrompt({ store, now: NOW });
+    expect(exportPrompt.visible).toBe(false);
+
+    release();
+    await inFlight;
+    expect(exportPrompt.visible).toBe(false);
   });
 
   it('does nothing when there is no prompt on screen', async () => {

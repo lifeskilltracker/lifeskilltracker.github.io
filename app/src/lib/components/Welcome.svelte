@@ -28,22 +28,29 @@
 	 * with this on screen has been greeted, and greeting them again next visit is
 	 * the failure §6.5 names. There is no snooze and no second chance.
 	 */
+	import { featuredTree, type FeaturedCandidate } from './featured.js';
 	import { tabTarget } from './focus-trap.js';
 	import { markWelcomed } from './welcome.js';
 
 	interface Props {
 		/**
-		 * The title of the skill the preview will open, or `null` when the library
-		 * has no trees at all — every domain fogged (§4.4) is a real state, and the
-		 * dialogue drops to its second button rather than promising a skill that
-		 * does not exist.
+		 * The library, as the manifest lists it. The cartouche chooses its own
+		 * skill from this rather than being handed one, which is what keeps
+		 * `featured.js` off the map's first paint (§17.1) — the shell does not need
+		 * to know how the choice is made, only where to go once it is.
+		 *
+		 * Empty is a real state: every domain fogged (§4.4). The dialogue then
+		 * drops to its second button rather than promising a skill that does not
+		 * exist.
 		 */
-		featuredTitle: string | null;
-		onpreview: () => void;
+		trees: readonly FeaturedCandidate[];
+		onpreview: (treeId: string) => void;
 		onclose: () => void;
 	}
 
-	let { featuredTitle, onpreview, onclose }: Props = $props();
+	let { trees, onpreview, onclose }: Props = $props();
+
+	let featured = $derived(featuredTree(trees));
 
 	let panel = $state<HTMLElement | null>(null);
 
@@ -103,9 +110,14 @@
 	</p>
 
 	<div class="actions">
-		{#if featuredTitle !== null}
-			<button type="button" class="control display primary" data-welcome-preview onclick={onpreview}>
-				Show me {featuredTitle}
+		{#if featured !== null}
+			<button
+				type="button"
+				class="control display primary"
+				data-welcome-preview
+				onclick={() => onpreview(featured.id)}
+			>
+				Show me {featured.title}
 			</button>
 		{/if}
 		<button type="button" class="control display" data-welcome-dismiss onclick={onclose}>
@@ -157,7 +169,7 @@
 		margin: 0;
 		line-height: 1;
 		color: var(--ink);
-		opacity: 0.55;
+		opacity: 0.5;
 	}
 
 	.head {
@@ -206,6 +218,6 @@
 	.fine {
 		margin: 0;
 		font-size: 0.85rem;
-		opacity: 0.72;
+		opacity: 0.7;
 	}
 </style>

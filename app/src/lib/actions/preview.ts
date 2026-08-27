@@ -15,13 +15,14 @@
  * under it (F43) and nothing would fail. Deriving means the preview is correct
  * by construction for every tree in the library, today and at 500.
  *
- * Pure, and deliberately in `lib/actions` rather than beside the component:
- * §14.1 makes this the one layer that may hold a manifest and a compiled tree at
- * once, and `featuredTreeId` reads the former while `previewAnnotations` reads
- * the latter.
+ * Pure, and in `lib/actions` because it reads a compiled tree — the bundle the
+ * skill route has already loaded. Its sibling question, *which* tree the welcome
+ * offers, lives in `lib/components/welcome.ts` instead: that one is answered on
+ * the map, before any bundle exists, and keeping it there is what stops the map's
+ * first paint from carrying code only the tree route runs (§17.1).
  */
 
-import type { CompiledTree, Manifest } from '$lib/types';
+import type { CompiledTree } from '$lib/types';
 
 /**
  * The three rungs the tour stops at: the bottom of the ladder, its middle, and
@@ -38,37 +39,6 @@ export interface PreviewAnnotation {
 }
 
 /**
- * The skill the welcome opens (§6.5).
- *
- * **The fullest ladder wins**, because the preview is an advertisement for the
- * idea of a ladder and a forty-node tree makes that case better than a
- * twelve-node one. Ties break on tree id so the choice is stable: the compiler
- * is free to reorder `trees`, and a welcome that opened a different skill on
- * every deploy would not be a designed first impression.
- *
- * `milestoneCount` is on the manifest entry already (§7.2), so this costs no
- * bundle fetch — which is why the welcome can name its destination before
- * anything below the map has loaded.
- *
- * Deliberately **not** a `featured:` flag in `domains.yaml`. That would be one
- * more thing for a maintainer to keep true, and goal 2 exists to prevent
- * exactly that class of bottleneck.
- */
-export function featuredTreeId(manifest: Manifest): string | null {
-  let best: { id: string; count: number } | null = null;
-  for (const tree of manifest.trees) {
-    if (
-      best === null ||
-      tree.milestoneCount > best.count ||
-      (tree.milestoneCount === best.count && tree.id < best.id)
-    ) {
-      best = { id: tree.id, count: tree.milestoneCount };
-    }
-  }
-  return best?.id ?? null;
-}
-
-/**
  * What the tour says at each stop.
  *
  * The text is a milestone the contributor actually wrote — "make instant
@@ -81,14 +51,12 @@ export function featuredTreeId(manifest: Manifest): string | null {
  * the honest outcome.
  */
 export function previewAnnotations(tree: CompiledTree): readonly PreviewAnnotation[] {
-  return PREVIEW_LEVELS.map((level) => {
+  return PREVIEW_LEVELS.map((level): PreviewAnnotation | null => {
     // Authored order, which `order` carries (§5.3) — not array position, which
     // is an artefact of how the flat index happened to be built.
     const first = tree.milestones
       .filter((milestone) => milestone.level === level)
       .sort((a, b) => a.order - b.order)[0];
-    return first === undefined
-      ? null
-      : { level, title: first.label ?? first.title };
-  }).filter((annotation): annotation is PreviewAnnotation => annotation !== null);
+    return first === undefined ? null : { level, title: first.label ?? first.title };
+  }).filter((annotation) => annotation !== null);
 }

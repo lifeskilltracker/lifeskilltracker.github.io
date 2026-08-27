@@ -17,8 +17,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { auditAccessibility } from './axe.js';
 import { cleanup, click, press, render } from './test-harness.svelte.js';
+import type { FeaturedCandidate } from './featured.js';
 import Welcome from './Welcome.svelte';
 import { WELCOME_FLAG } from './welcome.js';
+
+const TREES: readonly FeaturedCandidate[] = [
+  { id: 'piano', title: 'Piano', milestoneCount: 40 },
+  { id: 'cooking', title: 'Cooking', milestoneCount: 73 },
+];
 
 afterEach(() => {
   cleanup();
@@ -27,7 +33,7 @@ afterEach(() => {
 
 function mount(props: Partial<Parameters<typeof Welcome>[1]> = {}) {
   return render(Welcome, {
-    featuredTitle: 'Cooking',
+    trees: TREES,
     onpreview: () => {},
     onclose: () => {},
     ...props,
@@ -52,7 +58,9 @@ describe('the cartouche', () => {
     // The destination is derived from the manifest (`featuredTreeId`), so the
     // button can say the real title — "Show me Cooking" is a concrete promise
     // where "Show me a skill" is an unlabelled door.
-    const { container } = mount({ featuredTitle: 'Blacksmithing' });
+    const { container } = mount({
+      trees: [{ id: 'smithing', title: 'Blacksmithing', milestoneCount: 12 }],
+    });
     expect(dialog(container)!.textContent).toContain('Blacksmithing');
   });
 
@@ -103,17 +111,19 @@ describe('leaving', () => {
     expect(onpreview).not.toHaveBeenCalled();
   });
 
-  it('asks for the preview on the primary button', () => {
+  it('asks for the preview on the primary button, naming the skill it chose', () => {
+    // The fullest ladder is the best advertisement — Cooking at 73 over Piano
+    // at 40 — and the shell is told which, rather than deciding for itself.
     const onpreview = vi.fn();
     const { container } = mount({ onpreview });
     click(container.querySelector('[data-welcome-preview]')!);
-    expect(onpreview).toHaveBeenCalledOnce();
+    expect(onpreview).toHaveBeenCalledWith('cooking');
   });
 
   it('offers no preview button at all when the library is empty', () => {
     // Every domain fogged (§4.4) is a real state, and a button promising a skill
     // that does not exist is worse than a dialogue with one button.
-    const { container } = mount({ featuredTitle: null });
+    const { container } = mount({ trees: [] });
     expect(container.querySelector('[data-welcome-preview]')).toBeNull();
     expect(container.querySelector('[data-welcome-dismiss]')).not.toBeNull();
   });

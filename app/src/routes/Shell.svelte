@@ -50,6 +50,8 @@
 	} from '$lib/actions/domain-scores.js';
 	import { assembleNextStep, type NextStepSources } from '$lib/actions/next-step.js';
 	import { skillHexRows, type SkillHexRow } from '$lib/actions/skill-hexes.js';
+	import { shouldReveal } from '$lib/components/reveal.js';
+	import { shouldWelcome, welcomeDelayMs } from '$lib/components/welcome.js';
 	import type { SearchResult } from '$lib/components/search.js';
 	import type { DomainId } from '$lib/types';
 	import type { SkillDetail as SkillDetailData } from '$lib/actions/skill-detail.js';
@@ -72,6 +74,14 @@
 	 * had 0.4 kB of headroom when this landed.
 	 */
 	const mapControls = () => import('$lib/components/MapControls.svelte');
+
+	/**
+	 * §6.5's cartouche, on the same seam and for a sharper version of the same
+	 * reason (D25). `shouldWelcome` is false for everyone who has been here
+	 * before, so behind an `import()` the Player never fetches this at all —
+	 * the chunk is downloaded once, by the one visitor it was built for.
+	 */
+	const welcomeDialogue = () => import('$lib/components/Welcome.svelte');
 	import { exportPrompt } from '$lib/state/export-prompt.svelte.js';
 	import {
 		coldStart,
@@ -113,6 +123,18 @@
 	let start = $state<ColdStart | null>(null);
 
 	async function run(): Promise<void> {
+		/*
+		 * §6.5 — asked here, and here specifically.
+		 *
+		 * `welcomeDelayMs` needs to know whether the reveal is going to play, and
+		 * `shouldReveal` is a *consumable* question: `MapRenderer` calls
+		 * `markRevealed()` the moment it starts, after which the answer is false
+		 * forever. Reading it at this point is what makes the answer the true one —
+		 * the surface cannot have mounted yet, because it is gated on a manifest
+		 * this line is still waiting for.
+		 */
+		revealPlaying = shouldReveal();
+
 		// `loader()` is called here rather than at module scope because it binds to
 		// `globalThis.caches`, which exists only in a browser (§7.4).
 		const result = await coldStart(contentLoader ?? loader(), userStore ?? store);
@@ -399,6 +421,62 @@
 		if (activeDomain === null) closeSkill();
 	});
 
+	/* ── §6.5's welcome cartouche (D25, §12 Q4) ────────────────────────────────
+	 *
+	 * The shell owns it for the same reason it owns the map surface and the Find
+	 * highlight: it is the only thing here that survives `/` → `/d/<id>`, and it
+	 * needs the manifest and the mirror at once, which §14.1 permits nowhere
+	 * lower.
+	 */
+	let revealPlaying = $state(false);
+	let welcomeOpen = $state(false);
+	/**
+	 * Set on close and never cleared. The gate below reads `progress.skills`, so
+	 * it re-runs on every completion and every re-derivation; without a latch, a
+	 * dialogue the user had dismissed would reappear on the next one and be
+	 * effectively unclosable. The flag in `localStorage` is the *cross-visit*
+	 * half of "once ever" and this is the within-session half.
+	 */
+	let welcomeSettled = $state(false);
+
+	$effect(() => {
+		if (welcomeSettled || welcomeOpen) return;
+		if (!onMap || content.manifest === null) return;
+		if (
+			!shouldWelcome({
+				hydrated: progress.hydrated,
+				startedSkills: Object.keys(progress.skills).length
+			})
+		) {
+			return;
+		}
+
+		// §5.7's reveal ends on the resting frame precisely so this opens over a
+		// finished picture. Zero when nothing is revealing — reduced motion, or a
+		// visitor whose reveal flag is already set.
+		const timer = setTimeout(() => {
+			welcomeOpen = true;
+		}, welcomeDelayMs(revealPlaying));
+		return () => clearTimeout(timer);
+	});
+
+	function closeWelcome(): void {
+		welcomeOpen = false;
+		welcomeSettled = true;
+	}
+
+	/**
+	 * §7.1 — the guided preview.
+	 *
+	 * Its own route rather than component state or a query flag, because §5.1's
+	 * "every camera state is a URL" is the orientation mechanism the whole design
+	 * rests on: Back has to leave the tour, and the tour has to be linkable.
+	 */
+	function openPreview(treeId: string): void {
+		closeWelcome();
+		void goto(resolve('/s/[tree]/preview', { tree: treeId }));
+	}
+
 	let nextStepView = $derived<NextStepView>(
 		step !== null ? { kind: 'step', step } : stepResolved ? { kind: 'invitation' } : { kind: 'pending' }
 	);
@@ -471,6 +549,21 @@
 				</p>
 			{/each}
 		</div>
+
+		<!--
+			§6.5's cartouche. Outside `main` because it is not part of the map: it is
+			fixed over the whole surface, and it must not sit inside the element the
+			skill layer and the panel share.
+		-->
+		{#if welcomeOpen}
+			{#await welcomeDialogue() then dialogue}
+				<dialogue.default
+					trees={content.manifest?.trees ?? []}
+					onpreview={openPreview}
+					onclose={closeWelcome}
+				/>
+			{/await}
+		{/if}
 
 		{#if start?.kind === 'failed'}
 			<ColdStartFailure reason={start.reason} hydrated={start.hydrated} onretry={retry} />

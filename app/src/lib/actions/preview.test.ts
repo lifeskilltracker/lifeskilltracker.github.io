@@ -1,42 +1,20 @@
 /**
  * The guided preview's two derivations (UI-SPEC §7.1, PRD D25 / §12 Q4).
  *
- * Both are pure functions over content the application already holds, and that
- * is the point of the design they serve: D25's remainder was closed *without*
- * authoring a demonstration tree, without a schema field, and without
- * fabricating progress. If either of these ever needs a hand-authored input,
- * that decision has been reopened and this file is where it shows.
+ * A pure function over content the application already holds, and that is the
+ * point of the design it serves: D25's remainder was closed *without* authoring
+ * a demonstration tree, without a schema field, and without fabricating
+ * progress. If this ever needs a hand-authored input, that decision has been
+ * reopened and this file is where it shows.
+ *
+ * Its sibling question — *which* skill the cartouche offers — is
+ * `featured.test.ts`, beside the module that answers it.
  */
 
 import { describe, expect, it } from 'vitest';
 import { makeScoringTree } from '$lib/scoring/fixtures.js';
-import type { CompiledTree, Manifest, TreeEntry } from '$lib/types';
-import { PREVIEW_LEVELS, featuredTreeId, previewAnnotations } from './preview.js';
-
-function entry(id: string, milestoneCount: number): TreeEntry {
-  return {
-    id,
-    contentVersion: 1,
-    title: id,
-    summary: '',
-    domain: 'making',
-    milestoneCount,
-    authors: [],
-    bundle: `${id}.json`,
-    hasMastery: false,
-    cell: { q: 0, r: 0 },
-  };
-}
-
-function manifestOf(...trees: TreeEntry[]): Manifest {
-  return {
-    schemaVersion: 1,
-    generated: '2026-08-26T00:00:00Z',
-    taxonomy: { domains: [], facets: [], map: { regions: [] } },
-    trees,
-    moved: {},
-  };
-}
+import type { CompiledTree } from '$lib/types';
+import { PREVIEW_LEVELS, previewAnnotations } from './preview.js';
 
 /** A tree whose every level carries four milestones, titled distinguishably. */
 function fullTree(id = 'cooking'): CompiledTree {
@@ -48,29 +26,6 @@ function fullTree(id = 'cooking'): CompiledTree {
     })),
   });
 }
-
-describe('featuredTreeId — which skill the welcome opens', () => {
-  it('picks the fullest ladder, because that is the best advertisement', () => {
-    const manifest = manifestOf(entry('piano', 40), entry('cooking', 73), entry('sleep', 22));
-    expect(featuredTreeId(manifest)).toBe('cooking');
-  });
-
-  it('breaks a tie by tree id, so the choice is stable across builds', () => {
-    // Two trees of equal size must not swap places when the compiler happens to
-    // emit them in a different order — a welcome that opens a different skill on
-    // every deploy is not a designed first impression.
-    const ascending = manifestOf(entry('archery', 50), entry('baking', 50));
-    const descending = manifestOf(entry('baking', 50), entry('archery', 50));
-    expect(featuredTreeId(ascending)).toBe('archery');
-    expect(featuredTreeId(descending)).toBe('archery');
-  });
-
-  it('is null for an empty library rather than throwing', () => {
-    // A manifest with no trees is a real state — every domain fogged (§4.4) —
-    // and the welcome must degrade to its second button, not to a crash.
-    expect(featuredTreeId(manifestOf())).toBeNull();
-  });
-});
 
 describe('previewAnnotations — what the glide says as it passes', () => {
   it('names levels 1, 5 and 10, which is the shape of the ladder', () => {
