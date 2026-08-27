@@ -22,6 +22,7 @@
 	 * which mark the sentence meant.
 	 */
 	import { BANDS } from '$lib/scoring';
+	import { tabTarget } from './focus-trap.js';
 
 	let open = $state(false);
 	let dialog = $state<HTMLElement | null>(null);
@@ -48,22 +49,18 @@
 		}
 		if (event.key !== 'Tab') return;
 
-		const stops = [...(dialog?.querySelectorAll<HTMLElement>('button') ?? [])];
-		if (stops.length === 0) return;
-		const first = stops[0];
-		const last = stops[stops.length - 1];
-		const active = document.activeElement;
-
 		// `aria-modal` is true here and false on Find, and the difference is real:
 		// a legend *is* modal — there is nothing to do on the map while reading it
 		// — whereas Find is a running commentary on a map that is still live.
-		if (event.shiftKey && (active === first || active === dialog)) {
-			event.preventDefault();
-			last.focus();
-		} else if (!event.shiftKey && active === last) {
-			event.preventDefault();
-			first.focus();
-		}
+		//
+		// The cycle itself is shared with §6.5's welcome cartouche. It was inline
+		// here while this was the only modal in the application; a trap written
+		// twice drifts, and a drifted trap fails silently — the dialog still opens
+		// and simply lets `Tab` escape to a map the reader cannot see.
+		const target = tabTarget(dialog, document.activeElement, event.shiftKey);
+		if (target === null) return;
+		event.preventDefault();
+		target.focus();
 	}
 </script>
 
