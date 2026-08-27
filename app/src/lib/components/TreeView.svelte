@@ -1032,8 +1032,19 @@
 		overflow-y: auto;
 		overflow-x: hidden;
 		max-block-size: 78svh;
-		/* The camera scrolls; the user's fingers must not zoom (§7). */
-		touch-action: pan-y;
+		/*
+			The camera scrolls, and the application offers no zoom of its own (§7) —
+			but the *browser's* zoom is not the application's to withdraw. `pan-y`
+			alone declares this element handles vertical panning and nothing else,
+			which makes the user agent discard a two-finger pinch: the one surface in
+			the app made entirely of text became the one surface that could not be
+			magnified, failing WCAG 1.4.4 at level AA.
+
+			`pinch-zoom` hands that gesture back to the browser. It gives this
+			component no gesture handler and no scale factor of its own, so §7's
+			refusal is untouched — `TreeView.test.ts` asserts both halves.
+		*/
+		touch-action: pan-y pinch-zoom;
 	}
 
 	.tree {

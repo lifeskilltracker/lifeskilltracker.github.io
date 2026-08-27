@@ -19,6 +19,10 @@ export type {
   // §12.5's migration pass (T17).
   LineageEntry,
   Manifest,
+  // One row of the manifest's tree index. §7.1's preview picks its skill off
+  // these (`milestoneCount`), so the row is part of the surface in its own
+  // right rather than only through `Manifest`.
+  TreeEntry,
   // §10.5's renderer addresses one region at a time: it walks the taxonomy's
   // domain order and looks the geometry up, so the region type is part of the
   // surface even though `Manifest` already contains it (T13).

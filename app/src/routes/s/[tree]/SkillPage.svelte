@@ -24,7 +24,11 @@
 	import { TREE_NARROW_BELOW } from '$lib/components/breakpoints.js';
 	import type { MilestoneIntent } from '$lib/components/intents.js';
 	import type { CameraTarget } from '$lib/components/tree-camera.js';
+	import PreviewTour from '$lib/components/PreviewTour.svelte';
+	import { previewAnnotations } from '$lib/actions/preview.js';
+	import { tourStops } from '$lib/components/preview-tour.js';
 	import { openTreeSession, type TreeSession } from '$lib/actions/tree-session.svelte.js';
+	import { goto } from '$app/navigation';
 	import { progress } from '$lib/state/progress.svelte.js';
 	import { ui } from '$lib/state/ui.svelte.js';
 	import { resolve } from '$app/paths';
@@ -36,9 +40,18 @@
 		openUid?: string | null;
 		/** An unresolvable slug says so here rather than 404ing (§13.1, §5.4). */
 		notice?: string | null;
+		/**
+		 * §7.1's guided preview — D25's answer for the Curious Browser.
+		 *
+		 * A prop rather than a read of `page.url` for the same reason the shell
+		 * takes `pathname` as one: it keeps this component mountable outside a
+		 * SvelteKit router, which is what makes the preview assertable at all. The
+		 * route reads the query string and hands the answer down.
+		 */
+		preview?: boolean;
 	}
 
-	let { data, openUid = null, notice = null }: Props = $props();
+	let { data, openUid = null, notice = null, preview = false }: Props = $props();
 
 	let container: HTMLElement | undefined = $state();
 	let viewport = $state<'wide' | 'narrow'>('wide');
@@ -128,6 +141,74 @@
 		{ id: 'level-10', label: 'Level 10', target: { kind: 'level', level: 10 } }
 	];
 
+	/* ── §7.1's guided preview (D25, §12 Q4) ──────────────────────────────────
+	 *
+	 * The tour drives the level camera §7 already built. It adds no camera, no
+	 * fourth anchor and no zoom: `moveCamera({ kind: 'level', level })` is the
+	 * same call the three buttons above the tree make, so a visitor on the tour
+	 * and a visitor pressing "Level 10" are moving the view by identical means.
+	 *
+	 * **Nothing here writes.** The tree below is genuinely unstarted and genuinely
+	 * live, which is what lets the bar promise that ticking starts real tracking.
+	 */
+	let activeLevel = $state<number | null>(null);
+	let tourEnded = $state(false);
+
+	let annotations = $derived(data.tree === null ? [] : previewAnnotations(data.tree));
+
+	/**
+	 * §15.5 — the camera is the only thing reduced motion drops. `tourStops`
+	 * returns nothing, so no timer is ever scheduled and `activeLevel` stays
+	 * null; the rungs themselves are text in `PreviewTour` either way.
+	 */
+	let reducedMotion = $derived(
+		typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+	);
+
+	$effect(() => {
+		if (!preview || tourEnded) return;
+		const stops = tourStops(annotations, reducedMotion);
+		if (stops.length === 0) return;
+
+		const timers = stops.map((stop) =>
+			setTimeout(() => {
+				// Re-checked inside the timer as well as outside: the visitor may have
+				// taken the wheel between this stop being scheduled and it firing, and
+				// a queued glide that still lands is exactly the yank the cancel
+				// exists to prevent.
+				if (tourEnded) return;
+				activeLevel = stop.level;
+				treeView?.moveCamera({ kind: 'level', level: stop.level });
+			}, stop.atMs)
+		);
+
+		return () => {
+			for (const timer of timers) clearTimeout(timer);
+		};
+	});
+
+	/**
+	 * The tour is a courtesy, not a ride. The first deliberate move the visitor
+	 * makes ends it — a camera that keeps pulling the view back to its script is
+	 * worse than no tour, and it would fight §15.2's arrow grid for control of
+	 * the same view.
+	 *
+	 * The bar itself stays: it is how they leave, and it is where the promise
+	 * about saving is written down.
+	 */
+	function endTour(): void {
+		// Inert on every ordinary visit: without a tour running there is nothing to
+		// cancel, and these handlers sit on the page whether or not it is a preview.
+		if (!preview || tourEnded) return;
+		tourEnded = true;
+		activeLevel = null;
+	}
+
+	function exitPreview(): void {
+		endTour();
+		void goto(resolve('/'));
+	}
+
 	function onintent(intent: MilestoneIntent): void {
 		// Fire and forget: §12.4's write is a transaction, and the mirror refresh
 		// on commit is what redraws the tree (T26/F23).
@@ -185,7 +266,19 @@
 		<p class="detail">{data.unavailable}</p>
 	</main>
 {:else}
-	<main bind:this={container}>
+	<!--
+		§7.1's cancel. On `<main>` rather than on the tree, because taking the wheel
+		means any deliberate move anywhere on the page — the camera buttons, the
+		keyboard grid, a scroll, a tap. The handlers are inert unless the tour is
+		running, and `TreeView` gains no gesture of its own (§7).
+	-->
+	<main
+		bind:this={container}
+		onkeydowncapture={endTour}
+		onwheelcapture={endTour}
+		ontouchmovecapture={endTour}
+		onpointerdowncapture={endTour}
+	>
 		{#if data.offline}
 			<p class="offline">Offline — showing content saved on this device.</p>
 		{/if}
@@ -202,6 +295,20 @@
 			<MigrationSummary
 				report={session.migration}
 				ondismiss={() => session?.dismissMigration()}
+			/>
+		{/if}
+
+		{#if preview}
+			<!--
+				Above the header: it says what this page *is*, and a visitor who reads
+				the skill title first has already started wondering whether they have
+				accidentally signed up for something.
+			-->
+			<PreviewTour
+				skillTitle={data.tree.title}
+				{annotations}
+				{activeLevel}
+				onexit={exitPreview}
 			/>
 		{/if}
 

@@ -74,8 +74,13 @@ export function click(element: Element): void {
 	fire(element, new MouseEvent('click', { bubbles: true, cancelable: true }));
 }
 
-export function press(element: Element, key: string): void {
-	fire(element, new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+/**
+ * `init` carries the modifier flags — `{ shiftKey: true }` for a backwards tab.
+ * A trap that only ever sees plain `Tab` is half-tested, and the half it misses
+ * is the one that lets focus escape backwards out of a modal.
+ */
+export function press(element: Element, key: string, init: KeyboardEventInit = {}): void {
+	fire(element, new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }));
 }
 
 export function focus(element: Element): void {

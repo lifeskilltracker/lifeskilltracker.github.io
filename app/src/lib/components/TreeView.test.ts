@@ -1038,6 +1038,20 @@ describe('§4 — the tree wears the token sheet and names no colour of its own'
 		expect(TREE_SOURCE).not.toMatch(/hachure|--plate-fog/);
 	});
 
+	it('leaves the browser its own pinch-zoom (WCAG 1.4.4)', () => {
+		// §7 declines an *application* zoom control. It never licensed taking the
+		// user agent's away, and `touch-action: pan-y` alone does exactly that: it
+		// declares the element handles vertical panning and nothing else, so the
+		// browser discards a two-finger pinch instead of zooming the page. A user
+		// who needs 200% text then cannot get it on the one surface in the app that
+		// is made of text, which is a level-AA failure and was a real one.
+		//
+		// `pinch-zoom` restores it without giving the app a gesture of its own —
+		// the assertion below still holds, and must keep holding.
+		const camera = TREE_SOURCE.slice(TREE_SOURCE.indexOf('.tree-camera {'));
+		expect(camera).toMatch(/touch-action:\s*pan-y\s+pinch-zoom\s*;/);
+	});
+
 	it('offers no zoom or pan control in any form (§7)', () => {
 		// Declined by name in §7: §15.2's arrow grid and roving `tabindex` both
 		// assume stable positions. Asserted against the machinery rather than the
@@ -1045,7 +1059,13 @@ describe('§4 — the tree wears the token sheet and names no colour of its own'
 		// the four ways one gets in.
 		expect(TREE_SOURCE).not.toMatch(/transform:\s*scale/);
 		expect(TREE_SOURCE).not.toMatch(/\bzoom:/);
-		expect(TREE_SOURCE).not.toMatch(/onwheel|ongesture|ontouchmove|pinch-zoom/);
+		// Event handlers only. This deliberately does NOT forbid the string
+		// `pinch-zoom`: that is a `touch-action` value, and it *returns* the
+		// gesture to the browser rather than claiming it for the app. The
+		// original spelling here forbade the literal and so encoded the WCAG
+		// 1.4.4 bug the test above now guards against.
+		expect(TREE_SOURCE).not.toMatch(/\bon(wheel|gesture\w*|touchmove)\b/);
+		expect(TREE_SOURCE).not.toMatch(/touch-action:\s*none/);
 	});
 });
 

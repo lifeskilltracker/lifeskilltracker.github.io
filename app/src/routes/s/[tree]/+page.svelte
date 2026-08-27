@@ -10,6 +10,7 @@
 	import type { SkillPageData } from './+page.js';
 
 	let { data }: { data: SkillPageData } = $props();
+
 </script>
 
 <SkillPage {data} />

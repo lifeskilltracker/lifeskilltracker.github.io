@@ -109,10 +109,22 @@ async function gather(deps: ExportPromptDeps): Promise<PromptInputs> {
  * A `write-failed` prompt is left alone: §16.3 raised it because a write really
  * did fail, and none of §12.7's three conditions is a statement about that.
  */
+/**
+ * Bumped by every act that decides the prompt's fate directly — a dismissal or
+ * a write failure. A refresh reads its inputs, then awaits IndexedDB and the
+ * Storage API before it has an answer, and by then the user may have already
+ * said no. Applying the stale answer would put the prompt back on screen
+ * *after* it was waved away, which is §12.7's nagging failure in its purest
+ * form: the dismissal is recorded, so it never returns again — but this session
+ * shows it twice and the second one cannot be dismissed at all.
+ */
+let decisions = 0;
+
 export async function refreshExportPrompt(
   overrides: Partial<ExportPromptDeps> = {},
 ): Promise<ExportTrigger | null> {
   const deps = defaults(overrides);
+  const seen = decisions;
 
   let trigger: ExportTrigger | null;
   try {
@@ -123,6 +135,9 @@ export async function refreshExportPrompt(
     return null;
   }
 
+  // Someone decided while this was reading. They were looking at the prompt;
+  // this was looking at the database as it stood before they acted.
+  if (seen !== decisions) return trigger;
   if (exportPrompt.reason === 'write-failed') return trigger;
   if (trigger === null) exportPrompt.clear();
   else exportPrompt.show(trigger);
@@ -144,6 +159,7 @@ export async function dismissExportPrompt(
   const reason = exportPrompt.reason;
   if (reason === null) return;
 
+  decisions += 1;
   exportPrompt.clear();
 
   // §16.3's quota prompt is an event rather than a condition: there is no
