@@ -1,7 +1,7 @@
 # Life XP Skill Tracker — Interface Specification
 
-**Version:** 1.0
-**Date:** 2026-08-16
+**Version:** 1.1
+**Date:** 2026-08-26
 **Owner:** Ethan Morchy
 **Status:** Design agreed; ready for task breakdown
 
@@ -36,6 +36,7 @@ Layout of tree nodes (§8 of ARCH), scoring (§11), persistence (§12), and the 
 | **U-09** | The tree keeps its static layout and gains a **level camera** | ARCH §9 |
 | **U-10** | On phones the **world map survives**; the list substitution moves to the skill level | ARCH §10.7, §15.3 |
 | **U-11** | A **short reveal animation on first load only** — "The Survey" (§5.7) | PRD D25 (partial) |
+| **U-12** | A **welcome cartouche**, once ever, opening a **guided look at a real tree** | PRD D25 (closes it) |
 
 Each is argued at the point it is specified below.
 
@@ -313,6 +314,58 @@ F36 and §15.2's `.` shortcut already promise the concrete next action, and the 
 
 Selection rule: the next available milestone (F36) in the skill with the most recent activity; ties broken by tree id for stability. The card is dismissible for the session and renders as an invitation when the user has started nothing.
 
+### 6.5 The welcome cartouche
+
+**U-12, and the half of D25 that was still open.** §5.7 already gave the Curious
+Browser a moment on arrival and §8.1 gave them the map on a phone. What neither
+did was answer the question they came with — PRD §4.4's visitor "wants to see
+what *Level 5 Cooking* means" — because the map sells the territory and says
+nothing about any single ladder.
+
+**One modal, and it is one on purpose.** Everything else that wants attention
+stays in the flow of the document; §12.7's export prompt is deliberately not a
+dialog, because a prompt users learn to close reflexively costs real data. That
+rule is aimed at *recurring* interruptions. This appears **once in a visitor's
+life**, and D25's whole risk is that visitor leaving without ever looking at a
+tree — a corner card is skipped by the reflex that skips corner cards.
+
+**A cartouche because a survey map already has one.** The double-ruled title
+block is where a real map states what it is, so the single interruption the
+application permits itself is also the element most native to §4.1.
+
+It opens **over the resting frame**, which is the seam §5.7's third load-bearing
+property was reserving for it: `REVEAL_MS` after the reveal starts, or
+immediately when no reveal is playing.
+
+Three conditions gate it, all of which must hold:
+
+- **The flag is unset.** Local, once ever, written as the dialogue *opens* —
+  a visitor who navigates away with it on screen has been greeted, and there is
+  no snooze.
+- **Hydration has landed.** An unhydrated mirror reports no progress, which is
+  indistinguishable from a first visit; deciding on it would greet a returning
+  Player as a stranger whenever their store was slow.
+- **The user has no started skills.** The flag is local, so someone who imported
+  an export onto a new device arrives with a full mirror and no flag. They are
+  not the Curious Browser.
+
+**Reduced motion does not suppress it.** The reveal is skipped under
+`prefers-reduced-motion` because the reveal *is* motion; a dialogue is not, and
+withholding the whole feature from the readers most likely to want its
+explanation would be the accessibility argument run backwards.
+
+Two buttons. The second dismisses. The first opens §7.1 on the skill with the
+**most milestones**, ties broken by tree id — the fullest ladder is the best
+advertisement, `milestoneCount` is already on the manifest entry so the choice
+costs no bundle fetch, and a stable tie-break stops the welcome opening a
+different skill on every deploy. There is deliberately no `featured:` flag in
+content: that is one more thing for a maintainer to keep true, and goal 2 exists
+to prevent that class of bottleneck.
+
+**It does not link to Info.** The legend is one click away on the map behind it,
+and reaching it from the shell would pull §6.3's chunk onto the first-paint path
+for a §17.1 budget that has well under a kilobyte spare.
+
 ---
 
 ## 7. The tree
@@ -325,6 +378,48 @@ Selection rule: the next available milestone (F36) in the skill with the most re
 Free pan and zoom were considered and declined. §15.2's arrow-key grid and roving `tabindex` both assume stable, readable positions, and scaling milestone text in and out fights the one thing the tree exists to do, which is let someone read their next concrete action.
 
 Mastery content keeps its separate panel below the tree (§9.6). Narrow presentation (§8.5, §9.5) is unchanged.
+
+### 7.1 The guided preview
+
+**U-12's destination, and the answer to D25's remainder** — how a visitor who
+will never tap *start* reaches a compelling view of a tree.
+
+**The premise that had to be corrected first.** The remainder was recorded as
+"nothing sells a single skill's ladder", on the assumption that an unstarted tree
+is empty. It is not: §4.6 draws every level-1 milestone as **available** and the
+whole ladder above it as **locked**, so a first-time visitor already sees "even
+onion dice, pinch grip" at the bottom and "teach a beginner a dish" at the top.
+MakerSkillTree sells 3,407 stars' worth of exactly that gradient, as a static
+poster with no progress mechanism at all (`docs/PRIOR-ART.md`). What is missing
+is not data. It is that nothing walks the visitor up the ladder.
+
+**So the preview walks them up it.** `/s/<treeId>/preview` renders the ordinary
+skill page, on a real and genuinely unstarted tree, and drives §7's level camera
+from level 1 to 5 to 10 — `moveCamera` exactly as the three named anchors do, so
+no fourth camera and no zoom is introduced. Three annotations name the rungs as
+it passes.
+
+**Every word of those annotations is content.** An annotation is
+`Level N — <the first milestone of level N, in authored order>`, taking §9.2's
+short form where one exists. Nothing is written for the preview, so it is correct
+by construction for every tree in the library, today and at 500.
+
+**Nothing is fabricated and nothing is written.** The tree behind the tour is
+live throughout — which is what lets the bar say *"tick anything and it starts
+tracking for real"* and have it be true. That sentence is the conversion, and a
+preview that lied about it would have to be unwound at the exact moment the
+visitor decided to trust the product.
+
+**The tour is a courtesy, not a ride.** The first deliberate move — a scroll, a
+key, a tap, a camera button — ends it. A camera that kept pulling the view back
+to its script would fight §15.2's arrow grid for control of the same view.
+
+**Under `prefers-reduced-motion` the camera never moves**, and the three rungs
+render as an ordinary list regardless. §15.5's rule is that removing all motion
+loses nothing, and the rungs being text either way is how that stays true.
+
+A route rather than a `?preview=1` query, because §5.1 makes every camera state a
+URL: Back has to leave the tour, and the tour has to be linkable.
 
 ---
 
@@ -427,6 +522,27 @@ Four were built and played against the chosen one before The Survey (§5.7) was 
 
 **A full zoom-out establishing shot** (open close on one region, pull back to the world). Declined — see the camera settle note in §5.7.
 
+### 11.2 Preview alternatives
+
+Recorded because both were proposed, and both put hand-written content on the one
+path a first-time visitor is guaranteed to walk.
+
+**A tree authored for the demonstration.** Declined on cost that is not obvious
+until it is priced: a tree under `content/` gets a manifest entry and a cell in
+§5.3's append-only placement ledger, so excluding it from the map needs a special
+case in the compiler *and* leaves a permanent hole in a domain's lattice. It also
+puts unreviewed, fabricated content in a repository whose whole content
+discipline (F42, F13) is that trees are real and attributed.
+
+**Sample progress over a real tree** — levels 1–4 ticked by D20's estimator rule,
+never written to IndexedDB. Cheaper, and it was the first proposal. Declined
+because it shows a stranger's achievement to someone who came to see a ladder,
+and because "Start this skill" then has to explain what happens to the ticks.
+
+**A `preview:` block in the tree schema**, naming which milestones to show off.
+Declined with the other two: a revision to the tree would rot it silently (F43),
+and nothing would fail.
+
 ---
 
 ## 12. Open questions
@@ -434,5 +550,5 @@ Four were built and played against the chosen one before The Survey (§5.7) was 
 - **Q1.** The specific display face. Requirement is an engraved or transitional serif with a true small-caps or caps design, self-hostable, subsettable to ~40 glyphs at ≤ 12 kB. Not yet chosen.
 - **Q2. Resolved (2026-08-16): `cellDivisor` is 4, globally, and the per-region override is dropped.** Measured against the real `map.yaml`: 3 overflows Making, Body, and Home at §5.1's 500-skill projection, and 5 puts the smallest level-1 cell at 36 px, under WCAG 2.5.5 AAA's 44 px. See §5.3.
 - **Q3.** Whether the next-step card's selection rule (§6.4) should prefer the most recent activity or the nearest-to-completion level. Recency is specified; the alternative is worth a look once three trees exist.
-- **Q4.** D25's remainder — how a Curious Browser reaches a compelling *tree* view without starting a skill.
+- **Q4. Resolved (2026-08-26): the welcome cartouche (§6.5) and the guided preview (§7.1).** The visitor is greeted once, over the resting frame the reveal ends on, and offered the fullest ladder in the library; the preview then walks them up a real, unstarted tree with the level camera, naming three rungs in the contributor's own words. Nothing is authored for it, nothing is fabricated, and nothing is written. **PRD D25 closes with it.**
 - **Q5. Resolved (2026-08-18): the highlight persists across camera moves.** Zoom, pan and `Enter`'s fly all leave it standing; only `Esc` or an emptied query clears it. Find is a filter you keep on while you explore, and clearing on navigation would drop the highlight at the moment the reader arrives in the region they narrowed to — which breaks "what have I got in this area", one of the three questions §6.2 exists to answer. The highlight is therefore state the shell owns rather than the control's, and `Esc` clears before it closes so a dimmed map cannot outlive the box that dimmed it. See §6.2 and T33.

@@ -856,6 +856,40 @@ tasks:
       (T32 rested it at full, which would have popped on the last frame) — restored to 1
       under forced-colors, amended in UI-SPEC §4.4.
 
+  - id: T36
+    title: The welcome cartouche and the guided preview (D25)
+    phase: 3
+    cluster: views
+    blocked_by: [T32, T33, T34, T35]
+    blocks: []
+    spec: ["UI-SPEC §6.5", "UI-SPEC §7.1", "UI-SPEC §11.2", "UI-SPEC §12 Q4", "§14.1", "§15.5", "§17.1"]
+    prd: [D25, F2, F13, F43]
+    status: complete
+    doc: T36-welcome-and-guided-preview.md
+    note: >
+      CLOSES D25 and UI-SPEC Q4, which T35 left unowned. The work began by correcting the
+      question: the remainder assumed an unstarted tree shows nothing, but §4.6 already
+      draws level 1 as available and the ladder above it as locked, so the difficulty
+      gradient is on screen — what was missing was a guide, not data. Three designs that
+      assumed missing data were declined (UI-SPEC §11.2): an authored demo tree (needs a
+      compiler exclusion and leaves a permanent hole in the F13 placement ledger), sample
+      progress over a real tree (shows a stranger's achievement), and a `preview:` schema
+      block (a later F43 revision would rot it silently). NOTHING IS AUTHORED FOR THE
+      PREVIEW: annotations are `Level N — <first milestone of level N>`, so every tree in
+      the library gets one for free, today and at 500.
+      VERIFIED COMPLETE 2026-08-26. 1200 app tests / 349 tools; a11y:manual 43/43
+      UNCHANGED; reduced-motion 15/15 (the tour added as the SEVENTH enumerated animation,
+      per that script's own instruction); forced-colors 10/10; budget 53.7/54.0 kB first
+      route, 64.6/82.0 total.
+      Two things fixed here that are not the feature: (1) `.tree-camera` carried
+      `touch-action: pan-y`, which made the browser DISCARD two-finger pinch — the one
+      surface made entirely of text was the one that could not be magnified, WCAG 1.4.4
+      level AA. The §7 guard forbade the literal string `pinch-zoom` and so encoded the bug
+      as a requirement. (2) The pre-existing `refreshExportPrompt` race noted below is
+      fixed, and `testTimeout` is raised to 20 s, which resolves the intermittent axe
+      failures under full-suite load — that "wants a task" note is now discharged.
+      LEFT FOR THE NEXT PERSON: §17.1 has 0.3 kB of first-route headroom.
+
 # PHASES 0 AND 1 ARE COMPLETE. T00–T26 all implemented and verified; T25 closed 2026-08-15.
 #   Four run-level confirmations remain and none is code — see _RESUME.md session 19.
 #

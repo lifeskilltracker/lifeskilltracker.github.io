@@ -216,6 +216,31 @@ try {
       (await stillMoving(page)).length === 0, (await stillMoving(page)).join(', '));
     await page.close();
   }
+  // ─── 7. The guided preview tour (D25, §7.1) ────────────────────────────────
+  console.log('\n── 7. The guided preview tour (D25, §7.1) ──');
+  {
+    const page = await context.newPage();
+    await page.goto(`${origin}/s/${TREE}/preview`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('[data-preview-tour]');
+
+    // The tour's motion is a scripted camera. Under reduce, `tourStops` returns
+    // nothing, so no timer is ever scheduled and the view must simply stay put.
+    const before = await page.locator('.tree-camera').evaluate((element) => element.scrollTop);
+    await page.waitForTimeout(1500);
+    const after = await page.locator('.tree-camera').evaluate((element) => element.scrollTop);
+    check('preview-tour', 'the camera is never driven under reduce (§15.5)',
+      before === after, `before ${before} / after ${after}`);
+
+    // §15.5's actual requirement: removing the motion must lose nothing. The
+    // rungs the camera would have visited are text, and they are all still here.
+    const rungs = await page.locator('[data-preview-tour] [data-rung]').count();
+    check('preview-tour', 'every rung it would have visited is still named in text',
+      rungs > 0, `${rungs} rungs`);
+
+    check('preview-tour', 'nothing on the preview route is in motion',
+      (await stillMoving(page)).length === 0, (await stillMoving(page)).join(', '));
+    await page.close();
+  }
 } finally {
   await browser.close();
   server.close();
@@ -224,9 +249,10 @@ try {
 console.log('\n──────────────────────────────────────────');
 console.log(`${results.length - failures} of ${results.length} checks passed.`);
 console.log(
-  '\nSix animations are enumerated here: the reveal, the map camera fly, the skill\n' +
-    'layer, the Find dim, the water line and focus dim, and the tree level camera.\n' +
-    'An animation added to any of these surfaces belongs on this list.',
+  '\nSeven animations are enumerated here: the reveal, the map camera fly, the\n' +
+    'skill layer, the Find dim, the water line and focus dim, the tree level\n' +
+    'camera, and the guided preview tour. An animation added to any of these\n' +
+    'surfaces belongs on this list.',
 );
 
 process.exit(failures === 0 ? 0 : 1);

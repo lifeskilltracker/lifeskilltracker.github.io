@@ -176,13 +176,17 @@
 		margin: 0;
 		font-size: 1.4rem;
 		font-weight: 500;
+		text-wrap: balance;
 	}
 
 	.gloss {
 		margin: 0;
 		max-inline-size: 34ch;
 		font-family: var(--font-body);
+		/* Centred prose breaks raggedly at a fixed measure; this evens the lines. */
+		text-wrap: pretty;
 	}
+
 
 	.actions {
 		display: flex;
